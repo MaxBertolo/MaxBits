@@ -1,0 +1,5 @@
+feeds:
+  - name: "TechCrunch AI"
+    url: "https://techcrunch.com/tag/artificial-intelligence/feed/"
+  - name: "The Verge"
+    url: "https://www.theverge.com/rss/index.xml"
