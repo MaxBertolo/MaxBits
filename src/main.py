@@ -4,7 +4,7 @@ import yaml
 
 from .rss_collector import collect_from_rss
 from .cleaning import clean_articles
-from summarizer import summarize_articles
+from .summarizer import summarize_articles
 from .report_builder import build_html_report
 from .pdf_export import html_to_pdf
 
