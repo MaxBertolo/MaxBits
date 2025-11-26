@@ -1,7 +1,6 @@
-feedparser
-python-dotenv
-pyyaml
-openai
-beautifulsoup4
-pdfkit
+groq
 requests
+pyyaml
+feedparser
+jinja2
+pdfkit
