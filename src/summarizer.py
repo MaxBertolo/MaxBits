@@ -2,10 +2,10 @@ from typing import List, Dict
 import os
 import requests
 
-from openai import OpenAI, APIConnectionError, APIError, RateLimitError
+from openai import OpenAI
 from .models import RawArticle
 
-# Client OpenAI (usa OPENAI_API_KEY dalle env)
+# Client OpenAI (usa OPENAI_API_KEY dall'ambiente)
 client = OpenAI()
 
 # Config HuggingFace
@@ -43,24 +43,25 @@ Contenuto:
 """
 
 
-def _fallback_structured(article: RawArticle, text: str, reason: str) -> Dict[str, str]:
+def _structured_fallback(article: RawArticle, text: str, reason: str) -> Dict[str, str]:
     """
-    Usa il testo (es. da HuggingFace) e lo mette in un formato unico,
-    se non riusciamo a parsare COS'E / CHI / ecc.
+    Usa un unico riassunto (es. da HuggingFace) e lo mappa
+    nei 5 campi in modo semplice.
     """
     return {
         "title": article.title,
         "url": article.url,
         "source": article.source,
         "published_at": article.published_at.isoformat(),
-        "cos_e": f"Riassunto sintetico: {text}",
+        "cos_e": text,
         "chi": "—",
         "cosa_fa": "—",
         "perche_interessante": f"Generato via fallback ({reason}).",
-        "pov": "Per maggiori dettagli, leggere la notizia completa dal link.",
+        "pov": "Per maggiori dettagli, leggere l'articolo completo dal link.",
     }
 
 
+# --------- OPENAI PRIMARIO ---------
 def summarize_with_openai(article: RawArticle, model: str, temperature: float, max_tokens: int) -> Dict[str, str]:
     prompt = build_prompt(article)
 
@@ -107,19 +108,21 @@ def summarize_with_openai(article: RawArticle, model: str, temperature: float, m
     }
 
 
+# --------- HUGGINGFACE FALLBACK ---------
 def summarize_with_huggingface(article: RawArticle) -> Dict[str, str]:
     """
-    Fallback gratuito: chiama HuggingFace Inference API per un riassunto unico.
+    Fallback gratuito: usa HuggingFace Inference API.
     """
     if not HF_API_KEY:
-        # Nessuna chiave HF → fallback testuale
-        return _fallback_structured(article, "Riassunto non disponibile (HF_API_KEY mancante).", "HuggingFace non configurato")
+        # Nessuna chiave → fallback testuale semplice
+        msg = "Riassunto non disponibile (HF_API_KEY mancante)."
+        return _structured_fallback(article, msg, "HuggingFace non configurato")
 
     endpoint = f"https://api-inference.huggingface.co/models/{HF_MODEL_ID}"
     headers = {"Authorization": f"Bearer {HF_API_KEY}"}
     payload = {
         "inputs": article.content or (article.title + " " + article.url),
-        "parameters": {"max_length": 250, "min_length": 60, "do_sample": False},
+        "parameters": {"max_length": 200, "min_length": 60, "do_sample": False},
     }
 
     try:
@@ -131,25 +134,23 @@ def summarize_with_huggingface(article: RawArticle) -> Dict[str, str]:
             summary_text = data[0]["summary_text"]
         else:
             summary_text = str(data)
-        return _fallback_structured(article, summary_text, "HuggingFace")
+        return _structured_fallback(article, summary_text, "HuggingFace")
     except Exception as e:
         print("[WARN] HuggingFace fallback failed:", repr(e))
-        return _fallback_structured(article, "Riassunto non disponibile (errore HuggingFace).", "errore HF")
+        msg = "Riassunto non disponibile (errore HuggingFace)."
+        return _structured_fallback(article, msg, "errore HF")
 
 
+# --------- ENTRY POINT USATO DA main.py ---------
 def summarize_article(article: RawArticle, model: str, temperature: float, max_tokens: int) -> Dict[str, str]:
     """
     1) Prova OpenAI
-    2) Se quota finita / errore → prova HuggingFace
-    3) Se fallisce ancora → fallback testuale
+    2) Se QUALSIASI errore → passa a HuggingFace
     """
     try:
         return summarize_with_openai(article, model=model, temperature=temperature, max_tokens=max_tokens)
-    except RateLimitError as e:
-        print("[WARN] OpenAI quota insufficiente, passo a HuggingFace:", repr(e))
-        return summarize_with_huggingface(article)
-    except (APIConnectionError, APIError, Exception) as e:
-        print("[WARN] OpenAI summarization failed, passo a HuggingFace:", repr(e))
+    except Exception as e:
+        print("[WARN] OpenAI summarization failed, uso HuggingFace:", repr(e))
         return summarize_with_huggingface(article)
 
 
