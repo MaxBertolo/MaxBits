@@ -2,46 +2,46 @@ name: MaxBits Daily Tech Report
 
 on:
   schedule:
-    - cron: "0 6 * * *"   # ogni giorno alle 06:00 UTC
-  workflow_dispatch:      # puoi lanciarlo a mano
+    - cron: "0 7 * * *"   # ogni giorno alle 07:00
+  workflow_dispatch:
 
 jobs:
   run-report:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-    - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: "3.10"
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y wkhtmltopdf
 
-    - name: Install system dependencies (wkhtmltopdf)
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y wkhtmltopdf
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.10"
 
-    - name: Install Python dependencies
-      run: |
-        pip install --upgrade pip
-        pip install -r requirements.txt
+      - name: Install Python dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
 
-    - name: Run MaxBits daily report script
-      env:
-        HF_API_KEY: ${{ secrets.HF_API_KEY }}
-      run: |
-        python -m src.main
+      - name: Run MaxBits daily report script
+        env:
+          HF_API_KEY: ${{ secrets.HF_API_KEY }}
+        run: |
+          python -m src.main
 
-    - name: Upload HTML reports as artifact
-      uses: actions/upload-artifact@v4
-      with:
-        name: maxbits-report-html
-        path: reports/html/
+      - name: Upload HTML reports as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: tech-report-html
+          path: reports/html/
 
-    - name: Upload PDF reports as artifact
-      uses: actions/upload-artifact@v4
-      with:
-        name: maxbits-report-pdf
-        path: reports/pdf/
+      - name: Upload PDF reports as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: tech-report-pdf
+          path: reports/pdf/
