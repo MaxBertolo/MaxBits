@@ -2,8 +2,9 @@ name: MaxBits Daily Tech Report
 
 on:
   schedule:
-    - cron: "0 7 * * *"   # ogni giorno alle 07:00
-  workflow_dispatch:
+    # Ogni giorno alle 07:00 UTC (08:00 in Italia quando c'è l'ora solare)
+    - cron: "0 7 * * *"
+  workflow_dispatch:  # per farlo partire a mano da Actions
 
 jobs:
   run-report:
@@ -13,7 +14,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Install system dependencies
+      - name: Install system dependencies (wkhtmltopdf)
         run: |
           sudo apt-get update
           sudo apt-get install -y wkhtmltopdf
@@ -29,10 +30,10 @@ jobs:
           pip install -r requirements.txt
 
       - name: Run MaxBits daily report script
-      env:
-        GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
-      run: |
-        python -m src.main
+        env:
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+        run: |
+          python -m src.main
 
       - name: Upload HTML reports as artifact
         uses: actions/upload-artifact@v4
@@ -45,3 +46,4 @@ jobs:
         with:
           name: tech-report-pdf
           path: reports/pdf/
+
