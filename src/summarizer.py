@@ -1,38 +1,77 @@
 from typing import List, Dict
+from datetime import datetime
 import os
+import json
 
-from groq import Groq
+import google.generativeai as genai
+
 from .models import RawArticle
 
-# Client Groq (legge GROQ_API_KEY dall'ambiente)
-GROQ_API_KEY = os.getenv("GROQ_API_KEY")
-client = Groq(api_key=GROQ_API_KEY)
 
-# Modello Groq da usare (ha free tier)
-GROQ_MODEL = "llama-3.1-8b-instant"
+# Config Gemini
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+GEMINI_MODEL = "gemini-1.5-flash"
+
+
+def _configure_gemini():
+    if not GEMINI_API_KEY:
+        raise RuntimeError("GEMINI_API_KEY non impostata nelle variabili d'ambiente.")
+    genai.configure(api_key=GEMINI_API_KEY)
 
 
 def build_prompt(article: RawArticle) -> str:
+    """
+    Prompt in italiano, stile approfondito per manager Telco/Media.
+    """
     return f"""
-Sei un analista tecnologico che scrive per un manager italiano.
+Sei un analista senior che scrive per il CTO di una Media & Telco company.
 
-Leggi questa notizia (titolo, fonte, contenuto) e produci ESATTAMENTE 5 FRASI in italiano.
-Ogni frase MAX 30 parole.
+Devi leggere la NOTIZIA (titolo + contenuto) ed estrarre un'analisi strutturata e APPROFONDITA.
 
-Scrivi nel formato seguente (usa queste etichette):
+### OBIETTIVO
 
-COS'E: ...
-CHI: ...
-COSA FA: ...
-PERCHE E' INTERESSANTE: ...
-PROSPETTIVE FUTURE: ...
+Produrre un oggetto JSON con questo schema ESATTO (nessun testo fuori dal JSON):
 
-Linee guida:
-- COS'E: tipo di novità (prodotto, partnership, acquisizione, trend, regolazione, ecc.)
-- CHI: aziende, enti o team principali coinvolti
-- COSA FA: cosa abilita, introduce o cambia in pratica
-- PERCHE E' INTERESSANTE: impatto per Telco/Media/Tech/AI e per un manager
-- PROSPETTIVE FUTURE: cosa potrebbe succedere nei prossimi 6-24 mesi se la notizia si consolida
+{{
+  "cose": "...",
+  "chi": "...",
+  "cosa_fa": "...",
+  "perche_interessante": "...",
+  "pov": "..."
+}}
+
+### LINEE GUIDA
+
+- Scrivi in italiano.
+- Tono professionale, chiaro, orientato al business, non accademico.
+- Ogni campo deve contenere un paragrafo di 2–3 frasi, MA NON romanzi.
+- Evita frasi vaghe come "è importante" senza dire perché.
+- Non inventare aziende o dati che non sono nel testo.
+
+DETTAGLIO CAMPI:
+
+- "cose":
+    2–3 frasi che spiegano COS'È la notizia.
+    Es: tipo di novità (prodotto, acquisizione, partnership, standard, regolazione, trend di mercato, dati di ricerca, ecc.).
+- "chi":
+    2 frasi su chi sono gli attori principali (aziende, enti, ruoli) e che ruolo giocano.
+- "cosa_fa":
+    2–3 frasi che descrivono cosa abilita o cambia in concreto
+    (funzionalità, tecnologia principale, use case, segmenti coinvolti).
+- "perche_interessante":
+    2–3 frasi su perché è rilevante per Telco, Media, Tech, AI.
+    Collega, se possibile, a temi come: reti, cloud, AI, advertising, streaming, robotica, data center, infrastrutture.
+- "pov":
+    2–3 frasi di punto di vista strategico:
+    impatto 6–24 mesi, rischi/opportunità, possibili implicazioni per player come Sky, operatori Telco, broadcaster, OTT.
+
+### FORMATO OBBLIGATORIO
+
+- Rispondi SOLO con un JSON valido.
+- Nessun commento, nessun markdown, niente testo prima o dopo.
+- Non mandare mai "```json" o simili.
+
+### DATI NOTIZIA
 
 Titolo: {article.title}
 Fonte: {article.source}
@@ -45,7 +84,8 @@ Contenuto:
 
 def _fallback_summary(article: RawArticle, reason: str) -> Dict[str, str]:
     """
-    Se Groq non risponde, creiamo un riassunto di emergenza.
+    Fallback se la chiamata a Gemini fallisce o l'output non è parsabile.
+    Meglio un messaggio chiaro che un testo confuso.
     """
     msg = f"Riassunto non disponibile ({reason}). Leggere l'articolo completo dal link."
     return {
@@ -61,81 +101,82 @@ def _fallback_summary(article: RawArticle, reason: str) -> Dict[str, str]:
     }
 
 
-def summarize_with_groq(article: RawArticle) -> Dict[str, str]:
-    if not GROQ_API_KEY:
-        # Nessuna API key configurata
-        return _fallback_summary(article, "GROQ_API_KEY mancante")
+def summarize_with_gemini(article: RawArticle, model: str, temperature: float, max_tokens: int) -> Dict[str, str]:
+    """
+    Chiama Gemini e restituisce un dizionario strutturato con i 5 campi.
+    """
+    try:
+        _configure_gemini()
+    except Exception as e:
+        print("[LLM] Gemini non configurato:", repr(e))
+        return _fallback_summary(article, "Gemini non configurato")
 
+    mdl_name = model or GEMINI_MODEL
     prompt = build_prompt(article)
 
     try:
-        response = client.chat.completions.create(
-            model=GROQ_MODEL,
-            temperature=0.2,
-            max_tokens=512,
-            messages=[
-                {
-                    "role": "system",
-                    "content": "Sei un analista esperto di tecnologia, telecomunicazioni e media.",
-                },
-                {
-                    "role": "user",
-                    "content": prompt,
-                },
-            ],
+        mdl = genai.GenerativeModel(mdl_name)
+        response = mdl.generate_content(
+            prompt,
+            generation_config={
+                "temperature": float(temperature),
+                "max_output_tokens": int(max_tokens),
+            },
         )
-
-        text = response.choices[0].message.content.strip()
-        lines = [l.strip() for l in text.split("\n") if l.strip()]
-
-        result = {
-            "cos_e": "",
-            "chi": "",
-            "cosa_fa": "",
-            "perche_interessante": "",
-            "pov": "",
-        }
-
-        for line in lines:
-            upper = line.upper()
-            if upper.startswith("COS'E:") or upper.startswith("COS’È:") or upper.startswith("COSA E':"):
-                result["cos_e"] = line.split(":", 1)[1].strip()
-            elif upper.startswith("CHI:"):
-                result["chi"] = line.split(":", 1)[1].strip()
-            elif upper.startswith("COSA FA:"):
-                result["cosa_fa"] = line.split(":", 1)[1].strip()
-            elif upper.startswith("PERCHE E' INTERESSANTE:") or upper.startswith("PERCHÉ È INTERESSANTE:"):
-                result["perche_interessante"] = line.split(":", 1)[1].strip()
-            elif upper.startswith("PROSPETTIVE FUTURE:"):
-                result["pov"] = line.split(":", 1)[1].strip()
-
-        # Se qualcosa è rimasto vuoto, mettiamo un fallback minimale
-        if not any(result.values()):
-            return _fallback_summary(article, "risposta Groq non parsabile")
-
-        return {
-            "title": article.title,
-            "url": article.url,
-            "source": article.source,
-            "published_at": article.published_at.isoformat(),
-            **result,
-        }
-
+        text = (response.text or "").strip()
     except Exception as e:
-        print("[WARN] Groq summarization failed:", repr(e))
-        return _fallback_summary(article, "errore Groq")
+        print("[LLM] Errore chiamando Gemini:", repr(e))
+        return _fallback_summary(article, "errore chiamata Gemini")
+
+    if not text:
+        return _fallback_summary(article, "risposta vuota")
+
+    # A volte i modelli aggiungono ```json ... ```
+    cleaned = text
+    if cleaned.startswith("```"):
+        cleaned = cleaned.strip("`")
+        cleaned = cleaned.replace("json", "", 1).strip()
+
+    try:
+        data = json.loads(cleaned)
+    except Exception as e:
+        print("[LLM] Impossibile fare parse del JSON:", repr(e))
+        print("[LLM] Output ricevuto:", text[:500])
+        return _fallback_summary(article, "JSON non parsabile")
+
+    # Normalizziamo i campi
+    cose = data.get("cose", "").strip()
+    chi = data.get("chi", "").strip()
+    cosa_fa = data.get("cosa_fa", "").strip()
+    perche = data.get("perche_interessante", "").strip()
+    pov = data.get("pov", "").strip()
+
+    # Se per qualche motivo i campi sono vuoti → fallback
+    if not any([cose, chi, cosa_fa, perche, pov]):
+        return _fallback_summary(article, "campi vuoti")
+
+    return {
+        "title": article.title,
+        "url": article.url,
+        "source": article.source,
+        "published_at": article.published_at.isoformat(),
+        "cos_e": cose,
+        "chi": chi,
+        "cosa_fa": cosa_fa,
+        "perche_interessante": perche,
+        "pov": pov,
+    }
 
 
 def summarize_article(article: RawArticle, model: str, temperature: float, max_tokens: int) -> Dict[str, str]:
     """
     Entry point usato da main.py.
-    Ignora model/temperature/max_tokens del config e usa Groq.
     """
-    return summarize_with_groq(article)
+    return summarize_with_gemini(article, model=model, temperature=temperature, max_tokens=max_tokens)
 
 
 def summarize_articles(articles: List[RawArticle], model: str, temperature: float, max_tokens: int) -> List[Dict]:
-    summarized = []
+    summarized: List[Dict] = []
     for a in articles:
         summarized.append(summarize_article(a, model=model, temperature=temperature, max_tokens=max_tokens))
     return summarized
