@@ -10,6 +10,7 @@ from .pdf_export import html_to_pdf
 from .email_sender import send_report_email
 
 
+# Root del repo (cartella padre di src/)
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 
@@ -37,11 +38,15 @@ def load_rss_sources():
 
 
 def main():
+    # Info utili per il debug su GitHub Actions
     cwd = Path.cwd()
     print("[DEBUG] CWD:", cwd)
-    print("[DEBUG] Repo contents:", [p.name for p in cwd.iterdir()])
+    try:
+        print("[DEBUG] Repo contents:", [p.name for p in cwd.iterdir()])
+    except Exception as e:
+        print("[DEBUG] Cannot list repo contents:", repr(e))
 
-    # 1) Config + fonti
+    # 1) Config + fonti RSS
     cfg = load_config()
     feeds = load_rss_sources()
 
@@ -56,7 +61,11 @@ def main():
     raw_articles = collect_from_rss(feeds)
     print(f"Collected {len(raw_articles)} raw articles")
 
-    # 3) Clean (ultime 24h, deduplicate, sort ecc.)
+    if not raw_articles:
+        print("No articles collected from RSS. Exiting.")
+        return
+
+    # 3) Cleaning (es. ultime 24h, dedup, sort, limite massimo)
     cleaned = clean_articles(raw_articles, max_articles=max_articles_for_cleaning)
     print(f"After cleaning: {len(cleaned)} articles")
 
@@ -72,7 +81,7 @@ def main():
         print("No ranked articles found. Exiting.")
         return
 
-    # 5) Summaries con LLM
+    # 5) Summarization con LLM
     print("Summarizing with LLM...")
     summaries = summarize_articles(
         top_articles,
@@ -81,7 +90,7 @@ def main():
         max_tokens=max_tokens,
     )
 
-    # 6) Build HTML
+    # 6) Costruzione HTML
     print("Building HTML report...")
     date_str = today_str()
     html = build_html_report(summaries, date_str=date_str)
@@ -105,15 +114,20 @@ def main():
     print("Done. HTML report:", html_path)
     print("Done. PDF report:", pdf_path)
 
-    # 8) INVIO EMAIL
+    # 8) Invio email (NON fa fallire il job se qualcosa va storto)
     print("Sending report via email...")
-    send_report_email(
-        pdf_path=str(pdf_path),
-        date_str=date_str,
-        html_path=str(html_path)
-    )
+    try:
+        send_report_email(
+            pdf_path=str(pdf_path),
+            date_str=date_str,
+            html_path=str(html_path),
+        )
+        print("Email step completed (check [EMAIL] logs for details).")
+    except Exception as e:
+        print("[EMAIL] Unhandled error while sending email:", repr(e))
+        print("Continuing anyway – report generation completed.")
 
-    print("Email sent. Process completed.")
+    print("Process completed.")
 
 
 if __name__ == "__main__":
