@@ -1,33 +1,42 @@
-import feedparser
-from datetime import datetime, timezone
-from typing import List
-from .models import RawArticle
+def rank_articles(articles):
+    """
+    Ritorna le 15 migliori notizie.
+    Priorità:
+    1) Fonti più autorevoli (lista interna)
+    2) Lunghezza contenuto (contenuti più ricchi)
+    3) Parole chiave tech rilevanti
+    """
 
+    authoritative_sources = [
+        "TechCrunch", "The Verge", "Wired", "Ars Technica",
+        "Light Reading", "Telecoms.com", "Fierce Telecom",
+        "Data Center Knowledge", "MIT Technology Review",
+        "Space News", "Advanced Television"
+    ]
 
-def parse_datetime(entry) -> datetime:
-    if hasattr(entry, "published_parsed") and entry.published_parsed:
-        return datetime(*entry.published_parsed[:6], tzinfo=timezone.utc)
-    else:
-        return datetime.now(timezone.utc)
+    keywords = [
+        "ai", "5g", "fiber", "cloud", "satellite", "robot", 
+        "telco", "data", "gen ai", "infrastructure", "broadcast",
+        "edge", "quantum"
+    ]
 
+    def score(article):
+        score = 0
 
-def collect_from_rss(feeds_config) -> List[RawArticle]:
-    articles: List[RawArticle] = []
-    for feed_cfg in feeds_config:
-        name = feed_cfg["name"]
-        url = feed_cfg["url"]
-        parsed = feedparser.parse(url)
+        # Fonte autorevole
+        for s in authoritative_sources:
+            if s.lower() in article.source.lower():
+                score += 50
+                break
 
-        for entry in parsed.entries:
-            published_at = parse_datetime(entry)
-            content = entry.get("summary", "") or entry.get("description", "")
-            art = RawArticle(
-                id=entry.get("id", entry.get("link", "")),
-                title=entry.get("title", "").strip(),
-                url=entry.get("link", ""),
-                source=name,
-                published_at=published_at,
-                content=content,
-            )
-            articles.append(art)
-    return articles
+        # Lunghezza contenuto
+        score += min(len(article.content) // 200, 50)
+
+        # Parole chiave tecnologiche
+        text = article.content.lower()
+        score += sum(5 for k in keywords if k in text)
+
+        return score
+
+    ranked = sorted(articles, key=score, reverse=True)
+    return ranked[:15]
