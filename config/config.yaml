@@ -1,6 +1,39 @@
-max_articles_per_day: 10
+# ================================
+# MAXBITS - CONFIG FILE
+# ================================
 
+# Max number of raw articles to keep after initial cleaning
+max_articles_per_day: 50
+
+# ============================================
+# LLM CONFIGURATION (Gemini 1.5 Flash - FREE)
+# ============================================
 llm:
-  model: "gpt-4.1-mini"
+  provider: "gemini"
+  model: "gemini-1.5-flash"
   temperature: 0.3
-  max_tokens: 600
+  max_tokens: 900
+  language: "en"    # Language for summaries: "en" or "it"
+
+
+# ================================
+# REPORT SETTINGS
+# ================================
+
+report:
+  title: "MaxBits Daily Tech Intelligence"
+  subtitle: "Global Insights Across Telco · Media · AI · Data · Satellite"
+  footer: "Generated automatically by MaxBits using Gemini"
+  include_source: true
+  include_url: true
+  include_published_at: true
+
+
+# ================================
+# OUTPUT PATH SETTINGS
+# ================================
+
+output:
+  html_dir: "reports/html"
+  pdf_dir: "reports/pdf"
+  file_prefix: "report_"   # final name example: report_2025-11-28.pdf
