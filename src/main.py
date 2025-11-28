@@ -7,6 +7,7 @@ from .cleaning import clean_articles
 from .summarizer import summarize_articles
 from .report_builder import build_html_report
 from .pdf_export import html_to_pdf
+from .email_sender import send_report_email
 
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -36,7 +37,6 @@ def load_rss_sources():
 
 
 def main():
-    # Info di debug utili su GitHub Actions
     cwd = Path.cwd()
     print("[DEBUG] CWD:", cwd)
     print("[DEBUG] Repo contents:", [p.name for p in cwd.iterdir()])
@@ -56,7 +56,7 @@ def main():
     raw_articles = collect_from_rss(feeds)
     print(f"Collected {len(raw_articles)} raw articles")
 
-    # 3) Cleaning (es. ultime 24h, dedup, sort, limite massimo)
+    # 3) Clean (ultime 24h, deduplicate, sort ecc.)
     cleaned = clean_articles(raw_articles, max_articles=max_articles_for_cleaning)
     print(f"After cleaning: {len(cleaned)} articles")
 
@@ -72,7 +72,7 @@ def main():
         print("No ranked articles found. Exiting.")
         return
 
-    # 5) Summarization con LLM (Groq o quello che hai implementato in summarizer.py)
+    # 5) Summaries con LLM
     print("Summarizing with LLM...")
     summaries = summarize_articles(
         top_articles,
@@ -81,7 +81,7 @@ def main():
         max_tokens=max_tokens,
     )
 
-    # 6) Costruzione HTML
+    # 6) Build HTML
     print("Building HTML report...")
     date_str = today_str()
     html = build_html_report(summaries, date_str=date_str)
@@ -105,7 +105,16 @@ def main():
     print("Done. HTML report:", html_path)
     print("Done. PDF report:", pdf_path)
 
+    # 8) INVIO EMAIL
+    print("Sending report via email...")
+    send_report_email(
+        pdf_path=str(pdf_path),
+        date_str=date_str,
+        html_path=str(html_path)
+    )
+
+    print("Email sent. Process completed.")
+
 
 if __name__ == "__main__":
     main()
-
