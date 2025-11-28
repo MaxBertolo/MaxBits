@@ -2,9 +2,9 @@ name: MaxBits Daily Tech Report
 
 on:
   schedule:
-    # Ogni giorno alle 07:00 UTC (08:00 in Italia quando c'è l'ora solare)
+    # Ogni giorno alle 07:00 UTC (08:00 in Italia durante ora solare)
     - cron: "0 7 * * *"
-  workflow_dispatch:  # per farlo partire a mano da Actions
+  workflow_dispatch:
 
 jobs:
   run-report:
@@ -32,6 +32,12 @@ jobs:
       - name: Run MaxBits daily report script
         env:
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          SMTP_HOST: ${{ secrets.SMTP_HOST }}
+          SMTP_PORT: ${{ secrets.SMTP_PORT }}
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
+          TO_EMAIL: ${{ secrets.TO_EMAIL }}
+          FROM_EMAIL: ${{ secrets.FROM_EMAIL }}
         run: |
           python -m src.main
 
@@ -46,4 +52,3 @@ jobs:
         with:
           name: tech-report-pdf
           path: reports/pdf/
-
