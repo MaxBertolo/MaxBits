@@ -4,3 +4,4 @@ pyyaml
 feedparser
 jinja2
 pdfkit
+google-generativeai>=0.7.0
