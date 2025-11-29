@@ -1,5 +1,6 @@
 from pathlib import Path
 from datetime import datetime
+from collections import defaultdict
 import yaml
 
 from .rss_collector import collect_from_rss, rank_articles
@@ -37,6 +38,89 @@ def load_rss_sources():
     return data["feeds"]
 
 
+# -------------------------------------------------------------------
+# CATEGORIZZAZIONE SEMPLICE PER ARGOMENTO
+# -------------------------------------------------------------------
+
+TOPIC_KEYWORDS = {
+    "Telco & 5G": [
+        "5g", "6g", "telco", "telecom", "mobile", "operator", "carrier",
+        "spectrum", "fiber", "ftth", "broadband", "network", "edge"
+    ],
+    "Media, TV & Streaming": [
+        "tv", "broadcast", "streaming", "ott", "video", "vod",
+        "content", "sport rights", "ad tech", "advertising"
+    ],
+    "AI & GenAI": [
+        "ai", "artificial intelligence", "genai", "foundation model",
+        "llm", "machine learning", "chatbot"
+    ],
+    "Cloud & Data Center": [
+        "cloud", "datacenter", "data center", "colocation", "hyperscaler",
+        "aws", "azure", "google cloud"
+    ],
+    "Robotics, Space & IoT": [
+        "robot", "robotics", "space", "satellite", "orbit", "launch",
+        "iot", "drones"
+    ],
+    "Cybersecurity & Privacy": [
+        "cyber", "security", "ransomware", "breach", "vulnerability",
+        "encryption", "privacy", "zero trust"
+    ],
+}
+
+
+def categorize_article(article) -> str:
+    """
+    Ritorna una categoria testuale basata su parole chiave
+    nel titolo + contenuto + fonte.
+    """
+    text = f"{article.title} {article.content} {article.source}".lower()
+
+    for topic, keywords in TOPIC_KEYWORDS.items():
+        if any(k in text for k in keywords):
+            return topic
+
+    return "Other Tech Topics"
+
+
+def build_watchlist_grouped(articles, max_total: int = 15, max_per_topic: int = 3):
+    """
+    Prende una lista di articoli (già ordinati per importanza) e costruisce:
+    - massimo max_total articoli totali
+    - massimo max_per_topic articoli per categoria
+
+    Ritorna:
+        dict(topic -> list[ {title, url, source} ])
+    """
+    grouped = defaultdict(list)
+    total_added = 0
+
+    for art in articles:
+        if total_added >= max_total:
+            break
+
+        topic = categorize_article(art)
+
+        if len(grouped[topic]) >= max_per_topic:
+            continue  # questa categoria ha già abbastanza articoli
+
+        grouped[topic].append(
+            {
+                "title": art.title,
+                "url": art.url,
+                "source": art.source,
+            }
+        )
+        total_added += 1
+
+    return grouped
+
+
+# -------------------------------------------------------------------
+# MAIN
+# -------------------------------------------------------------------
+
 def main():
     # Info utili per il debug su GitHub Actions
     cwd = Path.cwd()
@@ -53,8 +137,8 @@ def main():
     max_articles_for_cleaning = int(cfg.get("max_articles_per_day", 50))
     llm_cfg = cfg.get("llm", {})
     model = llm_cfg.get("model", "")
-    temperature = float(llm_cfg.get("temperature", 0.2))
-    max_tokens = int(llm_cfg.get("max_tokens", 600))
+    temperature = float(llm_cfg.get("temperature", 0.25))
+    max_tokens = int(llm_cfg.get("max_tokens", 900))
 
     # 2) Raccolta RSS
     print("Collecting RSS...")
@@ -73,29 +157,49 @@ def main():
         print("No recent articles after cleaning. Exiting.")
         return
 
-    # 4) Ranking → TOP 15
-    top_articles = rank_articles(cleaned)
-    print(f"After ranking: {len(top_articles)} articles (top 15)")
+    # 4) Ranking complessivo
+    ranked = rank_articles(cleaned)
+    print(f"[RANK] Selected top {len(ranked)} articles out of {len(cleaned)}")
 
-    if not top_articles:
+    if not ranked:
         print("No ranked articles found. Exiting.")
         return
 
-    # 5) Summarization con LLM
-    print("Summarizing with LLM...")
-    summaries = summarize_articles(
-        top_articles,
+    # 5) Selezione:
+    #    - 3 articoli per deep dive (riassunto completo con LLM)
+    #    - il resto per la watchlist (solo titolo + link)
+    deep_dive_articles = ranked[:3]
+    watchlist_candidates = ranked[3:]  # gli altri, in ordine di importanza
+
+    print(f"[SELECT] Deep-dive articles: {len(deep_dive_articles)}")
+    print(f"[SELECT] Watchlist candidates: {len(watchlist_candidates)}")
+
+    # 6) Summarization con LLM SOLO per i 3 deep-dive
+    print("Summarizing deep-dive articles with LLM...")
+    deep_dive_summaries = summarize_articles(
+        deep_dive_articles,
         model=model,
         temperature=temperature,
         max_tokens=max_tokens,
     )
 
-    # 6) Costruzione HTML
+    # 7) Costruzione della watchlist (max 15, max 3 per topic)
+    watchlist_grouped = build_watchlist_grouped(
+        watchlist_candidates,
+        max_total=15,
+        max_per_topic=3,
+    )
+
+    # 8) Costruzione HTML
     print("Building HTML report...")
     date_str = today_str()
-    html = build_html_report(summaries, date_str=date_str)
+    html = build_html_report(
+        deep_dives=deep_dive_summaries,
+        watchlist_grouped=watchlist_grouped,
+        date_str=date_str,
+    )
 
-    # 7) Salvataggio HTML + PDF
+    # 9) Salvataggio HTML + PDF
     html_dir = Path("reports/html")
     pdf_dir = Path("reports/pdf")
     html_dir.mkdir(parents=True, exist_ok=True)
@@ -114,7 +218,7 @@ def main():
     print("Done. HTML report:", html_path)
     print("Done. PDF report:", pdf_path)
 
-    # 8) Invio email (NON fa fallire il job se qualcosa va storto)
+    # 10) Invio email (NON fa fallire il job se qualcosa va storto)
     print("Sending report via email...")
     try:
         send_report_email(
