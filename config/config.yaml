@@ -10,10 +10,10 @@ max_articles_per_day: 50
 # ============================================
 llm:
   provider: "gemini"
-  model: "gemini-2.5-Pro"
+  model: "gemini-1.5-flash-latest"
   temperature: 0.3
   max_tokens: 900
-  language: "en"    # Language for summaries: "en" or "it"
+  language: "en"
 
 
 # ================================
