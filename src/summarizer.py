@@ -1,304 +1,223 @@
 from typing import List, Dict
 import os
+import textwrap
 
 import google.generativeai as genai
 
 from .models import RawArticle
 
 
-# ===============================
-# Gemini configuration
-# ===============================
+# ============= CONFIG GLOBALE =============
 
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-GEMINI_MODEL_FALLBACK = "gemini-2.5-flash"
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")  # può essere sovrascritto da config.yaml
 
-# Numero massimo di articoli da riassumere con l'LLM
-# (per stare nei limiti della free tier)
-MAX_LLM_CALLS = 5
+# massimo numero di articoli per cui chiamare il modello al giorno
+MAX_LLM_CALLS = 3
 
-
-def _configure_gemini():
-    """
-    Inizializza la libreria Gemini con la API key.
-    """
-    if not GEMINI_API_KEY:
-        raise RuntimeError(
-            "GEMINI_API_KEY not set. "
-            "Set the secret GEMINI_API_KEY in GitHub Actions."
-        )
+if GEMINI_API_KEY:
     genai.configure(api_key=GEMINI_API_KEY)
+else:
+    print("[LLM] Warning: GEMINI_API_KEY non impostata, userò SOLO il fallback locale.")
 
 
-# ===============================
-# Prompt builder
-# ===============================
+# ============= PROMPT =============
 
-def build_prompt(article: RawArticle) -> str:
+def build_prompt(article: RawArticle, language: str = "en") -> str:
     """
-    Prompt in inglese, stile approfondito per manager Telco/Media.
-    Il formato di output è TESTUALE con etichette, non JSON.
+    Prompt testuale: chiediamo esattamente 5 righe con etichette fisse.
+    Così possiamo fare un parsing semplice e robusto.
     """
-    return f"""
-You are a senior technology & strategy analyst writing for a C-level executive
-in a Telco/Media/Tech company.
 
-Read the NEWS (title + content) and produce a DEEP, STRUCTURED analysis.
+    # limitiamo il contenuto per non superare i token gratuiti
+    content = article.content or ""
+    content = content.replace("\n", " ")
+    if len(content) > 4000:
+        content = content[:4000] + " [...]"
 
-### GOAL
+    if language.lower().startswith("it"):
+        # versione italiana (se un domani vuoi tornare a IT)
+        instructions = """
+You are a senior technology analyst writing for a C-level manager in Telco / Media / Tech.
+Read the following news (title, source, content) and produce EXACTLY 5 lines in Italian.
 
-Produce EXACTLY 5 labelled sections, in this order:
+Each line MUST start with the exact label, followed by a colon and a short sentence (max 35 words).
+
+1) WHAT IT IS: type of news (product, partnership, acquisition, trend, regulation, etc.).
+2) WHO: main companies / actors involved.
+3) WHAT IT DOES: what is introduced or enabled.
+4) WHY IT MATTERS: short impact for Telco / Media / Tech.
+5) STRATEGIC VIEW: mini strategic comment with 6–24 months perspective.
+
+Output format (exactly 5 lines, no bullets, no extra text):
 
 WHAT IT IS: ...
 WHO: ...
 WHAT IT DOES: ...
 WHY IT MATTERS: ...
 STRATEGIC VIEW: ...
+"""
+    else:
+        # versione inglese
+        instructions = """
+You are a senior technology analyst writing for a C-level manager in Telco / Media / Tech.
+Read the following news (title, source, content) and produce EXACTLY 5 lines in English.
 
-### STYLE & GUIDELINES
+Each line MUST start with the exact label, followed by a colon and a short sentence (max 35 words).
 
-- Language: English.
-- Tone: professional, clear, business-oriented (no marketing fluff).
-- Each section should be a short paragraph (2–3 sentences).
-- Avoid generic statements like "this is important" without explaining why.
-- Do NOT invent companies or facts that are not supported by the text.
+1) WHAT IT IS: type of news (product, partnership, acquisition, trend, regulation, etc.).
+2) WHO: main companies / actors involved.
+3) WHAT IT DOES: what is introduced or enabled.
+4) WHY IT MATTERS: short impact for Telco / Media / Tech.
+5) STRATEGIC VIEW: mini strategic comment with 6–24 months perspective.
 
-FIELD DETAILS:
+Output format (exactly 5 lines, no bullets, no extra text):
 
-- WHAT IT IS:
-    2–3 sentences explaining what the news is about:
-    product launch, partnership, acquisition, regulation, funding round,
-    infrastructure build-out, technology milestone, etc.
+WHAT IT IS: ...
+WHO: ...
+WHAT IT DOES: ...
+WHY IT MATTERS: ...
+STRATEGIC VIEW: ...
+"""
 
-- WHO:
-    2 sentences describing the main actors (companies, institutions, key roles)
-    and their roles in the news.
-
-- WHAT IT DOES:
-    2–3 sentences explaining concretely what this initiative/technology enables
-    or changes (capabilities, use cases, segments impacted).
-
-- WHY IT MATTERS:
-    2–3 sentences about why this matters for Telco/Media/Tech/AI:
-    networks, cloud, AI, advertising, streaming, robotics,
-    data centers, satellite, infrastructure.
-
-- STRATEGIC VIEW:
-    2–3 sentences with a forward-looking point of view (6–24 months):
-    risks & opportunities, likely impact on operators, broadcasters,
-    OTTs, hyperscalers, or players like Sky.
-
-### OUTPUT FORMAT (VERY IMPORTANT)
-
-- Answer ONLY with plain text.
-- Use EXACTLY these 5 labels in uppercase English:
-  - WHAT IT IS:
-  - WHO:
-  - WHAT IT DOES:
-  - WHY IT MATTERS:
-  - STRATEGIC VIEW:
-- Each label must start a new line.
-
-### NEWS DATA
+    prompt = f"""{instructions}
 
 Title: {article.title}
 Source: {article.source}
 URL: {article.url}
 
 Content:
-{article.content}
+{content}
 """
+    return textwrap.dedent(prompt).strip()
 
 
-# ===============================
-# Fallback handler
-# ===============================
+# ============= FALLBACK LOCALE =============
 
-def _fallback_summary(article: RawArticle, reason: str) -> Dict[str, str]:
+def _simple_local_summary(article: RawArticle) -> Dict[str, str]:
     """
-    Fallback se la chiamata a Gemini fallisce o non vogliamo usare l'LLM
-    (es. per risparmiare quota free).
+    Fallback completamente locale: usa solo title + content
+    per costruire frasi brevi e comunque leggibili.
     """
-    msg = f"Summary not available ({reason}). Please read the full article from the link."
+
+    title = article.title or ""
+    source = article.source or ""
+    text = (article.content or "").replace("\n", " ")
+
+    # prendiamo le prime frasi o tronchiamo
+    short = text[:400].strip()
+    if not short:
+        short = title
+
+    cos_e = f"This news is about: {title}."
+    chi = f"The main actor is {source} or partners mentioned in the article."
+    cosa_fa = f"It describes a new development or initiative related to {title.lower()}."
+    perche = "It may affect Telco / Media / Tech in terms of infrastructure, services or competitive positioning."
+    pov = "Worth monitoring: potential impact depends on execution, ecosystem adoption and regulatory or market reactions."
+
+    return {
+        "cos_e": cos_e,
+        "chi": chi,
+        "cosa_fa": cosa_fa,
+        "perche_interessante": perche,
+        "pov": pov,
+    }
+
+
+def _to_final_dict(article: RawArticle, fields: Dict[str, str]) -> Dict[str, str]:
+    """Costruisce il dizionario finale per il report."""
     return {
         "title": article.title,
         "url": article.url,
         "source": article.source,
         "published_at": article.published_at.isoformat(),
-        "cos_e": msg,
-        "chi": "—",
-        "cosa_fa": "—",
-        "perche_interessante": "—",
-        "pov": "—",
+        "cos_e": fields.get("cos_e", ""),
+        "chi": fields.get("chi", ""),
+        "cosa_fa": fields.get("cosa_fa", ""),
+        "perche_interessante": fields.get("perche_interessante", ""),
+        "pov": fields.get("pov", ""),
     }
 
 
-# ===============================
-# Helpers
-# ===============================
+# ============= CHIAMATA A GEMINI =============
 
-def _extract_text_from_response(response) -> str:
+def _call_gemini(prompt: str, model_name: str) -> str:
+    if not GEMINI_API_KEY:
+        raise RuntimeError("GEMINI_API_KEY not set")
+
+    model = genai.GenerativeModel(model_name=model_name)
+    resp = model.generate_content(prompt)
+    text = (resp.text or "").strip()
+    if not text:
+        raise RuntimeError("Empty response from Gemini")
+    return text
+
+
+def _parse_labeled_text(text: str) -> Dict[str, str]:
     """
-    Prova a estrarre testo dalla risposta Gemini in modo robusto.
+    Parsing delle 5 righe etichettate.
+    Accetta anche eventuali righe extra (le ignora).
     """
-    # Caso standard: risposta con .text
-    try:
-        txt = getattr(response, "text", None)
-        if txt:
-            return txt.strip()
-    except Exception:
-        pass
-
-    # Caso: usiamo parts del primo candidato
-    try:
-        if response.candidates:
-            parts = response.candidates[0].content.parts
-            texts = []
-            for p in parts:
-                t = getattr(p, "text", None)
-                if t:
-                    texts.append(t)
-            joined = " ".join(texts).strip()
-            if joined:
-                return joined
-    except Exception:
-        pass
-
-    return ""
-
-
-def _parse_labelled_text(text: str) -> Dict[str, str]:
-    """
-    Parsiamo il testo con etichette tipo:
-
-    WHAT IT IS: ...
-    WHO: ...
-    WHAT IT DOES: ...
-    WHY IT MATTERS: ...
-    STRATEGIC VIEW: ...
-
-    Restituiamo un dict con chiavi logiche.
-    """
-    sections = {
-        "WHAT IT IS:": "",
-        "WHO:": "",
-        "WHAT IT DOES:": "",
-        "WHY IT MATTERS:": "",
-        "STRATEGIC VIEW:": "",
+    lines = [l.strip() for l in text.splitlines() if l.strip()]
+    out = {
+        "cos_e": "",
+        "chi": "",
+        "cosa_fa": "",
+        "perche_interessante": "",
+        "pov": "",
     }
-
-    current_label = None
-    lines = [l.strip() for l in text.split("\n") if l.strip()]
 
     for line in lines:
         upper = line.upper()
-        # Se la linea inizia con una delle etichette, cambiamo contesto
-        matched_label = None
-        for label in sections.keys():
-            if upper.startswith(label):
-                matched_label = label
-                break
+        if upper.startswith("WHAT IT IS:"):
+            out["cos_e"] = line.split(":", 1)[1].strip()
+        elif upper.startswith("WHO:"):
+            out["chi"] = line.split(":", 1)[1].strip()
+        elif upper.startswith("WHAT IT DOES:"):
+            out["cosa_fa"] = line.split(":", 1)[1].strip()
+        elif upper.startswith("WHY IT MATTERS:"):
+            out["perche_interessante"] = line.split(":", 1)[1].strip()
+        elif upper.startswith("STRATEGIC VIEW:"):
+            out["pov"] = line.split(":", 1)[1].strip()
 
-        if matched_label:
-            current_label = matched_label
-            content = line[len(matched_label):].strip()
-            if content:
-                sections[current_label] = content
-        else:
-            # linea successiva: la aggiungiamo alla sezione corrente
-            if current_label:
-                if sections[current_label]:
-                    sections[current_label] += " " + line
-                else:
-                    sections[current_label] = line
+    return out
 
-    return {
-        "what_it_is": sections["WHAT IT IS:"].strip(),
-        "who": sections["WHO:"].strip(),
-        "what_it_does": sections["WHAT IT DOES:"].strip(),
-        "why_it_matters": sections["WHY IT MATTERS:"].strip(),
-        "strategic_view": sections["STRATEGIC VIEW:"].strip(),
-    }
-
-
-# ===============================
-# Gemini summarization
-# ===============================
-
-def summarize_with_gemini(
-    article: RawArticle,
-    model: str,
-    temperature: float,
-    max_tokens: int,
-) -> Dict[str, str]:
-    """
-    Chiama Gemini e restituisce un dict con i 5 campi logici.
-    """
-    try:
-        _configure_gemini()
-    except Exception as e:
-        print("[LLM] Gemini not configured:", repr(e))
-        return _fallback_summary(article, "Gemini not configured")
-
-    mdl_name = model or GEMINI_MODEL_FALLBACK
-    print("[LLM] Using Gemini model:", mdl_name)
-
-    prompt = build_prompt(article)
-
-    try:
-        gemini_model = genai.GenerativeModel(mdl_name)
-        response = gemini_model.generate_content(
-            prompt,
-            generation_config={
-                "temperature": float(temperature),
-                "max_output_tokens": int(max_tokens),
-            },
-        )
-        text = _extract_text_from_response(response)
-    except Exception as e:
-        print("[LLM] Error calling Gemini:", repr(e))
-        return _fallback_summary(article, "Gemini call error")
-
-    if not text:
-        return _fallback_summary(article, "empty response")
-
-    sections = _parse_labelled_text(text)
-
-    if not any(sections.values()):
-        return _fallback_summary(article, "no labelled sections found")
-
-    return {
-        "title": article.title,
-        "url": article.url,
-        "source": article.source,
-        "published_at": article.published_at.isoformat(),
-        "cos_e": sections["what_it_is"],
-        "chi": sections["who"],
-        "cosa_fa": sections["what_it_does"],
-        "perche_interessante": sections["why_it_matters"],
-        "pov": sections["strategic_view"],
-    }
-
-
-# ===============================
-# Public API used by main.py
-# ===============================
 
 def summarize_article(
     article: RawArticle,
     model: str,
     temperature: float,
     max_tokens: int,
+    language: str = "en",
 ) -> Dict[str, str]:
     """
-    Entry point usato da main.py per un singolo articolo.
+    Riassume un singolo articolo usando:
+    - Gemini (se configurato e finché non superiamo MAX_LLM_CALLS)
+    - fallback locale in caso di errore o risposta vuota.
     """
-    return summarize_with_gemini(
-        article,
-        model=model,
-        temperature=temperature,
-        max_tokens=max_tokens,
-    )
+
+    # se non c'è chiave → direttamente fallback
+    if not GEMINI_API_KEY:
+        fields = _simple_local_summary(article)
+        return _to_final_dict(article, fields)
+
+    prompt = build_prompt(article, language=language)
+
+    try:
+        raw_text = _call_gemini(prompt, model_name=model or GEMINI_MODEL)
+        fields = _parse_labeled_text(raw_text)
+
+        # se per qualche motivo mancano quasi tutti i campi → fallback
+        non_empty = sum(1 for v in fields.values() if v)
+        if non_empty < 3:
+            print("[LLM] Parsed too few fields, using local fallback.")
+            fields = _simple_local_summary(article)
+
+    except Exception as e:
+        print("[LLM] Error calling Gemini, using local fallback:", repr(e))
+        fields = _simple_local_summary(article)
+
+    return _to_final_dict(article, fields)
 
 
 def summarize_articles(
@@ -308,34 +227,27 @@ def summarize_articles(
     max_tokens: int,
 ) -> List[Dict]:
     """
-    Entry point usato da main.py per una lista di articoli.
-
-    Per rimanere nei limiti della free tier:
-    - usiamo Gemini solo per i primi MAX_LLM_CALLS articoli
-    - per gli altri usiamo il fallback.
+    Riassume una lista di articoli.
+    - Usa Gemini solo per i primi MAX_LLM_CALLS articoli.
+    - Per gli altri usa il fallback locale (così non consumi quota).
     """
-    summarized: List[Dict] = []
+    results: List[Dict] = []
 
-    for idx, a in enumerate(articles):
-        if idx < MAX_LLM_CALLS:
-            summarized.append(
-                summarize_article(
-                    a,
-                    model=model,
-                    temperature=temperature,
-                    max_tokens=max_tokens,
-                )
-            )
+    # usiamo al massimo 3 chiamate al giorno a Gemini
+    llm_budget = min(MAX_LLM_CALLS, len(articles))
+    print(f"[LLM] Will use Gemini for {llm_budget} article(s), then local fallback.")
+
+    for idx, article in enumerate(articles):
+        use_llm = idx < llm_budget and GEMINI_API_KEY
+
+        if use_llm:
+            print(f"[LLM] Using Gemini for article {idx + 1}: {article.title}")
+            res = summarize_article(article, model=model, temperature=temperature, max_tokens=max_tokens)
         else:
-            print(
-                f"[LLM] Skipping Gemini for article {idx+1}, using fallback "
-                f"to preserve free-tier quota."
-            )
-            summarized.append(
-                _fallback_summary(
-                    a,
-                    "LLM quota reserved for top articles (free tier limit)",
-                )
-            )
+            print(f"[LLM] Skipping Gemini for article {idx + 1}, using local fallback.")
+            fields = _simple_local_summary(article)
+            res = _to_final_dict(article, fields)
 
-    return summarized
+        results.append(res)
+
+    return results
