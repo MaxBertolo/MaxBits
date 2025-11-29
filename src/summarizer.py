@@ -15,7 +15,7 @@ GEMINI_MODEL_FALLBACK = "gemini-2.5-flash"
 
 # Numero massimo di articoli da riassumere con l'LLM
 # (per stare nei limiti della free tier)
-MAX_LLM_CALLS = 8
+MAX_LLM_CALLS = 5
 
 
 def _configure_gemini():
