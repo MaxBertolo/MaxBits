@@ -8,12 +8,14 @@ max_articles_per_day: 50
 # ============================================
 # LLM CONFIGURATION (Gemini 1.5 Flash - FREE)
 # ============================================
+
 llm:
   provider: "gemini"
-  model: "gemini-1.5-flash-latest"
-  temperature: 0.3
+  model: "gemini-2.5-flash"   # <– nome modello aggiornato
+  temperature: 0.25
   max_tokens: 900
-  language: "en"
+  language: "en"              # riassunti in inglese
+
 
 
 # ================================
