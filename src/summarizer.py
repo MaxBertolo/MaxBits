@@ -29,9 +29,7 @@ def strip_html_title(raw_title: str) -> str:
     """Rimuove eventuali tag HTML dal titolo RSS (es. <a href=...>Title</a>)."""
     if not raw_title:
         return ""
-    # rimuove tag
     text = re.sub(r"<[^>]+>", "", raw_title)
-    # decodifica entità HTML
     text = html.unescape(text)
     return text.strip()
 
@@ -39,7 +37,7 @@ def strip_html_title(raw_title: str) -> str:
 def build_prompt(article: RawArticle, language: str = "en") -> str:
     """
     Prompt per Gemini: chiediamo ESATTAMENTE 5 righe etichettate,
-    così il parsing è robusto.
+    così il parsing è robusto e i campi combaciano con il report.
     """
     content = (article.content or "").replace("\n", " ")
     if len(content) > 4000:
@@ -51,21 +49,21 @@ def build_prompt(article: RawArticle, language: str = "en") -> str:
 You are a senior technology analyst writing for a C-level manager in Telco / Media / Tech.
 Read the following news (title, source, content) and produce EXACTLY 5 lines in English.
 
-Each line MUST start with the exact label, followed by a colon and a short sentence (max 35 words).
+Each line MUST start with the exact label, followed by a colon and a short sentence (max ~35 words).
 
 1) WHAT IT IS: type of news (product, partnership, acquisition, trend, regulation, etc.).
 2) WHO: main companies / actors involved.
 3) WHAT IT DOES: what is introduced or enabled.
-4) WHY IT MATTERS: short impact for Telco / Media / Tech.
-5) STRATEGIC VIEW: mini strategic comment with 6–24 months perspective.
+4) IMPACT: why this matters for Telco / Media / Tech.
+5) FUTURE OUTLOOK: key points on how this might evolve in the next 6–24 months.
 
 Output format (exactly 5 lines, no bullets, no extra text):
 
 WHAT IT IS: ...
 WHO: ...
 WHAT IT DOES: ...
-WHY IT MATTERS: ...
-STRATEGIC VIEW: ...
+IMPACT: ...
+FUTURE OUTLOOK: ...
 """
 
     prompt = f"""{instructions}
@@ -82,33 +80,26 @@ Content:
 
 def _simple_local_summary(article: RawArticle) -> Dict[str, str]:
     """
-    Fallback completamente locale: generazione di frasi standard,
-    ma comunque leggibili e utili.
+    Fallback completamente locale: frasi standard ma leggibili.
     """
     title_clean = strip_html_title(article.title)
-    source = article.source or ""
-
-    what_it_is = f"This news is about: {title_clean}."
-    who = f"The main actor is {source} or its key partners."
-    what_it_does = (
-        f"It describes a new development, product or initiative related to "
-        f"{title_clean.lower() if title_clean else 'the company'}."
-    )
-    why_it_matters = (
-        "It may impact Telco / Media / Tech in terms of infrastructure, services, "
-        "innovation speed or competitive positioning."
-    )
-    strategic_view = (
-        "Worth monitoring over the next 6–24 months, especially for potential ecosystem "
-        "effects, customer adoption and regulatory or market reactions."
-    )
+    source = article.source or "the company"
 
     return {
-        "what_it_is": what_it_is,
-        "who": who,
-        "what_it_does": what_it_does,
-        "why_it_matters": why_it_matters,
-        "strategic_view": strategic_view,
+        "what_it_is": f"This news is about: {title_clean}.",
+        "who": f"The main actor is {source} and its partners.",
+        "what_it_does": (
+            f"It describes a new development, product or initiative related to "
+            f"{title_clean.lower() if title_clean else 'the tech ecosystem'}."
+        ),
+        "impact": (
+            "It may affect Telco / Media / Tech in terms of infrastructure, services, "
+            "innovation speed or competitive positioning."
+        ),
+        "future_outlook": (
+            "Worth monitoring during the next 6–24 months for ecosystem effects, "
+            "customer adoption and possible regulatory or market reactions."
+        ),
     }
 
 
@@ -123,8 +114,8 @@ def _to_final_dict(article: RawArticle, fields: Dict[str, str]) -> Dict[str, str
         "what_it_is": fields.get("what_it_is", ""),
         "who": fields.get("who", ""),
         "what_it_does": fields.get("what_it_does", ""),
-        "why_it_matters": fields.get("why_it_matters", ""),
-        "strategic_view": fields.get("strategic_view", ""),
+        "impact": fields.get("impact", ""),
+        "future_outlook": fields.get("future_outlook", ""),
     }
 
 
@@ -143,15 +134,16 @@ def _call_gemini(prompt: str, model_name: str) -> str:
 def _parse_labeled_text(text: str) -> Dict[str, str]:
     """
     Parsing delle 5 righe etichettate.
-    Accetta righe extra (le ignora) e spazi vari.
+
+    Accetta righe extra (le ignora) e varianti di maiuscole/spazi.
     """
     lines = [l.strip() for l in text.splitlines() if l.strip()]
     out = {
         "what_it_is": "",
         "who": "",
         "what_it_does": "",
-        "why_it_matters": "",
-        "strategic_view": "",
+        "impact": "",
+        "future_outlook": "",
     }
 
     for line in lines:
@@ -162,10 +154,10 @@ def _parse_labeled_text(text: str) -> Dict[str, str]:
             out["who"] = line.split(":", 1)[1].strip()
         elif upper.startswith("WHAT IT DOES:"):
             out["what_it_does"] = line.split(":", 1)[1].strip()
-        elif upper.startswith("WHY IT MATTERS:"):
-            out["why_it_matters"] = line.split(":", 1)[1].strip()
-        elif upper.startswith("STRATEGIC VIEW:"):
-            out["strategic_view"] = line.split(":", 1)[1].strip()
+        elif upper.startswith("IMPACT:"):
+            out["impact"] = line.split(":", 1)[1].strip()
+        elif upper.startswith("FUTURE OUTLOOK:"):
+            out["future_outlook"] = line.split(":", 1)[1].strip()
 
     return out
 
@@ -214,9 +206,8 @@ def summarize_articles(
 ) -> List[Dict]:
     """
     Riassume una lista di articoli.
-    - usa Gemini per i primi MAX_LLM_CALLS articoli
+    - usa Gemini per i primi MAX_LLM_CALLS articoli (deep-dives)
     - per gli altri usa solo il fallback locale
-    (nel tuo flusso attuale i deep-dive sono 3, quindi verranno tutti serviti da Gemini).
     """
     results: List[Dict] = []
 
