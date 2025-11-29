@@ -12,20 +12,28 @@ def _render_header(date_str: str) -> str:
 
 
 def _render_deep_dives(deep_dives: List[Dict]) -> str:
+    """
+    deep_dives è una lista di dizionari prodotti dal summarizer
+    con queste chiavi principali:
+
+      title, url, source, topic (opzionale),
+      what_it_is, who, what_it_does, impact, future_outlook
+    """
     if not deep_dives:
         return "<p>No deep–dive articles for today.</p>"
 
     blocks = []
     for item in deep_dives:
-        title = escape(item.get("title", ""))
+        title = escape(item.get("title_clean") or item.get("title", ""))
         url = item.get("url") or "#"
         source = escape(item.get("source", ""))
         topic = escape(item.get("topic", "General"))
+
         what = escape(item.get("what_it_is", ""))
         who = escape(item.get("who", ""))
+        what_does = escape(item.get("what_it_does", ""))
         impact = escape(item.get("impact", ""))
         future = escape(item.get("future_outlook", ""))
-        key_points = escape(item.get("key_points", ""))
 
         block = f"""
         <article style="margin-bottom: 24px; padding-bottom:16px; border-bottom:1px solid #eee;">
@@ -39,9 +47,9 @@ def _render_deep_dives(deep_dives: List[Dict]) -> str:
           <ul style="margin:8px 0 0 18px; padding:0; font-size:14px;">
             <li><strong>What it is:</strong> {what}</li>
             <li><strong>Who:</strong> {who}</li>
+            <li><strong>What it does:</strong> {what_does}</li>
             <li><strong>Impact:</strong> {impact}</li>
             <li><strong>Future outlook:</strong> {future}</li>
-            <li><strong>Key points:</strong> {key_points}</li>
           </ul>
         </article>
         """
@@ -56,7 +64,7 @@ def _render_watchlist_section(title: str, items: List[Dict]) -> str:
 
     lis = []
     for art in items:
-        atitle = escape(art.get("title", ""))
+        atitle = escape(art.get("title_clean") or art.get("title", ""))
         url = art.get("url") or "#"
         source = escape(art.get("source", ""))
         lis.append(
@@ -76,33 +84,45 @@ def _render_watchlist_section(title: str, items: List[Dict]) -> str:
 
 
 def _render_watchlist(watchlist: Dict[str, List[Dict]]) -> str:
+    """
+    watchlist è un dict {categoria: [articoli]}.
+    Ci aspettiamo chiavi:
+      - "TV/Streaming"
+      - "Telco/5G"
+      - "Media/Platforms"
+      - "AI/Cloud/Quantum"
+      - "Space/Infra"
+    (se qualche lista è vuota, la sezione non viene mostrata).
+    """
     if not watchlist:
         return "<p>No additional watchlist items today.</p>"
 
     sections_html = []
 
+    # 1) TV & Streaming
     tv_items = watchlist.get("TV/Streaming", [])
     if tv_items:
         sections_html.append(_render_watchlist_section("TV & Streaming", tv_items))
 
+    # 2) Telco / 5G
     telco_items = watchlist.get("Telco/5G", [])
+    if telco_items:
+        sections_html.append(_render_watchlist_section("Telco · 5G · Networks", telco_items))
+
+    # 3) Media / Platforms / Social
     media_items = watchlist.get("Media/Platforms", [])
+    if media_items:
+        sections_html.append(_render_watchlist_section("Media · Platforms · Social", media_items))
+
+    # 4) AI / Cloud / Quantum
     ai_items = watchlist.get("AI/Cloud/Quantum", [])
+    if ai_items:
+        sections_html.append(_render_watchlist_section("AI · Cloud · Quantum", ai_items))
+
+    # 5) Space / Infra
     infra_items = watchlist.get("Space/Infra", [])
-
-    merged_telco = telco_items
-    merged_media = media_items
-    merged_ai = ai_items
-    merged_infra = infra_items
-
-    if merged_telco:
-        sections_html.append(_render_watchlist_section("Telco · 5G · Networks", merged_telco))
-    if merged_media:
-        sections_html.append(_render_watchlist_section("Media · Platforms · Social", merged_media))
-    if merged_ai:
-        sections_html.append(_render_watchlist_section("AI · Cloud · Quantum", merged_ai))
-    if merged_infra:
-        sections_html.append(_render_watchlist_section("Space · Infrastructure", merged_infra))
+    if infra_items:
+        sections_html.append(_render_watchlist_section("Space · Infrastructure", infra_items))
 
     return "\n".join(sections_html)
 
@@ -143,5 +163,3 @@ def build_html_report(*, deep_dives, watchlist, date_str: str) -> str:
 </body>
 </html>
 """
-
- 
