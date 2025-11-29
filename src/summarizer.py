@@ -1,93 +1,119 @@
 from typing import List, Dict
-from datetime import datetime
 import os
 import json
 
+from datetime import datetime
 import google.generativeai as genai
 
 from .models import RawArticle
 
 
-# Config Gemini
+# ===============================
+# Gemini configuration
+# ===============================
+
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-GEMINI_MODEL = "gemini-1.5-flash"
+# Nome modello corretto per la nuova API
+GEMINI_MODEL = "gemini-1.5-flash-latest"
 
 
 def _configure_gemini():
+    """
+    Inizializza la libreria Gemini con la API key.
+    """
     if not GEMINI_API_KEY:
-        raise RuntimeError("GEMINI_API_KEY non impostata nelle variabili d'ambiente.")
+        raise RuntimeError(
+            "GEMINI_API_KEY non impostata. "
+            "Imposta il secret GEMINI_API_KEY in GitHub Actions."
+        )
     genai.configure(api_key=GEMINI_API_KEY)
 
 
+# ===============================
+# Prompt builder
+# ===============================
+
 def build_prompt(article: RawArticle) -> str:
     """
-    Prompt in italiano, stile approfondito per manager Telco/Media.
+    Prompt in inglese, stile approfondito per manager Telco/Media.
     """
     return f"""
-Sei un analista senior che scrive per il CTO di una Media & Telco company.
+You are a senior technology & strategy analyst writing for a C-level executive
+in a Telco/Media/Tech company.
 
-Devi leggere la NOTIZIA (titolo + contenuto) ed estrarre un'analisi strutturata e APPROFONDITA.
+Read the NEWS (title + content) and produce a DEEP, STRUCTURED analysis.
 
-### OBIETTIVO
+### GOAL
 
-Produrre un oggetto JSON con questo schema ESATTO (nessun testo fuori dal JSON):
+Return a JSON object with EXACTLY this schema (no extra fields):
 
 {{
-  "cose": "...",
-  "chi": "...",
-  "cosa_fa": "...",
-  "perche_interessante": "...",
-  "pov": "..."
+  "what_it_is": "...",
+  "who": "...",
+  "what_it_does": "...",
+  "why_it_matters": "...",
+  "strategic_view": "..."
 }}
 
-### LINEE GUIDA
+### STYLE & GUIDELINES
 
-- Scrivi in italiano.
-- Tono professionale, chiaro, orientato al business, non accademico.
-- Ogni campo deve contenere un paragrafo di 2–3 frasi, MA NON romanzi.
-- Evita frasi vaghe come "è importante" senza dire perché.
-- Non inventare aziende o dati che non sono nel testo.
+- Language: **English**.
+- Tone: professional, clear, business-oriented (no marketing fluff).
+- Each field should be a short paragraph (2–3 sentences), not bullet points.
+- Avoid generic statements like "this is important" without explaining why.
+- Do NOT invent companies or facts that are not supported by the text.
 
-DETTAGLIO CAMPI:
+FIELD DETAILS:
 
-- "cose":
-    2–3 frasi che spiegano COS'È la notizia.
-    Es: tipo di novità (prodotto, acquisizione, partnership, standard, regolazione, trend di mercato, dati di ricerca, ecc.).
-- "chi":
-    2 frasi su chi sono gli attori principali (aziende, enti, ruoli) e che ruolo giocano.
-- "cosa_fa":
-    2–3 frasi che descrivono cosa abilita o cambia in concreto
-    (funzionalità, tecnologia principale, use case, segmenti coinvolti).
-- "perche_interessante":
-    2–3 frasi su perché è rilevante per Telco, Media, Tech, AI.
-    Collega, se possibile, a temi come: reti, cloud, AI, advertising, streaming, robotica, data center, infrastrutture.
-- "pov":
-    2–3 frasi di punto di vista strategico:
-    impatto 6–24 mesi, rischi/opportunità, possibili implicazioni per player come Sky, operatori Telco, broadcaster, OTT.
+- "what_it_is":
+    2–3 sentences explaining what the news is about:
+    e.g. product launch, partnership, acquisition, regulation, standard,
+    funding round, infrastructure build-out, technology milestone, etc.
 
-### FORMATO OBBLIGATORIO
+- "who":
+    2 sentences describing the main actors (companies, institutions, key roles)
+    and their roles in the news.
 
-- Rispondi SOLO con un JSON valido.
-- Nessun commento, nessun markdown, niente testo prima o dopo.
-- Non mandare mai "```json" o simili.
+- "what_it_does":
+    2–3 sentences explaining concretely what this initiative/technology enables
+    or changes (capabilities, use cases, segments impacted).
 
-### DATI NOTIZIA
+- "why_it_matters":
+    2–3 sentences about why this matters for Telco/Media/Tech/AI:
+    relate, where possible, to networks, cloud, AI, advertising, streaming,
+    robotics, data centers, satellite, infrastructure.
 
-Titolo: {article.title}
-Fonte: {article.source}
+- "strategic_view":
+    2–3 sentences with a forward-looking point of view (6–24 months):
+    risks & opportunities, likely impact on operators, broadcasters,
+    OTTs, hyperscalers, or players like Sky.
+
+### OUTPUT FORMAT (VERY IMPORTANT)
+
+- Answer **ONLY** with a valid JSON object.
+- No comments, no markdown, no explanations.
+- Do NOT wrap it in ```json or any code fences.
+
+### NEWS DATA
+
+Title: {article.title}
+Source: {article.source}
 URL: {article.url}
 
-Contenuto:
+Content:
 {article.content}
 """
 
 
+# ===============================
+# Fallback handler
+# ===============================
+
 def _fallback_summary(article: RawArticle, reason: str) -> Dict[str, str]:
     """
     Fallback se la chiamata a Gemini fallisce o l'output non è parsabile.
-    Meglio un messaggio chiaro che un testo confuso.
     """
-    msg = f"Riassunto non disponibile ({reason}). Leggere l'articolo completo dal link."
+    msg = f"Summary not available ({reason}). Please read the full article from the link."
     return {
         "title": article.title,
         "url": article.url,
@@ -101,22 +127,33 @@ def _fallback_summary(article: RawArticle, reason: str) -> Dict[str, str]:
     }
 
 
-def summarize_with_gemini(article: RawArticle, model: str, temperature: float, max_tokens: int) -> Dict[str, str]:
+# ===============================
+# Gemini summarization
+# ===============================
+
+def summarize_with_gemini(
+    article: RawArticle,
+    model: str,
+    temperature: float,
+    max_tokens: int,
+) -> Dict[str, str]:
     """
-    Chiama Gemini e restituisce un dizionario strutturato con i 5 campi.
+    Chiama Gemini e restituisce un dict con i 5 campi logici.
     """
     try:
         _configure_gemini()
     except Exception as e:
-        print("[LLM] Gemini non configurato:", repr(e))
-        return _fallback_summary(article, "Gemini non configurato")
+        print("[LLM] Gemini not configured:", repr(e))
+        return _fallback_summary(article, "Gemini not configured")
 
     mdl_name = model or GEMINI_MODEL
+    print("[LLM] Using Gemini model:", mdl_name)
+
     prompt = build_prompt(article)
 
     try:
-        mdl = genai.GenerativeModel(mdl_name)
-        response = mdl.generate_content(
+        gemini_model = genai.GenerativeModel(mdl_name)
+        response = gemini_model.generate_content(
             prompt,
             generation_config={
                 "temperature": float(temperature),
@@ -125,58 +162,87 @@ def summarize_with_gemini(article: RawArticle, model: str, temperature: float, m
         )
         text = (response.text or "").strip()
     except Exception as e:
-        print("[LLM] Errore chiamando Gemini:", repr(e))
-        return _fallback_summary(article, "errore chiamata Gemini")
+        print("[LLM] Error calling Gemini:", repr(e))
+        return _fallback_summary(article, "Gemini call error")
 
     if not text:
-        return _fallback_summary(article, "risposta vuota")
+        return _fallback_summary(article, "empty response")
 
-    # A volte i modelli aggiungono ```json ... ```
-    cleaned = text
+    # A volte il modello aggiunge ```json ... ``` → ripuliamo
+    cleaned = text.strip()
     if cleaned.startswith("```"):
-        cleaned = cleaned.strip("`")
-        cleaned = cleaned.replace("json", "", 1).strip()
+        cleaned = cleaned.strip("`").strip()
+        if cleaned.lower().startswith("json"):
+            cleaned = cleaned[4:].strip()
 
     try:
         data = json.loads(cleaned)
     except Exception as e:
-        print("[LLM] Impossibile fare parse del JSON:", repr(e))
-        print("[LLM] Output ricevuto:", text[:500])
-        return _fallback_summary(article, "JSON non parsabile")
+        print("[LLM] JSON parse error:", repr(e))
+        print("[LLM] Raw output (first 500 chars):", text[:500])
+        return _fallback_summary(article, "unparsable JSON")
 
-    # Normalizziamo i campi
-    cose = data.get("cose", "").strip()
-    chi = data.get("chi", "").strip()
-    cosa_fa = data.get("cosa_fa", "").strip()
-    perche = data.get("perche_interessante", "").strip()
-    pov = data.get("pov", "").strip()
+    # Normalizziamo i campi (in inglese ma mappati sui campi italiani del report)
+    what_it_is = data.get("what_it_is", "").strip()
+    who = data.get("who", "").strip()
+    what_it_does = data.get("what_it_does", "").strip()
+    why_it_matters = data.get("why_it_matters", "").strip()
+    strategic_view = data.get("strategic_view", "").strip()
 
-    # Se per qualche motivo i campi sono vuoti → fallback
-    if not any([cose, chi, cosa_fa, perche, pov]):
-        return _fallback_summary(article, "campi vuoti")
+    if not any([what_it_is, who, what_it_does, why_it_matters, strategic_view]):
+        return _fallback_summary(article, "all fields empty")
 
     return {
         "title": article.title,
         "url": article.url,
         "source": article.source,
         "published_at": article.published_at.isoformat(),
-        "cos_e": cose,
-        "chi": chi,
-        "cosa_fa": cosa_fa,
-        "perche_interessante": perche,
-        "pov": pov,
+        "cos_e": what_it_is,
+        "chi": who,
+        "cosa_fa": what_it_does,
+        "perche_interessante": why_it_matters,
+        "pov": strategic_view,
     }
 
 
-def summarize_article(article: RawArticle, model: str, temperature: float, max_tokens: int) -> Dict[str, str]:
+# ===============================
+# Public API used by main.py
+# ===============================
+
+def summarize_article(
+    article: RawArticle,
+    model: str,
+    temperature: float,
+    max_tokens: int,
+) -> Dict[str, str]:
     """
-    Entry point usato da main.py.
+    Entry point usato da main.py per un singolo articolo.
     """
-    return summarize_with_gemini(article, model=model, temperature=temperature, max_tokens=max_tokens)
+    return summarize_with_gemini(
+        article,
+        model=model,
+        temperature=temperature,
+        max_tokens=max_tokens,
+    )
 
 
-def summarize_articles(articles: List[RawArticle], model: str, temperature: float, max_tokens: int) -> List[Dict]:
+def summarize_articles(
+    articles: List[RawArticle],
+    model: str,
+    temperature: float,
+    max_tokens: int,
+) -> List[Dict]:
+    """
+    Entry point usato da main.py per una lista di articoli.
+    """
     summarized: List[Dict] = []
     for a in articles:
-        summarized.append(summarize_article(a, model=model, temperature=temperature, max_tokens=max_tokens))
+        summarized.append(
+            summarize_article(
+                a,
+                model=model,
+                temperature=temperature,
+                max_tokens=max_tokens,
+            )
+        )
     return summarized
