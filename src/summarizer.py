@@ -1,6 +1,5 @@
 from typing import List, Dict
 import os
-import json
 
 import google.generativeai as genai
 
@@ -12,9 +11,11 @@ from .models import RawArticle
 # ===============================
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-# Usa il modello aggiornato che hai in config.yaml (es. gemini-2.5-flash)
-# Questo valore è solo di fallback se nel config non c'è nulla.
 GEMINI_MODEL_FALLBACK = "gemini-2.5-flash"
+
+# Numero massimo di articoli da riassumere con l'LLM
+# (per stare nei limiti della free tier)
+MAX_LLM_CALLS = 8
 
 
 def _configure_gemini():
@@ -23,8 +24,8 @@ def _configure_gemini():
     """
     if not GEMINI_API_KEY:
         raise RuntimeError(
-            "GEMINI_API_KEY non impostata. "
-            "Imposta il secret GEMINI_API_KEY in GitHub Actions."
+            "GEMINI_API_KEY not set. "
+            "Set the secret GEMINI_API_KEY in GitHub Actions."
         )
     genai.configure(api_key=GEMINI_API_KEY)
 
@@ -36,6 +37,7 @@ def _configure_gemini():
 def build_prompt(article: RawArticle) -> str:
     """
     Prompt in inglese, stile approfondito per manager Telco/Media.
+    Il formato di output è TESTUALE con etichette, non JSON.
     """
     return f"""
 You are a senior technology & strategy analyst writing for a C-level executive
@@ -45,54 +47,57 @@ Read the NEWS (title + content) and produce a DEEP, STRUCTURED analysis.
 
 ### GOAL
 
-Return a JSON object with EXACTLY this schema (no extra fields):
+Produce EXACTLY 5 labelled sections, in this order:
 
-{{
-  "what_it_is": "...",
-  "who": "...",
-  "what_it_does": "...",
-  "why_it_matters": "...",
-  "strategic_view": "..."
-}}
+WHAT IT IS: ...
+WHO: ...
+WHAT IT DOES: ...
+WHY IT MATTERS: ...
+STRATEGIC VIEW: ...
 
 ### STYLE & GUIDELINES
 
 - Language: English.
 - Tone: professional, clear, business-oriented (no marketing fluff).
-- Each field should be a short paragraph (2–3 sentences), not bullet points.
+- Each section should be a short paragraph (2–3 sentences).
 - Avoid generic statements like "this is important" without explaining why.
 - Do NOT invent companies or facts that are not supported by the text.
 
 FIELD DETAILS:
 
-- "what_it_is":
+- WHAT IT IS:
     2–3 sentences explaining what the news is about:
     product launch, partnership, acquisition, regulation, funding round,
     infrastructure build-out, technology milestone, etc.
 
-- "who":
+- WHO:
     2 sentences describing the main actors (companies, institutions, key roles)
     and their roles in the news.
 
-- "what_it_does":
+- WHAT IT DOES:
     2–3 sentences explaining concretely what this initiative/technology enables
     or changes (capabilities, use cases, segments impacted).
 
-- "why_it_matters":
+- WHY IT MATTERS:
     2–3 sentences about why this matters for Telco/Media/Tech/AI:
-    e.g. networks, cloud, AI, advertising, streaming, robotics,
+    networks, cloud, AI, advertising, streaming, robotics,
     data centers, satellite, infrastructure.
 
-- "strategic_view":
+- STRATEGIC VIEW:
     2–3 sentences with a forward-looking point of view (6–24 months):
     risks & opportunities, likely impact on operators, broadcasters,
     OTTs, hyperscalers, or players like Sky.
 
 ### OUTPUT FORMAT (VERY IMPORTANT)
 
-- Answer ONLY with a valid JSON object.
-- No comments, no markdown, no explanations.
-- Do NOT wrap it in ```json or any code fences.
+- Answer ONLY with plain text.
+- Use EXACTLY these 5 labels in uppercase English:
+  - WHAT IT IS:
+  - WHO:
+  - WHAT IT DOES:
+  - WHY IT MATTERS:
+  - STRATEGIC VIEW:
+- Each label must start a new line.
 
 ### NEWS DATA
 
@@ -111,7 +116,8 @@ Content:
 
 def _fallback_summary(article: RawArticle, reason: str) -> Dict[str, str]:
     """
-    Fallback se la chiamata a Gemini fallisce o l'output non è parsabile.
+    Fallback se la chiamata a Gemini fallisce o non vogliamo usare l'LLM
+    (es. per risparmiare quota free).
     """
     msg = f"Summary not available ({reason}). Please read the full article from the link."
     return {
@@ -161,28 +167,58 @@ def _extract_text_from_response(response) -> str:
     return ""
 
 
-def _safe_parse_json(raw_text: str) -> Dict:
+def _parse_labelled_text(text: str) -> Dict[str, str]:
     """
-    Prova a parsare JSON anche se il modello mette testo extra o sporcizia.
+    Parsiamo il testo con etichette tipo:
+
+    WHAT IT IS: ...
+    WHO: ...
+    WHAT IT DOES: ...
+    WHY IT MATTERS: ...
+    STRATEGIC VIEW: ...
+
+    Restituiamo un dict con chiavi logiche.
     """
-    if not raw_text:
-        raise ValueError("Empty text for JSON parsing")
+    sections = {
+        "WHAT IT IS:": "",
+        "WHO:": "",
+        "WHAT IT DOES:": "",
+        "WHY IT MATTERS:": "",
+        "STRATEGIC VIEW:": "",
+    }
 
-    cleaned = raw_text.strip()
+    current_label = None
+    lines = [l.strip() for l in text.split("\n") if l.strip()]
 
-    # Ripulisci eventuali ```json ... ``` o ``` ...
-    if cleaned.startswith("```"):
-        cleaned = cleaned.strip("`").strip()
-        if cleaned.lower().startswith("json"):
-            cleaned = cleaned[4:].strip()
+    for line in lines:
+        upper = line.upper()
+        # Se la linea inizia con una delle etichette, cambiamo contesto
+        matched_label = None
+        for label in sections.keys():
+            if upper.startswith(label):
+                matched_label = label
+                break
 
-    # Prendi solo dalla prima '{' all'ultima '}'
-    start = cleaned.find("{")
-    end = cleaned.rfind("}")
-    if start != -1 and end != -1 and end > start:
-        cleaned = cleaned[start:end + 1]
+        if matched_label:
+            current_label = matched_label
+            content = line[len(matched_label):].strip()
+            if content:
+                sections[current_label] = content
+        else:
+            # linea successiva: la aggiungiamo alla sezione corrente
+            if current_label:
+                if sections[current_label]:
+                    sections[current_label] += " " + line
+                else:
+                    sections[current_label] = line
 
-    return json.loads(cleaned)
+    return {
+        "what_it_is": sections["WHAT IT IS:"].strip(),
+        "who": sections["WHO:"].strip(),
+        "what_it_does": sections["WHAT IT DOES:"].strip(),
+        "why_it_matters": sections["WHY IT MATTERS:"].strip(),
+        "strategic_view": sections["STRATEGIC VIEW:"].strip(),
+    }
 
 
 # ===============================
@@ -216,7 +252,6 @@ def summarize_with_gemini(
             generation_config={
                 "temperature": float(temperature),
                 "max_output_tokens": int(max_tokens),
-                "response_mime_type": "application/json",
             },
         )
         text = _extract_text_from_response(response)
@@ -227,33 +262,21 @@ def summarize_with_gemini(
     if not text:
         return _fallback_summary(article, "empty response")
 
-    try:
-        data = _safe_parse_json(text)
-    except Exception as e:
-        print("[LLM] JSON parse error:", repr(e))
-        print("[LLM] Raw output (first 500 chars):", text[:500])
-        return _fallback_summary(article, "unparsable JSON")
+    sections = _parse_labelled_text(text)
 
-    # Normalizziamo i campi (in inglese ma mappati sui campi italiani del report)
-    what_it_is = str(data.get("what_it_is", "")).strip()
-    who = str(data.get("who", "")).strip()
-    what_it_does = str(data.get("what_it_does", "")).strip()
-    why_it_matters = str(data.get("why_it_matters", "")).strip()
-    strategic_view = str(data.get("strategic_view", "")).strip()
-
-    if not any([what_it_is, who, what_it_does, why_it_matters, strategic_view]):
-        return _fallback_summary(article, "all fields empty")
+    if not any(sections.values()):
+        return _fallback_summary(article, "no labelled sections found")
 
     return {
         "title": article.title,
         "url": article.url,
         "source": article.source,
         "published_at": article.published_at.isoformat(),
-        "cos_e": what_it_is,
-        "chi": who,
-        "cosa_fa": what_it_does,
-        "perche_interessante": why_it_matters,
-        "pov": strategic_view,
+        "cos_e": sections["what_it_is"],
+        "chi": sections["who"],
+        "cosa_fa": sections["what_it_does"],
+        "perche_interessante": sections["why_it_matters"],
+        "pov": sections["strategic_view"],
     }
 
 
@@ -286,15 +309,33 @@ def summarize_articles(
 ) -> List[Dict]:
     """
     Entry point usato da main.py per una lista di articoli.
+
+    Per rimanere nei limiti della free tier:
+    - usiamo Gemini solo per i primi MAX_LLM_CALLS articoli
+    - per gli altri usiamo il fallback.
     """
     summarized: List[Dict] = []
-    for a in articles:
-        summarized.append(
-            summarize_article(
-                a,
-                model=model,
-                temperature=temperature,
-                max_tokens=max_tokens,
+
+    for idx, a in enumerate(articles):
+        if idx < MAX_LLM_CALLS:
+            summarized.append(
+                summarize_article(
+                    a,
+                    model=model,
+                    temperature=temperature,
+                    max_tokens=max_tokens,
+                )
             )
-        )
+        else:
+            print(
+                f"[LLM] Skipping Gemini for article {idx+1}, using fallback "
+                f"to preserve free-tier quota."
+            )
+            summarized.append(
+                _fallback_summary(
+                    a,
+                    "LLM quota reserved for top articles (free tier limit)",
+                )
+            )
+
     return summarized
