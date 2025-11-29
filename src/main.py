@@ -1,6 +1,6 @@
 from pathlib import Path
 from datetime import datetime
-from collections import defaultdict
+from typing import Dict, List
 import yaml
 
 from .rss_collector import collect_from_rss, rank_articles
@@ -9,6 +9,7 @@ from .summarizer import summarize_articles
 from .report_builder import build_html_report
 from .pdf_export import html_to_pdf
 from .email_sender import send_report_email
+from .models import RawArticle
 
 
 # Root del repo (cartella padre di src/)
@@ -20,106 +21,115 @@ def today_str() -> str:
     return datetime.now().strftime("%Y-%m-%d")
 
 
-def load_config():
+def load_config() -> dict:
     """Carica config/config.yaml."""
     config_path = BASE_DIR / "config" / "config.yaml"
     print("[DEBUG] Loading config from:", config_path)
     with open(config_path, "r", encoding="utf-8") as f:
         data = yaml.safe_load(f)
-    return data
+    return data or {}
 
 
-def load_rss_sources():
+def load_rss_sources() -> list:
     """Carica la lista dei feed da config/sources_rss.yaml."""
     rss_path = BASE_DIR / "config" / "sources_rss.yaml"
     print("[DEBUG] Loading RSS sources from:", rss_path)
     with open(rss_path, "r", encoding="utf-8") as f:
         data = yaml.safe_load(f)
-    return data["feeds"]
+    return data.get("feeds", [])
 
 
-# -------------------------------------------------------------------
-# CATEGORIZZAZIONE SEMPLICE PER ARGOMENTO
-# -------------------------------------------------------------------
+# ---------------------------------------------------------------------
+# TOPIC CATEGORIZATION FOR WATCHLIST
+# ---------------------------------------------------------------------
 
-TOPIC_KEYWORDS = {
-    "Telco & 5G": [
-        "5g", "6g", "telco", "telecom", "mobile", "operator", "carrier",
-        "spectrum", "fiber", "ftth", "broadband", "network", "edge"
-    ],
-    "Media, TV & Streaming": [
-        "tv", "broadcast", "streaming", "ott", "video", "vod",
-        "content", "sport rights", "ad tech", "advertising"
-    ],
-    "AI & GenAI": [
-        "ai", "artificial intelligence", "genai", "foundation model",
-        "llm", "machine learning", "chatbot"
-    ],
-    "Cloud & Data Center": [
-        "cloud", "datacenter", "data center", "colocation", "hyperscaler",
-        "aws", "azure", "google cloud"
-    ],
-    "Robotics, Space & IoT": [
-        "robot", "robotics", "space", "satellite", "orbit", "launch",
-        "iot", "drones"
-    ],
-    "Cybersecurity & Privacy": [
-        "cyber", "security", "ransomware", "breach", "vulnerability",
-        "encryption", "privacy", "zero trust"
-    ],
-}
-
-
-def categorize_article(article) -> str:
+def _topic_for_article(article: RawArticle) -> str:
     """
-    Ritorna una categoria testuale basata su parole chiave
-    nel titolo + contenuto + fonte.
+    Ritorna una categoria testuale per la watchlist.
+    Le categorie sono le stesse usate in report_builder:
+      - "TV/Streaming"
+      - "Telco/5G"
+      - "Media/Platforms"
+      - "AI/Cloud/Quantum"
+      - "Space/Infra"
     """
-    text = f"{article.title} {article.content} {article.source}".lower()
+    title = (article.title or "").lower()
+    source = (article.source or "").lower()
+    text = title + " " + source
 
-    for topic, keywords in TOPIC_KEYWORDS.items():
-        if any(k in text for k in keywords):
-            return topic
+    # TV / Streaming
+    if any(k in text for k in ["netflix", "disney+", "disney plus", "hulu", "amazon prime", "prime video",
+                               "hbo", "sky", "streaming", "vod", "ott", "tv", "broadcast"]):
+        return "TV/Streaming"
 
-    return "Other Tech Topics"
+    # Space / Infrastructure
+    if any(k in text for k in ["spacex", "space", "satellite", "satcom", "orbit", "nasa", "esa", "launch vehicle"]):
+        return "Space/Infra"
+
+    # Telco / 5G / Networks
+    if any(k in text for k in ["5g", "4g", "lte", "spectrum", "fiber", "broadband",
+                               "telecom", "telco", "operator", "carrier", "network"]):
+        return "Telco/5G"
+
+    # AI / Cloud / Quantum / Data
+    if any(k in text for k in ["ai", "artificial intelligence", "machine learning", "gen ai",
+                               "cloud", "data center", "datacenter", "saas", "iaas",
+                               "quantum", "llm"]):
+        return "AI/Cloud/Quantum"
+
+    # Media / Platforms / Social
+    if any(k in text for k in ["meta", "facebook", "instagram", "tiktok", "youtube",
+                               "x.com", "twitter", "snap", "social", "creator", "advertising"]):
+        return "Media/Platforms"
+
+    # Default: prova a mappare su Media/Platforms o Telco
+    if "media" in text:
+        return "Media/Platforms"
+    if "telecom" in text or "operator" in text:
+        return "Telco/5G"
+
+    return "Media/Platforms"  # fallback neutro
 
 
-def build_watchlist_grouped(articles, max_total: int = 15, max_per_topic: int = 3):
+def build_watchlist(articles: List[RawArticle], max_per_topic: int = 5) -> Dict[str, List[Dict]]:
     """
-    Prende una lista di articoli (già ordinati per importanza) e costruisce:
-    - massimo max_total articoli totali
-    - massimo max_per_topic articoli per categoria
-
-    Ritorna:
-        dict(topic -> list[ {title, url, source} ])
+    Crea la watchlist:
+      - prende gli articoli "non deep–dive"
+      - li distribuisce nelle categorie
+      - limita a max_per_topic per categoria
+    Ritorna dict: topic -> list[{title, url, source}]
     """
-    grouped = defaultdict(list)
-    total_added = 0
+    buckets: Dict[str, List[Dict]] = {
+        "TV/Streaming": [],
+        "Telco/5G": [],
+        "Media/Platforms": [],
+        "AI/Cloud/Quantum": [],
+        "Space/Infra": [],
+    }
 
     for art in articles:
-        if total_added >= max_total:
-            break
-
-        topic = categorize_article(art)
-
-        if len(grouped[topic]) >= max_per_topic:
-            continue  # questa categoria ha già abbastanza articoli
-
-        grouped[topic].append(
+        topic = _topic_for_article(art)
+        lst = buckets.setdefault(topic, [])
+        if len(lst) >= max_per_topic:
+            continue
+        lst.append(
             {
                 "title": art.title,
                 "url": art.url,
                 "source": art.source,
             }
         )
-        total_added += 1
 
-    return grouped
+    # log di debug
+    for k, v in buckets.items():
+        print(f"[WATCHLIST] {k}: {len(v)} items")
+
+    return buckets
 
 
-# -------------------------------------------------------------------
+# ---------------------------------------------------------------------
 # MAIN
-# -------------------------------------------------------------------
+# ---------------------------------------------------------------------
 
 def main():
     # Info utili per il debug su GitHub Actions
@@ -139,17 +149,18 @@ def main():
     model = llm_cfg.get("model", "")
     temperature = float(llm_cfg.get("temperature", 0.25))
     max_tokens = int(llm_cfg.get("max_tokens", 900))
+    language = llm_cfg.get("language", "en")
 
     # 2) Raccolta RSS
     print("Collecting RSS...")
     raw_articles = collect_from_rss(feeds)
-    print(f"Collected {len(raw_articles)} raw articles")
+    print(f"[RSS] Total raw articles collected: {len(raw_articles)}")
 
     if not raw_articles:
         print("No articles collected from RSS. Exiting.")
         return
 
-    # 3) Cleaning (es. ultime 24h, dedup, sort, limite massimo)
+    # 3) Cleaning (es. ultime 24h, dedup, limite massimo)
     cleaned = clean_articles(raw_articles, max_articles=max_articles_for_cleaning)
     print(f"After cleaning: {len(cleaned)} articles")
 
@@ -157,7 +168,7 @@ def main():
         print("No recent articles after cleaning. Exiting.")
         return
 
-    # 4) Ranking complessivo
+    # 4) Ranking globale
     ranked = rank_articles(cleaned)
     print(f"[RANK] Selected top {len(ranked)} articles out of {len(cleaned)}")
 
@@ -165,37 +176,31 @@ def main():
         print("No ranked articles found. Exiting.")
         return
 
-    # 5) Selezione:
-    #    - 3 articoli per deep dive (riassunto completo con LLM)
-    #    - il resto per la watchlist (solo titolo + link)
-    deep_dive_articles = ranked[:3]
-    watchlist_candidates = ranked[3:]  # gli altri, in ordine di importanza
+    # 5) Selezione: 3 deep–dive + watchlist (resto)
+    deep_raw = ranked[:3]
+    watch_candidates = ranked[3:]  # il resto va in watchlist
 
-    print(f"[SELECT] Deep-dive articles: {len(deep_dive_articles)}")
-    print(f"[SELECT] Watchlist candidates: {len(watchlist_candidates)}")
+    print(f"[SELECT] Deep–dives: {len(deep_raw)}")
+    print(f"[SELECT] Watchlist candidates: {len(watch_candidates)}")
 
-    # 6) Summarization con LLM SOLO per i 3 deep-dive
+    # 6) Summarization per i 3 deep–dive
     print("Summarizing deep-dive articles with LLM...")
-    deep_dive_summaries = summarize_articles(
-        deep_dive_articles,
+    deep_dives = summarize_articles(
+        deep_raw,
         model=model,
         temperature=temperature,
         max_tokens=max_tokens,
     )
 
-    # 7) Costruzione della watchlist (max 15, max 3 per topic)
-    watchlist_grouped = build_watchlist_grouped(
-        watchlist_candidates,
-        max_total=15,
-        max_per_topic=3,
-    )
+    # 7) Costruzione watchlist (solo titolo+url+source)
+    watchlist = build_watchlist(watch_candidates, max_per_topic=5)
 
     # 8) Costruzione HTML
     print("Building HTML report...")
     date_str = today_str()
     html = build_html_report(
-        deep_dives=deep_dive_summaries,
-        watchlist_grouped=watchlist_grouped,
+        deep_dives=deep_dives,
+        watchlist=watchlist,
         date_str=date_str,
     )
 
