@@ -4,4 +4,5 @@ pyyaml
 feedparser
 jinja2
 pdfkit
-pip install -U google-genai google-generativeai
+google-genai
+google-generativeai
