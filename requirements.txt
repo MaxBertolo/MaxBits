@@ -1,8 +1,22 @@
-groq
-requests
-pyyaml
-feedparser
-jinja2
-pdfkit
-google-genai
-google-generativeai
+# --- LLM / Gemini ---
+google-generativeai>=0.7.2
+
+# --- RSS Parsing ---
+feedparser>=6.0.10
+beautifulsoup4>=4.12.2
+requests>=2.31.0
+
+# --- HTML report generation ---
+jinja2>=3.1.2
+
+# --- PDF conversion (wkhtmltopdf must be installed externally) ---
+pdfkit>=1.0.0
+
+# --- Email SMTP ---
+yagmail>=0.15.293
+
+# --- Utilities ---
+python-dateutil>=2.8.2
+
+# --- YAML config ---
+pyyaml>=6.0.1
