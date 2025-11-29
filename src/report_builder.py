@@ -1,193 +1,147 @@
 from typing import List, Dict
-from jinja2 import Template
-import re
-import html
-
-from .models import RawArticle
+from html import escape
 
 
-# ================== TOPIC MAPPING ==================
-
-TOPICS = {
-    "Media, TV & Streaming": [
-        "advanced television",
-        "fierce video",
-        "marketing dive",
-        "adweek",
-        "wired – business",
-        "wired - business",
-        "techcrunch mobility",
-    ],
-    "Telco & 5G": [
-        "fierce telecom",
-        "fierce wireless",
-        "telecoms.com",
-        "light reading",
-        "capacity media",
-    ],
-    "AI · Cloud · Tech": [
-        "techcrunch ai",
-        "ars technica",
-        "the verge",
-        "wired – tech",
-        "wired - tech",
-        "data center knowledge",
-        "data center dynamics",
-        "the hacker news",
-        "robotics 247",
-        "robotics247",
-    ],
-    "Space & Infrastructure": [
-        "space news",
-        "satnews",
-        "spacenews",
-        "space.com",
-    ],
-}
+def _render_header(date_str: str) -> str:
+    return f"""
+    <header style="margin-bottom: 24px;">
+      <h1 style="margin:0; font-size:28px;">MaxBits · Daily Tech Watch</h1>
+      <p style="margin:4px 0 0 0; color:#555;">Daily brief · {escape(date_str)}</p>
+    </header>
+    """
 
 
-def strip_html_title(raw_title: str) -> str:
-    if not raw_title:
+def _render_deep_dives(deep_dives: List[Dict]) -> str:
+    if not deep_dives:
+        return "<p>No deep–dive articles for today.</p>"
+
+    blocks = []
+    for item in deep_dives:
+        title = escape(item.get("title", ""))
+        url = item.get("url") or "#"
+        source = escape(item.get("source", ""))
+        topic = escape(item.get("topic", "General"))
+        what = escape(item.get("what_it_is", ""))
+        who = escape(item.get("who", ""))
+        impact = escape(item.get("impact", ""))
+        future = escape(item.get("future_outlook", ""))
+        key_points = escape(item.get("key_points", ""))
+
+        block = f"""
+        <article style="margin-bottom: 24px; padding-bottom:16px; border-bottom:1px solid #eee;">
+          <h2 style="margin:0 0 4px 0; font-size:20px;">
+            <a href="{url}" style="color:#0052CC; text-decoration:none;">{title}</a>
+          </h2>
+          <p style="margin:0; color:#777; font-size:13px;">
+            {source} · Topic: <strong>{topic}</strong>
+          </p>
+
+          <ul style="margin:8px 0 0 18px; padding:0; font-size:14px;">
+            <li><strong>What it is:</strong> {what}</li>
+            <li><strong>Who:</strong> {who}</li>
+            <li><strong>Impact:</strong> {impact}</li>
+            <li><strong>Future outlook:</strong> {future}</li>
+            <li><strong>Key points:</strong> {key_points}</li>
+          </ul>
+        </article>
+        """
+        blocks.append(block)
+
+    return "\n".join(blocks)
+
+
+def _render_watchlist_section(title: str, items: List[Dict]) -> str:
+    if not items:
         return ""
-    text = re.sub(r"<[^>]+>", "", raw_title)
-    text = html.unescape(text)
-    return text.strip()
 
-
-def classify_topic(article: RawArticle) -> str:
-    source = (article.source or "").lower()
-    for topic, keywords in TOPICS.items():
-        for kw in keywords:
-            if kw in source:
-                return topic
-    return "Other"
-
-
-# ================== HTML REPORT ==================
-
-
-def build_html_report(
-    deep_dive_summaries: List[Dict],
-    watchlist_articles: List[RawArticle],
-    date_str: str,
-) -> str:
-    """
-    deep_dive_summaries: output di summarize_articles (3 articoli)
-    watchlist_articles: lista di RawArticle (tutti i candidati interessanti)
-    """
-
-    # ---- Normalizza deep-dive (già riassunti dal LLM) ----
-    deep_dive = []
-    for d in deep_dive_summaries:
-        deep_dive.append(
-            {
-                "title_clean": d.get("title_clean") or strip_html_title(d.get("title", "")),
-                "source": d.get("source", ""),
-                "published_at": d.get("published_at", ""),
-                "url": d.get("url", ""),
-                "what_it_is": d.get("what_it_is", ""),
-                "who": d.get("who", ""),
-                "what_it_does": d.get("what_it_does", ""),
-                "why_it_matters": d.get("why_it_matters", ""),
-                "strategic_view": d.get("strategic_view", ""),
-            }
+    lis = []
+    for art in items:
+        atitle = escape(art.get("title", ""))
+        url = art.get("url") or "#"
+        source = escape(art.get("source", ""))
+        lis.append(
+            f'<li style="margin-bottom:4px;"><a href="{url}" '
+            f'style="color:#0052CC; text-decoration:none;">{atitle}</a>'
+            f' <span style="color:#777; font-size:12px;">({source})</span></li>'
         )
 
-    # ---- Classifica watchlist per topic ----
-    grouped: Dict[str, List[Dict]] = {topic: [] for topic in TOPICS.keys()}
-    grouped["Other"] = []
-
-    for art in watchlist_articles:
-        topic = classify_topic(art)
-        grouped[topic].append(
-            {
-                "title_clean": strip_html_title(art.title),
-                "url": art.url,
-                "source": art.source,
-            }
-        )
-
-    # Limita a 3–5 articoli per topic
-    final_groups: Dict[str, List[Dict]] = {}
-    for topic, items in grouped.items():
-        if not items:
-            continue
-        final_groups[topic] = items[:5]
-
-    # ---- Template HTML ----
-    template_str = """
-    <html>
-    <head>
-        <meta charset="utf-8" />
-        <style>
-            body { font-family: Arial, sans-serif; margin: 35px; }
-            h1 { color: #003366; }
-            h2 { color: #005599; margin-top: 32px; }
-            h3 { color: #0088cc; margin-top: 24px; }
-            .box {
-                margin-bottom: 24px;
-                padding: 16px;
-                border: 1px solid #ccc;
-                border-radius: 8px;
-                background-color: #fafafa;
-            }
-            .meta {
-                font-size: 0.9em;
-                color: #555;
-                margin-bottom: 8px;
-            }
-            a { color: #0088cc; text-decoration: none; }
-            a:hover { text-decoration: underline; }
-        </style>
-    </head>
-    <body>
-
-        <h1>MaxBits Daily Tech Report</h1>
-        <p>
-            <b>Date:</b> {{ date_str }}<br/>
-            <b>Scope:</b> Telco · Media · Streaming · AI · Cloud · Space · Infrastructure
-        </p>
-
-        <h2>1. Deep Dive – Executive Summary (3 key stories)</h2>
-
-        {% for a in deep_dive %}
-            <div class="box">
-                <h3>{{ a.title_clean }}</h3>
-                <p class="meta">
-                    <b>Source:</b> {{ a.source }}
-                    {% if a.published_at %}| <b>Published:</b> {{ a.published_at }}{% endif %}
-                    {% if a.url %}| <a href="{{ a.url }}">Open article</a>{% endif %}
-                </p>
-
-                <p><b>WHAT IT IS</b><br/>{{ a.what_it_is }}</p>
-                <p><b>WHO</b><br/>{{ a.who }}</p>
-                <p><b>WHAT IT DOES</b><br/>{{ a.what_it_does }}</p>
-                <p><b>WHY IT MATTERS</b><br/>{{ a.why_it_matters }}</p>
-                <p><b>STRATEGIC VIEW</b><br/>{{ a.strategic_view }}</p>
-            </div>
-        {% endfor %}
-
-        <h2>2. Watchlist by Topic (3–5 stories per category)</h2>
-
-        {% for topic, items in groups.items() %}
-            <h3>{{ topic }}</h3>
-            <ul>
-            {% for a in items %}
-                <li>
-                    <a href="{{ a.url }}">{{ a.title_clean }}</a>
-                    – {{ a.source }}
-                </li>
-            {% endfor %}
-            </ul>
-        {% endfor %}
-
-    </body>
-    </html>
+    return f"""
+    <section style="margin-top:16px;">
+      <h3 style="margin:0 0 4px 0; font-size:16px;">{escape(title)}</h3>
+      <ul style="margin:4px 0 0 18px; padding:0; font-size:14px; list-style:disc;">
+        {''.join(lis)}
+      </ul>
+    </section>
     """
 
-    template = Template(template_str)
-    return template.render(
-        date_str=date_str,
-        deep_dive=deep_dive,
-        groups=final_groups,
-    )
+
+def _render_watchlist(watchlist: Dict[str, List[Dict]]) -> str:
+    if not watchlist:
+        return "<p>No additional watchlist items today.</p>"
+
+    sections_html = []
+
+    tv_items = watchlist.get("TV/Streaming", [])
+    if tv_items:
+        sections_html.append(_render_watchlist_section("TV & Streaming", tv_items))
+
+    telco_items = watchlist.get("Telco/5G", [])
+    media_items = watchlist.get("Media/Platforms", [])
+    ai_items = watchlist.get("AI/Cloud/Quantum", [])
+    infra_items = watchlist.get("Space/Infra", [])
+
+    merged_telco = telco_items
+    merged_media = media_items
+    merged_ai = ai_items
+    merged_infra = infra_items
+
+    if merged_telco:
+        sections_html.append(_render_watchlist_section("Telco · 5G · Networks", merged_telco))
+    if merged_media:
+        sections_html.append(_render_watchlist_section("Media · Platforms · Social", merged_media))
+    if merged_ai:
+        sections_html.append(_render_watchlist_section("AI · Cloud · Quantum", merged_ai))
+    if merged_infra:
+        sections_html.append(_render_watchlist_section("Space · Infrastructure", merged_infra))
+
+    return "\n".join(sections_html)
+
+
+def build_html_report(*, deep_dives, watchlist, date_str: str) -> str:
+    """
+    Costruisce l'HTML completo.
+
+    Parametri (devono combaciare con main.py):
+      - deep_dives: lista di 3 articoli "full" (già arricchiti dal summarizer)
+      - watchlist: dict categoria -> lista articoli (solo titolo+url+source)
+      - date_str: 'YYYY-MM-DD'
+    """
+    header = _render_header(date_str)
+    deep_dives_html = _render_deep_dives(deep_dives)
+    watchlist_html = _render_watchlist(watchlist)
+
+    return f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>MaxBits · Daily Tech Watch · {escape(date_str)}</title>
+</head>
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif; font-size:14px; color:#111; background:#fafafa; margin:0; padding:24px;">
+  <div style="max-width:900px; margin:0 auto; background:#fff; padding:24px 32px; border-radius:8px; box-shadow:0 0 12px rgba(0,0,0,0.04);">
+    {header}
+
+    <section style="margin-bottom:32px;">
+      <h2 style="margin:0 0 12px 0; font-size:22px;">3 deep-dives you should really read</h2>
+      {deep_dives_html}
+    </section>
+
+    <section>
+      <h2 style="margin:0 0 8px 0; font-size:20px;">Curated watchlist · 3–5 links per topic</h2>
+      {watchlist_html}
+    </section>
+  </div>
+</body>
+</html>
+"""
+
+ 
