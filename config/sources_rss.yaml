@@ -12,6 +12,9 @@ feeds:
     url: https://www.wired.com/feed/category/tech/latest/rss
   - name: Wired – Business
     url: https://www.wired.com/feed/category/business/latest/rss
+  - name: "The Information (Tech)"
+    url: "https://www.theinformation.com/subscriber_feed"
+
 
   # --- TELECOM / NETWORK / 5G / FIBER ---
   - name: Light Reading – Telecom
