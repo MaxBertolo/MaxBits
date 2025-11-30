@@ -7,15 +7,59 @@ from email.mime.text import MIMEText
 from pathlib import Path
 
 
+def _normalize_smtp_host_and_port() -> tuple[str, int]:
+    """
+    Legge SMTP_HOST / SMTP_PORT dalle env e ripulisce:
+    - rimuove eventuali prefissi (smtp://, smtps://, http://, https://)
+    - se c'è "host:port" nello stesso secret, li separa
+    - rimuove path tipo "smtp.gmail.com:587/qualcosa"
+    """
+    raw_host = (os.getenv("SMTP_HOST") or "").strip()
+    raw_port = (os.getenv("SMTP_PORT") or "").strip()
+
+    host = raw_host
+
+    # Rimuovi eventuali schemi tipo smtp://, smtps://, http://, https://
+    for prefix in ("smtp://", "smtps://", "http://", "https://"):
+        if host.lower().startswith(prefix):
+            host = host[len(prefix):]
+
+    # Se c'è uno slash, tieni solo la parte prima
+    if "/" in host:
+        host = host.split("/", 1)[0]
+
+    # Se c'è "host:port" nello stesso secret, separa
+    if ":" in host:
+        host_part, maybe_port = host.split(":", 1)
+        host = host_part.strip()
+        if not raw_port and maybe_port.strip().isdigit():
+            raw_port = maybe_port.strip()
+
+    # Porta di default
+    if not raw_port:
+        raw_port = "587"
+
+    try:
+        port = int(raw_port)
+    except ValueError:
+        print(f"[EMAIL] Invalid SMTP_PORT '{raw_port}', defaulting to 587")
+        port = 587
+
+    # Log di debug (host reale verrà mascherato da GitHub, ma vediamo almeno la lunghezza)
+    print(f"[EMAIL] Raw SMTP_HOST length={len(raw_host)}, normalized host length={len(host)}, port={port}")
+
+    return host, port
+
+
 def send_report_email(pdf_path: str, date_str: str, html_path: str | None = None) -> None:
     """
-    Invia il report PDF via SMTP (Gmail).
+    Invia il report PDF via SMTP (es. Gmail).
 
-    Usa variabili d'ambiente:
+    Variabili d'ambiente richieste:
       SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASSWORD, FROM_EMAIL, TO_EMAIL
     """
-    host = (os.getenv("SMTP_HOST") or "").strip()
-    port_str = (os.getenv("SMTP_PORT") or "").strip() or "587"
+    host, port = _normalize_smtp_host_and_port()
+
     user = (os.getenv("SMTP_USER") or "").strip()
     password = os.getenv("SMTP_PASSWORD") or ""
     from_email = (os.getenv("FROM_EMAIL") or user).strip()
@@ -27,12 +71,6 @@ def send_report_email(pdf_path: str, date_str: str, html_path: str | None = None
             "        Required: SMTP_HOST, SMTP_USER, SMTP_PASSWORD, TO_EMAIL"
         )
         return
-
-    try:
-        port = int(port_str)
-    except ValueError:
-        print(f"[EMAIL] Invalid SMTP_PORT '{port_str}', defaulting to 587")
-        port = 587
 
     pdf_file = Path(pdf_path)
     if not pdf_file.exists():
@@ -57,7 +95,6 @@ def send_report_email(pdf_path: str, date_str: str, html_path: str | None = None
         part.add_header("Content-Disposition", "attachment", filename=pdf_file.name)
         msg.attach(part)
 
-    # Log "censurato" ma sufficiente per capire che host/port non sono vuoti
     print(f"[EMAIL] Connecting to SMTP {host}:{port} as ***")
 
     try:
@@ -68,4 +105,5 @@ def send_report_email(pdf_path: str, date_str: str, html_path: str | None = None
 
         print("[EMAIL] Email sent successfully.")
     except Exception as e:
+        # Se fallisce, non blocchiamo il job (il report è già generato)
         print("[EMAIL] Unhandled error while sending email:", repr(e))
