@@ -53,6 +53,9 @@ WATCHLIST_TOPICS = [
     "Media/Platforms",
     "AI/Cloud/Quantum",
     "Space/Infra",
+    "Robotics",
+    "Broadcast",
+    "Satcom",
 ]
 
 
@@ -65,40 +68,86 @@ def categorize_article_for_watchlist(article: RawArticle) -> str:
     source = (article.source or "").lower()
     text = title + " " + source
 
-    # TV / Streaming
-    if any(k in text for k in ["netflix", "disney+", "prime video", "hbo", "streaming", "vod", "tv"]):
+    # --- Robotics ---
+    if any(k in text for k in [
+        "robot", "robotics", "humanoid", "cobot", "warehouse robot",
+        "boston dynamics", "autonomous robot"
+    ]):
+        return "Robotics"
+
+    # --- Broadcast (video, tv-tech, playout, codec, ecc.) ---
+    if any(k in text for k in [
+        "broadcast", "dvb", "atsc", "playout", "headend",
+        "video encoder", "video decoding", "mpeg-2", "mpeg-4",
+        "h.264", "h.265", "hevc", "vvc", "contribution link"
+    ]):
+        return "Broadcast"
+
+    # --- Satcom (satellite communications) ---
+    if any(k in text for k in [
+        "satcom", "vsat", "teleport", "ground station",
+        "ka-band", "ku-band", "satellite backhaul"
+    ]):
+        return "Satcom"
+
+    # --- TV / Streaming ---
+    if any(k in text for k in [
+        "netflix", "disney+", "disney plus", "hulu", "amazon prime",
+        "prime video", "hbo", "max", "sky", "streaming",
+        "vod", "ott", "tv series", "tv streaming"
+    ]):
         return "TV/Streaming"
 
-    # Telco / 5G
-    if any(k in text for k in ["5g", "telco", "telecom", "verizon", "vodafone", "bt", "mobile", "broadband"]):
-        return "Telco/5G"
-
-    # Media / piattaforme / social
-    if any(k in text for k in ["social", "tiktok", "youtube", "meta", "facebook", "instagram", "x.com", "twitter"]):
-        return "Media/Platforms"
-
-    # AI / Cloud / Quantum
-    if any(k in text for k in ["ai", "artificial intelligence", "cloud", "saas", "data center", "ml", "quantum", "gpu"]):
-        return "AI/Cloud/Quantum"
-
-    # Space / Infrastructure
-    if any(k in text for k in ["space", "satellite", "launch", "spacex", "rocket", "orbit", "leo", "geo"]):
+    # --- Space / Infrastructure (generale, non satcom puro) ---
+    if any(k in text for k in [
+        "spacex", "blue origin", "launch vehicle", "rocket",
+        "falcon 9", "starship", "orbital launch", "lunar lander"
+    ]):
         return "Space/Infra"
 
-    # Default: Telco/5G (verrà comunque ribilanciato nell’aggregazione)
+    # --- Telco / 5G / Networks ---
+    if any(k in text for k in [
+        "5g", "4g", "lte", "spectrum", "fiber", "ftth",
+        "broadband", "telecom", "telco", "operator", "carrier",
+        "network slicing", "ran", "open ran"
+    ]):
+        return "Telco/5G"
+
+    # --- AI / Cloud / Quantum / Data ---
+    if any(k in text for k in [
+        "ai", "artificial intelligence", "machine learning", "gen ai",
+        "cloud", "data center", "datacenter", "saas", "iaas",
+        "paas", "llm", "gpu", "quantum"
+    ]):
+        return "AI/Cloud/Quantum"
+
+    # --- Media / Platforms / Social ---
+    if any(k in text for k in [
+        "meta", "facebook", "instagram", "tiktok", "youtube",
+        "x.com", "twitter", "snap", "social", "creator", "advertising",
+        "adtech", "programmatic"
+    ]):
+        return "Media/Platforms"
+
+    # Fallback: se contiene "media"
+    if "media" in text:
+        return "Media/Platforms"
+
+    # Fallback generico: Telco/5G
     return "Telco/5G"
 
 
 def build_watchlist(articles: List[RawArticle]) -> Dict[str, List[Dict]]:
     """
-    Distribuisce gli articoli su 5 topic.
+    Distribuisce gli articoli su 8 topic.
     Obiettivo: 3–5 elementi per categoria (se ci sono abbastanza articoli).
-    Gli elementi sono dizionari semplici: title/title_clean/url/source.
+    - Deduplica per titolo all'interno di ogni categoria (stesso titolo = stesso articolo),
+      anche se gli URL sono diversi.
     """
-    # 1) prima passata: assegnazione “naturale”
     grouped: Dict[str, List[Dict]] = {topic: [] for topic in WATCHLIST_TOPICS}
     global_pool: List[Dict] = []
 
+    # 1) Assegnazione iniziale per categoria
     for art in articles:
         cat = categorize_article_for_watchlist(art)
         item = {
@@ -110,19 +159,43 @@ def build_watchlist(articles: List[RawArticle]) -> Dict[str, List[Dict]]:
         grouped.setdefault(cat, []).append(item)
         global_pool.append(item)
 
-    # 2) seconda passata: garantire almeno 3 elementi per categoria
-    #    prelevando, se serve, dal pool globale (senza duplicati grossolani)
+    # Funzione interna per deduplica per titolo (ignora differenze di URL)
+    def dedupe_items(items: List[Dict]) -> List[Dict]:
+        seen_titles = set()
+        result: List[Dict] = []
+        for item in items:
+            norm_title = (item.get("title_clean") or item.get("title") or "").strip().lower()
+            if not norm_title:
+                # se non abbiamo titolo, teniamo l'item una volta sola
+                norm_title = f"__no_title_{id(item)}"
+            if norm_title in seen_titles:
+                continue
+            seen_titles.add(norm_title)
+            result.append(item)
+        return result
+
+    # 2) Deduplica iniziale per ogni categoria
+    for cat in grouped:
+        grouped[cat] = dedupe_items(grouped[cat])
+
+    # 3) Riempimento per categoria (minimo 3 elementi, massimo 5)
+    #    usando il global_pool come sorgente di backup
     for cat in WATCHLIST_TOPICS:
         items = grouped.get(cat, [])
         if len(items) < 3:
             for cand in global_pool:
-                if cand in items:
-                    continue
-                items.append(cand)
+                # evita duplicati per titolo dentro la stessa categoria
+                candidate_list = items + [cand]
+                candidate_list = dedupe_items(candidate_list)
+                if len(candidate_list) > len(items):
+                    items = candidate_list
                 if len(items) >= 3:
                     break
-        # massimo 5 per non allungare troppo il report
-        grouped[cat] = items[:5]
+        grouped[cat] = items[:5]  # max 5
+
+    # 4) Deduplica finale per sicurezza
+    for cat in grouped:
+        grouped[cat] = dedupe_items(grouped[cat])
 
     return grouped
 
@@ -149,7 +222,7 @@ def main():
     model = llm_cfg.get("model", "")
     temperature = float(llm_cfg.get("temperature", 0.25))
     max_tokens = int(llm_cfg.get("max_tokens", 900))
-    # language = llm_cfg.get("language", "en")  # già implicito nel prompt, se ti serve
+    # language = llm_cfg.get("language", "en")  # se in futuro ti serve, è qui
 
     # 2) Raccolta RSS
     print("Collecting RSS...")
@@ -176,9 +249,9 @@ def main():
         print("No ranked articles found. Exiting.")
         return
 
-    # 5) Selezione deep-dives (max 3) + watchlist (altri ~15)
+    # 5) Selezione deep-dives (max 3) + watchlist (altri ~20)
     deep_dives_raw: List[RawArticle] = ranked[:3]
-    watchlist_candidates: List[RawArticle] = ranked[3:3 + 20]  # es. altri 20 candidati
+    watchlist_candidates: List[RawArticle] = ranked[3:3 + 20]
 
     print(f"[SELECT] Deep-dive articles: {len(deep_dives_raw)}")
     print(f"[SELECT] Watchlist candidates: {len(watchlist_candidates)}")
@@ -196,7 +269,7 @@ def main():
     for art, summary in zip(deep_dives_raw, deep_dives_summaries):
         summary["topic"] = categorize_article_for_watchlist(art)
 
-    # 7) Costruzione watchlist per topic (3–5 link per categoria)
+    # 7) Costruzione watchlist per topic (3–5 link per categoria, deduplicati per titolo)
     print("Building watchlist by topic...")
     watchlist_grouped = build_watchlist(watchlist_candidates)
     print(f"[SELECT] Watchlist built with topics: {list(watchlist_grouped.keys())}")
