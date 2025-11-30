@@ -107,8 +107,7 @@ def _render_watchlist(watchlist: Dict[str, List[Dict]]) -> str:
     """
     sections_html: List[str] = []
 
-    for topic_key in TOPIC_LABELS.keys():
-        label = TOPIC_LABELS[topic_key]
+    for topic_key, label in TOPIC_LABELS.items():
         items = watchlist.get(topic_key, []) or []
         sections_html.append(_render_watchlist_section(label, items))
 
