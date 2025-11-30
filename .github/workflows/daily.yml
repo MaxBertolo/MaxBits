@@ -42,13 +42,9 @@ jobs:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           GEMINI_MODEL: "gemini-2.5-flash"
 
-          # --- Email / Gmail SMTP ---
-          SMTP_HOST: ${{ secrets.SMTP_HOST }}        # es. smtp.gmail.com
-          SMTP_PORT: ${{ secrets.SMTP_PORT }}        # es. 587
-          SMTP_USER: ${{ secrets.SMTP_USER }}        # es. ing.massimo.bertolotti@gmail.com
-          SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}# app password 16 caratteri
-          TO_EMAIL: ${{ secrets.TO_EMAIL }}          # destinatario
-          FROM_EMAIL: ${{ secrets.FROM_EMAIL }}      # es. MaxBits Report <ing.massimo.bertolotti@gmail.com>
+          # --- Telegram ---
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID:   ${{ secrets.TELEGRAM_CHAT_ID }}
         run: |
           python -m src.main
 
