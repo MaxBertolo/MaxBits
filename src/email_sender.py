@@ -1,13 +1,13 @@
-# src/email_sender.py
 import os
 import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.application import MIMEApplication
 from email.mime.text import MIMEText
 from pathlib import Path
+from typing import Tuple
 
 
-def _normalize_smtp_host_and_port() -> tuple[str, int]:
+def _normalize_smtp_host_and_port() -> Tuple[str, int]:
     """
     Legge SMTP_HOST / SMTP_PORT dalle env e ripulisce:
     - rimuove eventuali prefissi (smtp://, smtps://, http://, https://)
@@ -98,8 +98,19 @@ def send_report_email(pdf_path: str, date_str: str, html_path: str | None = None
     print(f"[EMAIL] Connecting to SMTP {host}:{port} as ***")
 
     try:
-        with smtplib.SMTP(host, port, timeout=30) as server:
-            server.starttls()
+        # Se porta 465 usiamo SSL diretto, altrimenti STARTTLS (tipico 587)
+        if port == 465:
+            smtp_class = smtplib.SMTP_SSL
+            use_starttls = False
+        else:
+            smtp_class = smtplib.SMTP
+            use_starttls = True
+
+        with smtp_class(host, port, timeout=30) as server:
+            server.ehlo()
+            if use_starttls:
+                server.starttls()
+                server.ehlo()
             server.login(user, password)
             server.send_message(msg)
 
