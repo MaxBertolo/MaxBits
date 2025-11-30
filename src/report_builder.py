@@ -84,19 +84,25 @@ def _render_watchlist_section(title: str, items: List[Dict]) -> str:
         </section>
         """
 
-    lis = []
+    lis: List[str] = []
     for art in items:
         atitle = escape(art.get("title", ""))
         url = art.get("url") or "#"
         source = escape(art.get("source", ""))
 
         lis.append(
-            f'''
-            <li style="margin-bottom:4px; list-style:none;">
-              &#8226; <a href="{url}" style="color:#0052CC; text-decoration:none;">{atitle}</a>
-              <span style="color:#777; font-size:12px;">({source})</span>
+            f"""
+            <li style="margin-bottom:6px; list-style:none;">
+              <strong>
+                <a href="{url}" style="color:#0052CC; text-decoration:none;">
+                  {atitle}
+                </a>
+              </strong><br/>
+              <span style="color:#777; font-size:12px;">
+                {source}
+              </span>
             </li>
-            '''
+            """
         )
 
     return f"""
@@ -117,9 +123,9 @@ def _render_watchlist(watchlist: Dict[str, List[Dict]]) -> str:
     anche se vuoti.
     """
 
-    sections = []
+    sections: List[str] = []
     for topic_key, label in TOPIC_LABELS.items():
-        items = watchlist.get(topic_key, [])
+        items = watchlist.get(topic_key, []) or []
         sections.append(_render_watchlist_section(label, items))
 
     return "\n".join(sections)
