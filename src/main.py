@@ -51,7 +51,7 @@ def load_rss_sources() -> List[Dict[str, Any]]:
     return data["feeds"]
 
 
-# ---------- HELPERS PER DEDUPLICA / WATCHLIST ----------
+# ---------- HELPERS: NORMALIZZAZIONE TITOLI ----------
 
 def _normalize_title(raw_title: str) -> str:
     """
@@ -71,39 +71,166 @@ def _normalize_title(raw_title: str) -> str:
     return text.strip()
 
 
-def build_watchlist_by_topic(candidates, max_per_topic: int = 5, min_per_topic: int = 1) -> Dict[str, List[Dict[str, str]]]:
+# ---------- TOPIC ASSIGNMENT (feed-name + keywords) ----------
+
+# Mappa per nome sorgente (viene da sources_rss.yaml)
+FEED_TOPIC_MAP: Dict[str, str] = {
+    # --- AI / TECH NEWS ---
+    "TechCrunch AI": "AI/Cloud/Quantum",
+    "TechCrunch Mobility": "Telco/5G",
+    "The Verge": "AI/Cloud/Quantum",
+    "Ars Technica": "AI/Cloud/Quantum",
+    "Wired – Tech": "AI/Cloud/Quantum",
+    "Wired – Business": "Media/Platforms",
+    "The Information": "Media/Platforms",
+
+    # --- TELECOM / NETWORK / 5G / FIBER ---
+    "Light Reading": "Telco/5G",
+    "Fierce Telecom": "Telco/5G",
+    "Telecoms.com": "Telco/5G",
+    "Capacity Media": "Telco/5G",
+
+    # --- MEDIA / TV / BROADCAST / SATELLITE ---
+    "Advanced Television": "Broadcast/Video",
+    "Broadband TV News": "TV/Streaming",
+    "SatNews": "Satellite/Satcom",
+    "Space News": "Space/Infra",
+
+    # --- SOCIAL / ADVERTISING / DIGITAL MEDIA ---
+    "Social Media Today": "Media/Platforms",
+    "Marketing Dive": "Media/Platforms",
+    "AdWeek": "Media/Platforms",
+
+    # --- DATA CENTER / CLOUD / CYBER ---
+    "Data Center Knowledge": "AI/Cloud/Quantum",
+    "Data Center Dynamics": "AI/Cloud/Quantum",
+    "CyberSecurity News": "AI/Cloud/Quantum",
+
+    # --- ROBOTICS ---
+    "Robotics 24/7": "Robotics/Automation",
+    "IEEE Spectrum": "Robotics/Automation",
+
+    # --- ANALYTICS / DEEPTECH ---
+    "MIT Technology Review": "AI/Cloud/Quantum",
+    "VentureBeat": "AI/Cloud/Quantum",
+}
+
+# Fallback per keyword-based classification
+TOPIC_KEYWORDS: Dict[str, List[str]] = {
+    "TV/Streaming": [
+        "streaming", "vod", "svod", "avod", "netflix", "disney+", "disney plus",
+        "prime video", "hulu", "skyshowtime", "iptv",
+    ],
+    "Telco/5G": [
+        "5g", "6g", "fiber", "fibre", "broadband", "spectrum", "telco",
+        "mobile network", "mobile operator", "mno", "ftth", "fttx",
+        "verizon", "at&t", "vodafone", "tim", "bt", "orange",
+    ],
+    "Media/Platforms": [
+        "platform", "social", "social media", "meta", "facebook", "instagram",
+        "tiktok", "snap", "snapchat", "youtube", "creator", "influencer",
+        "advertising", "adtech", "ad tech",
+    ],
+    "AI/Cloud/Quantum": [
+        "ai", "artificial intelligence", "gen ai", "llm", "machine learning",
+        "deep learning", "inference", "datacenter", "data center", "cloud",
+        "aws", "azure", "google cloud", "gcp", "nvidia", "openai", "model",
+        "foundation model", "quantum",
+    ],
+    "Space/Infra": [
+        "space", "launch", "payload", "rocket", "booster", "spacex", "nasa",
+    ],
+    "Robotics/Automation": [
+        "robot", "robotics", "autonomous", "automation", "drone", "cobot",
+    ],
+    "Broadcast/Video": [
+        "broadcast", "video tech", "video technology", "encoding", "ott",
+        "video processing", "mpeg", "dvb", "atsc",
+    ],
+    "Satellite/Satcom": [
+        "satellite", "satcom", "orbital", "orbit", "leo", "meo", "geo",
+        "satellite launch", "ground station",
+    ],
+}
+
+
+def _assign_topic_by_source(source: str) -> str | None:
+    """Prova a derivare il topic in base al nome del feed."""
+    src = (source or "").lower()
+    for key, topic in FEED_TOPIC_MAP.items():
+        if key.lower() in src:
+            return topic
+    return None
+
+
+def _assign_topic_by_keywords(title: str, content: str, source: str) -> str:
     """
-    Crea la watchlist per topic, SENZA duplicati di titolo (globali)
-    e SENZA includere i deep-dive (che sono già stati rimossi dai candidates).
-
-    - max_per_topic: massimo articoli per topic (tipicamente 3–5)
-    - min_per_topic: tenta di garantire almeno 1 articolo per topic
-                     se esiste almeno un candidato con quel topic.
-
-    Ritorna un dict: topic -> lista di {title, url, source}
+    Fallback: cerca keyword nel titolo + contenuto + sorgente.
+    Se nessuna matcha, ritorna AI/Cloud/Quantum come default.
     """
+    text = f"{title} {content} {source}".lower()
 
-    # struttura base
+    for topic, keywords in TOPIC_KEYWORDS.items():
+        for kw in keywords:
+            if kw in text:
+                return topic
+
+    return "AI/Cloud/Quantum"
+
+
+def assign_topic(article) -> str:
+    """
+    Funzione unica per assegnare il topic a un articolo.
+    1) prova via nome feed (FEED_TOPIC_MAP)
+    2) se non trova, usa keyword sul testo
+    """
+    source = getattr(article, "source", "") or ""
+    title = getattr(article, "title", "") or ""
+    content = getattr(article, "content", "") or ""
+
+    topic = _assign_topic_by_source(source)
+    if topic:
+        return topic
+
+    return _assign_topic_by_keywords(title, content, source)
+
+
+# ---------- WATCHLIST BUILDING (no dup + min 1 per topic) ----------
+
+def build_watchlist_by_topic(
+    candidates,
+    max_per_topic: int = 5,
+    min_per_topic: int = 1,
+) -> Dict[str, List[Dict[str, str]]]:
+    """
+    Crea la watchlist per topic.
+
+    - dedup globale per titolo normalizzato
+    - non include i deep-dives (che sono già stati rimossi dai candidates)
+    - prova a garantire almeno `min_per_topic` articoli per topic,
+      se esiste almeno un candidato per quel topic.
+
+    Ritorna un dict: topic_key -> lista di {title, url, source}
+    """
     grouped: Dict[str, List[Dict[str, str]]] = {topic: [] for topic in TOPIC_KEYS}
     seen_titles = set()  # normalizzati, per dedup globale
 
-    # ---- Primo pass: riempi bucket rispettando max_per_topic + dedup globale ----
+    # ---- Primo pass: riempi bucket fino a max_per_topic con dedup globale ----
     for art in candidates:
         norm_title = _normalize_title(getattr(art, "title", "") or "")
+        if not norm_title:
+            continue
 
-        # 1) Niente duplicati di titolo (globale)
         if norm_title in seen_titles:
             continue
 
-        # 2) Topic dell'articolo (assegnato in rss_collector a partire dal feed)
-        topic = getattr(art, "topic", None) or "AI/Cloud/Quantum"
+        topic = getattr(art, "topic", None) or assign_topic(art)
         if topic not in grouped:
-            # se arriva un topic "strano" lo scartiamo dalla watchlist
+            # se arriva un topic strano, saltiamo
             continue
 
         bucket = grouped[topic]
         if len(bucket) >= max_per_topic:
-            # topic già pieno
             continue
 
         bucket.append(
@@ -116,19 +243,18 @@ def build_watchlist_by_topic(candidates, max_per_topic: int = 5, min_per_topic: 
         seen_titles.add(norm_title)
 
     # ---- Secondo pass: prova a garantire almeno 1 articolo per topic ----
-    # Se esiste un candidato con lo stesso topic non ancora usato, lo assegniamo.
     for topic in TOPIC_KEYS:
         if len(grouped[topic]) >= min_per_topic:
             continue
 
+        # cerca un candidato con quel topic non ancora usato
         for art in candidates:
-            art_topic = getattr(art, "topic", None) or "AI/Cloud/Quantum"
+            art_topic = getattr(art, "topic", None) or assign_topic(art)
             if art_topic != topic:
                 continue
 
             norm_title = _normalize_title(getattr(art, "title", "") or "")
-            if norm_title in seen_titles:
-                # sarebbe un duplicato fra topic -> evitiamo
+            if not norm_title or norm_title in seen_titles:
                 continue
 
             grouped[topic].append(
@@ -139,7 +265,7 @@ def build_watchlist_by_topic(candidates, max_per_topic: int = 5, min_per_topic: 
                 }
             )
             seen_titles.add(norm_title)
-            break  # abbiamo riempito il minimo per questo topic
+            break  # abbiamo soddisfatto il minimo per questo topic
 
     print("[SELECT] Watchlist built with topics:", {k: len(v) for k, v in grouped.items()})
     return grouped
@@ -158,21 +284,23 @@ def select_deep_dives_and_watchlist(
     if not articles:
         return [], {}
 
-    # 1) Deep-dives
+    # 1) Assicura che ogni articolo abbia un topic assegnato
+    for art in articles:
+        setattr(art, "topic", assign_topic(art))
+
+    # 2) Deep-dives = primi N
     deep_dives = articles[:deep_dives_count]
     deep_norm_titles = {_normalize_title(a.title) for a in deep_dives}
 
-    # 2) Candidati watchlist = tutti gli altri articoli,
-    #    escludendo qualsiasi cosa che abbia lo stesso titolo dei deep-dives
+    # 3) Candidati watchlist = tutti gli altri, esclusi i deep-dives (per titolo)
     watch_candidates = []
     for art in articles[deep_dives_count:]:
         norm_title = _normalize_title(getattr(art, "title", "") or "")
         if norm_title in deep_norm_titles:
-            # non rimettiamo i deep-dive in watchlist
             continue
         watch_candidates.append(art)
 
-    # 3) Costruisce watchlist per topic con dedup + min_per_topic
+    # 4) Costruisce watchlist per topic
     watchlist_by_topic = build_watchlist_by_topic(
         watch_candidates,
         max_per_topic=max_watchlist_per_topic,
@@ -205,7 +333,6 @@ def _ensure_deep_dive_sections(entry: Dict[str, Any]) -> Dict[str, Any]:
     title = out.get("title_clean") or out.get("title") or "this article"
     topic = out.get("topic") or "General"
 
-    # Fallback di base
     fallbacks = {
         "what_it_is": f"A news or analysis piece about {title}.",
         "who": "Key players include the companies, vendors and stakeholders mentioned in the article.",
@@ -219,7 +346,6 @@ def _ensure_deep_dive_sections(entry: Dict[str, Any]) -> Dict[str, Any]:
         if not value:
             out[field] = fallbacks[field]
 
-    # topic di sicurezza
     if "topic" not in out or not out["topic"]:
         out["topic"] = topic
 
@@ -255,7 +381,7 @@ def main():
     model = llm_cfg.get("model", "")
     temperature = float(llm_cfg.get("temperature", 0.25))
     max_tokens = int(llm_cfg.get("max_tokens", 900))
-    language = llm_cfg.get("language", "en")  # al momento non usato ma pronto
+    language = llm_cfg.get("language", "en")  # pronto per estensioni future
 
     # 2) Raccolta RSS
     print("Collecting RSS...")
