@@ -16,7 +16,7 @@ def _render_deep_dives(deep_dives: List[Dict]) -> str:
     deep_dives è una lista di dizionari prodotti dal summarizer
     con queste chiavi principali:
 
-      title, url, source, topic (opzionale),
+      title, title_clean, url, source, topic (opzionale),
       what_it_is, who, what_it_does, impact, future_outlook
     """
     if not deep_dives:
@@ -92,6 +92,9 @@ def _render_watchlist(watchlist: Dict[str, List[Dict]]) -> str:
       - "Media/Platforms"
       - "AI/Cloud/Quantum"
       - "Space/Infra"
+      - "Robotics"
+      - "Broadcast"
+      - "Satcom"
     (se qualche lista è vuota, la sezione non viene mostrata).
     """
     if not watchlist:
@@ -123,6 +126,21 @@ def _render_watchlist(watchlist: Dict[str, List[Dict]]) -> str:
     infra_items = watchlist.get("Space/Infra", [])
     if infra_items:
         sections_html.append(_render_watchlist_section("Space · Infrastructure", infra_items))
+
+    # 6) Robotics
+    robo_items = watchlist.get("Robotics", [])
+    if robo_items:
+        sections_html.append(_render_watchlist_section("Robotics & Automation", robo_items))
+
+    # 7) Broadcast
+    broadcast_items = watchlist.get("Broadcast", [])
+    if broadcast_items:
+        sections_html.append(_render_watchlist_section("Broadcast · Video Tech", broadcast_items))
+
+    # 8) Satcom
+    satcom_items = watchlist.get("Satcom", [])
+    if satcom_items:
+        sections_html.append(_render_watchlist_section("Satellite & Satcom", satcom_items))
 
     return "\n".join(sections_html)
 
