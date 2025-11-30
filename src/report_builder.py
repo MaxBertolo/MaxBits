@@ -2,6 +2,19 @@ from typing import List, Dict
 from html import escape
 
 
+# Chiave interna -> etichetta da mostrare
+TOPIC_LABELS = {
+    "TV/Streaming": "TV & Streaming",
+    "Telco/5G": "Telco & 5G",
+    "Media/Platforms": "Media · Platforms · Social",
+    "AI/Cloud/Quantum": "AI · Cloud · Quantum",
+    "Space/Infra": "Space · Infrastructure",
+    "Robotics/Automation": "Robotics & Automation",
+    "Broadcast/Video": "Broadcast · Video Tech",
+    "Satellite/Satcom": "Satellite & Satcom",
+}
+
+
 def _render_header(date_str: str) -> str:
     return f"""
     <header style="margin-bottom: 24px;">
@@ -12,17 +25,10 @@ def _render_header(date_str: str) -> str:
 
 
 def _render_deep_dives(deep_dives: List[Dict]) -> str:
-    """
-    deep_dives è una lista di dizionari prodotti dal summarizer
-    con queste chiavi principali:
-
-      title, title_clean, url, source, topic (opzionale),
-      what_it_is, who, what_it_does, impact, future_outlook
-    """
     if not deep_dives:
         return "<p>No deep–dive articles for today.</p>"
 
-    blocks = []
+    blocks: List[str] = []
     for item in deep_dives:
         title = escape(item.get("title_clean") or item.get("title", ""))
         url = item.get("url") or "#"
@@ -32,8 +38,8 @@ def _render_deep_dives(deep_dives: List[Dict]) -> str:
         what = escape(item.get("what_it_is", ""))
         who = escape(item.get("who", ""))
         what_does = escape(item.get("what_it_does", ""))
-        impact = escape(item.get("impact", ""))
-        future = escape(item.get("future_outlook", ""))
+        why = escape(item.get("why_it_matters", ""))
+        strategic = escape(item.get("strategic_view", ""))
 
         block = f"""
         <article style="margin-bottom: 24px; padding-bottom:16px; border-bottom:1px solid #eee;">
@@ -48,8 +54,8 @@ def _render_deep_dives(deep_dives: List[Dict]) -> str:
             <li><strong>What it is:</strong> {what}</li>
             <li><strong>Who:</strong> {who}</li>
             <li><strong>What it does:</strong> {what_does}</li>
-            <li><strong>Impact:</strong> {impact}</li>
-            <li><strong>Future outlook:</strong> {future}</li>
+            <li><strong>Why it matters:</strong> {why}</li>
+            <li><strong>Strategic view:</strong> {strategic}</li>
           </ul>
         </article>
         """
@@ -59,12 +65,21 @@ def _render_deep_dives(deep_dives: List[Dict]) -> str:
 
 
 def _render_watchlist_section(title: str, items: List[Dict]) -> str:
-    if not items:
-        return ""
+    safe_title = escape(title)
 
-    lis = []
+    if not items:
+        return f"""
+        <section style="margin-top:16px;">
+          <h3 style="margin:0 0 4px 0; font-size:16px;">{safe_title}</h3>
+          <p style="margin:2px 0 0 0; font-size:13px; color:#777;">
+            No headlines selected today.
+          </p>
+        </section>
+        """
+
+    lis: List[str] = []
     for art in items:
-        atitle = escape(art.get("title_clean") or art.get("title", ""))
+        atitle = escape(art.get("title", ""))
         url = art.get("url") or "#"
         source = escape(art.get("source", ""))
         lis.append(
@@ -75,7 +90,7 @@ def _render_watchlist_section(title: str, items: List[Dict]) -> str:
 
     return f"""
     <section style="margin-top:16px;">
-      <h3 style="margin:0 0 4px 0; font-size:16px;">{escape(title)}</h3>
+      <h3 style="margin:0 0 4px 0; font-size:16px;">{safe_title}</h3>
       <ul style="margin:4px 0 0 18px; padding:0; font-size:14px; list-style:disc;">
         {''.join(lis)}
       </ul>
@@ -85,62 +100,17 @@ def _render_watchlist_section(title: str, items: List[Dict]) -> str:
 
 def _render_watchlist(watchlist: Dict[str, List[Dict]]) -> str:
     """
-    watchlist è un dict {categoria: [articoli]}.
-    Ci aspettiamo chiavi:
-      - "TV/Streaming"
-      - "Telco/5G"
-      - "Media/Platforms"
-      - "AI/Cloud/Quantum"
-      - "Space/Infra"
-      - "Robotics"
-      - "Broadcast"
-      - "Satcom"
-    (se qualche lista è vuota, la sezione non viene mostrata).
+    watchlist è un dict: topic_key -> lista articoli.
+
+    Qui garantiamo che le sezioni vengano SEMPRE mostrate
+    per tutti i topic definiti in TOPIC_LABELS, anche se vuote.
     """
-    if not watchlist:
-        return "<p>No additional watchlist items today.</p>"
+    sections_html: List[str] = []
 
-    sections_html = []
-
-    # 1) TV & Streaming
-    tv_items = watchlist.get("TV/Streaming", [])
-    if tv_items:
-        sections_html.append(_render_watchlist_section("TV & Streaming", tv_items))
-
-    # 2) Telco / 5G
-    telco_items = watchlist.get("Telco/5G", [])
-    if telco_items:
-        sections_html.append(_render_watchlist_section("Telco · 5G · Networks", telco_items))
-
-    # 3) Media / Platforms / Social
-    media_items = watchlist.get("Media/Platforms", [])
-    if media_items:
-        sections_html.append(_render_watchlist_section("Media · Platforms · Social", media_items))
-
-    # 4) AI / Cloud / Quantum
-    ai_items = watchlist.get("AI/Cloud/Quantum", [])
-    if ai_items:
-        sections_html.append(_render_watchlist_section("AI · Cloud · Quantum", ai_items))
-
-    # 5) Space / Infra
-    infra_items = watchlist.get("Space/Infra", [])
-    if infra_items:
-        sections_html.append(_render_watchlist_section("Space · Infrastructure", infra_items))
-
-    # 6) Robotics
-    robo_items = watchlist.get("Robotics", [])
-    if robo_items:
-        sections_html.append(_render_watchlist_section("Robotics & Automation", robo_items))
-
-    # 7) Broadcast
-    broadcast_items = watchlist.get("Broadcast", [])
-    if broadcast_items:
-        sections_html.append(_render_watchlist_section("Broadcast · Video Tech", broadcast_items))
-
-    # 8) Satcom
-    satcom_items = watchlist.get("Satcom", [])
-    if satcom_items:
-        sections_html.append(_render_watchlist_section("Satellite & Satcom", satcom_items))
+    for topic_key in TOPIC_LABELS.keys():
+        label = TOPIC_LABELS[topic_key]
+        items = watchlist.get(topic_key, []) or []
+        sections_html.append(_render_watchlist_section(label, items))
 
     return "\n".join(sections_html)
 
