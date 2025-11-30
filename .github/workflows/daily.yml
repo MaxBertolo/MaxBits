@@ -1,67 +1,67 @@
 name: MaxBits Daily Tech Report
 
 on:
+  # Avvio manuale dal tab "Actions"
+  workflow_dispatch:
+
+  # Schedulato (esempio: 06:00 UTC tutti i giorni feriali)
   schedule:
-    # Ogni giorno alle 07:00 UTC (08:00 in Italia in inverno, 09:00 in estate)
-    - cron: "0 7 * * *"
-  workflow_dispatch:  # Permette l'avvio manuale da GitHub Actions
+    - cron: "0 6 * * 1-5"
 
 jobs:
   run-report:
     runs-on: ubuntu-latest
 
     steps:
-      # 1) Scarica il repository
+      # 1) Checkout del repository
       - name: Checkout repository
         uses: actions/checkout@v4
 
-
-      # 2) Installa wkhtmltopdf per convertire HTML -> PDF
-      - name: Install system dependencies
+      # 2) Installazione wkhtmltopdf (per PDF)
+      - name: Install system dependencies (wkhtmltopdf)
         run: |
           sudo apt-get update
           sudo apt-get install -y wkhtmltopdf
 
-
       # 3) Setup Python
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: "3.10"
 
-
-      # 4) Installa librerie Python
+      # 4) Installazione dipendenze Python
       - name: Install Python dependencies
         run: |
-          pip install --upgrade pip
+          python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-
-      # 5) Esegui generazione report (usa Gemini + SMTP)
+      # 5) Esecuzione script principale
       - name: Run MaxBits daily report script
         env:
+          # --- LLM / Gemini ---
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          SMTP_HOST: ${{ secrets.SMTP_HOST }}
-          SMTP_PORT: ${{ secrets.SMTP_PORT }}
-          SMTP_USER: ${{ secrets.SMTP_USER }}
-          SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
-          TO_EMAIL: ${{ secrets.TO_EMAIL }}
-          FROM_EMAIL: ${{ secrets.FROM_EMAIL }}
+          GEMINI_MODEL: "gemini-2.5-flash"
+
+          # --- Email / Gmail SMTP ---
+          SMTP_HOST: ${{ secrets.SMTP_HOST }}        # es. smtp.gmail.com
+          SMTP_PORT: ${{ secrets.SMTP_PORT }}        # es. 587
+          SMTP_USER: ${{ secrets.SMTP_USER }}        # es. ing.massimo.bertolotti@gmail.com
+          SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}# app password 16 caratteri
+          TO_EMAIL: ${{ secrets.TO_EMAIL }}          # destinatario
+          FROM_EMAIL: ${{ secrets.FROM_EMAIL }}      # es. MaxBits Report <ing.massimo.bertolotti@gmail.com>
         run: |
           python -m src.main
 
-
-      # 6) Carica gli HTML come artifact
+      # 6) Upload report HTML
       - name: Upload HTML reports as artifact
         uses: actions/upload-artifact@v4
         with:
-          name: tech-report-html
+          name: maxbits-report-html
           path: reports/html/
 
-
-      # 7) Carica i PDF come artifact
+      # 7) Upload report PDF
       - name: Upload PDF reports as artifact
         uses: actions/upload-artifact@v4
         with:
-          name: tech-report-pdf
+          name: maxbits-report-pdf
           path: reports/pdf/
