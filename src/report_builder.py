@@ -1,8 +1,7 @@
 from typing import List, Dict
 from html import escape
 
-
-# Chiave interna -> etichetta da mostrare
+# Chiave interna -> etichetta da mostrare nel report
 TOPIC_LABELS = {
     "TV/Streaming": "TV & Streaming",
     "Telco/5G": "Telco & 5G",
@@ -16,6 +15,9 @@ TOPIC_LABELS = {
 
 
 def _render_header(date_str: str) -> str:
+    """
+    Intestazione del report con titolo e data.
+    """
     return f"""
     <header style="margin-bottom: 24px;">
       <h1 style="margin:0; font-size:28px;">MaxBits · Daily Tech Watch</h1>
@@ -25,10 +27,26 @@ def _render_header(date_str: str) -> str:
 
 
 def _render_deep_dives(deep_dives: List[Dict]) -> str:
+    """
+    Rendering della sezione '3 deep-dives you should really read'.
+
+    Ogni elemento di deep_dives deve avere almeno:
+      - title / title_clean
+      - url
+      - source
+      - topic
+      - what_it_is
+      - who
+      - what_it_does
+      - why_it_matters
+      - strategic_view
+    (eventuali fallback sono già gestiti a monte in main.py)
+    """
     if not deep_dives:
         return "<p>No deep–dive articles for today.</p>"
 
     blocks: List[str] = []
+
     for item in deep_dives:
         title = escape(item.get("title_clean") or item.get("title", ""))
         url = item.get("url") or "#"
@@ -65,8 +83,17 @@ def _render_deep_dives(deep_dives: List[Dict]) -> str:
 
 
 def _render_watchlist_section(title: str, items: List[Dict]) -> str:
+    """
+    Rendering di una singola sezione della watchlist (es. 'Telco & 5G').
+
+    items è una lista di dict con:
+      - title
+      - url
+      - source
+    """
     safe_title = escape(title)
 
+    # Se non ci sono elementi, mostriamo un messaggio esplicito
     if not items:
         return f"""
         <section style="margin-top:16px;">
@@ -82,16 +109,20 @@ def _render_watchlist_section(title: str, items: List[Dict]) -> str:
         atitle = escape(art.get("title", ""))
         url = art.get("url") or "#"
         source = escape(art.get("source", ""))
+        # Usiamo un bullet esplicito (&#8226;) e list-style:none
+        # così è leggibile sia in PDF sia quando incolli il testo HTML.
         lis.append(
-            f'<li style="margin-bottom:4px;"><a href="{url}" '
+            f'<li style="margin-bottom:4px; list-style:none;">'
+            f'&#8226; <a href="{url}" '
             f'style="color:#0052CC; text-decoration:none;">{atitle}</a>'
-            f' <span style="color:#777; font-size:12px;">({source})</span></li>'
+            f' <span style="color:#777; font-size:12px;">({source})</span>'
+            f'</li>'
         )
 
     return f"""
     <section style="margin-top:16px;">
       <h3 style="margin:0 0 4px 0; font-size:16px;">{safe_title}</h3>
-      <ul style="margin:4px 0 0 18px; padding:0; font-size:14px; list-style:disc;">
+      <ul style="margin:4px 0 0 18px; padding:0; font-size:14px;">
         {''.join(lis)}
       </ul>
     </section>
@@ -100,7 +131,7 @@ def _render_watchlist_section(title: str, items: List[Dict]) -> str:
 
 def _render_watchlist(watchlist: Dict[str, List[Dict]]) -> str:
     """
-    watchlist è un dict: topic_key -> lista articoli.
+    watchlist è un dict: topic_key -> lista articoli (title+url+source).
 
     Qui garantiamo che le sezioni vengano SEMPRE mostrate
     per tutti i topic definiti in TOPIC_LABELS, anche se vuote.
@@ -118,7 +149,7 @@ def build_html_report(*, deep_dives, watchlist, date_str: str) -> str:
     """
     Costruisce l'HTML completo.
 
-    Parametri (devono combaciare con main.py):
+    Parametri:
       - deep_dives: lista di 3 articoli "full" (già arricchiti dal summarizer)
       - watchlist: dict categoria -> lista articoli (solo titolo+url+source)
       - date_str: 'YYYY-MM-DD'
