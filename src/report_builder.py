@@ -1,7 +1,7 @@
 from typing import List, Dict
 from html import escape
 
-# Chiave interna -> etichetta da mostrare nel report
+# Etichette leggibili per i topic
 TOPIC_LABELS = {
     "TV/Streaming": "TV & Streaming",
     "Telco/5G": "Telco & 5G",
@@ -15,9 +15,7 @@ TOPIC_LABELS = {
 
 
 def _render_header(date_str: str) -> str:
-    """
-    Intestazione del report con titolo e data.
-    """
+    """Intestazione del report."""
     return f"""
     <header style="margin-bottom: 24px;">
       <h1 style="margin:0; font-size:28px;">MaxBits · Daily Tech Watch</h1>
@@ -27,21 +25,8 @@ def _render_header(date_str: str) -> str:
 
 
 def _render_deep_dives(deep_dives: List[Dict]) -> str:
-    """
-    Rendering della sezione '3 deep-dives you should really read'.
+    """Rendering dei 3 articoli deep-dive."""
 
-    Ogni elemento di deep_dives deve avere almeno:
-      - title / title_clean
-      - url
-      - source
-      - topic
-      - what_it_is
-      - who
-      - what_it_does
-      - why_it_matters
-      - strategic_view
-    (eventuali fallback sono già gestiti a monte in main.py)
-    """
     if not deep_dives:
         return "<p>No deep–dive articles for today.</p>"
 
@@ -64,6 +49,7 @@ def _render_deep_dives(deep_dives: List[Dict]) -> str:
           <h2 style="margin:0 0 4px 0; font-size:20px;">
             <a href="{url}" style="color:#0052CC; text-decoration:none;">{title}</a>
           </h2>
+
           <p style="margin:0; color:#777; font-size:13px;">
             {source} · Topic: <strong>{topic}</strong>
           </p>
@@ -83,17 +69,11 @@ def _render_deep_dives(deep_dives: List[Dict]) -> str:
 
 
 def _render_watchlist_section(title: str, items: List[Dict]) -> str:
-    """
-    Rendering di una singola sezione della watchlist (es. 'Telco & 5G').
+    """Una sezione della watchlist (es. Telco & 5G)."""
 
-    items è una lista di dict con:
-      - title
-      - url
-      - source
-    """
     safe_title = escape(title)
 
-    # Se non ci sono elementi, mostriamo un messaggio esplicito
+    # Nessun articolo per questo topic
     if not items:
         return f"""
         <section style="margin-top:16px;">
@@ -104,19 +84,19 @@ def _render_watchlist_section(title: str, items: List[Dict]) -> str:
         </section>
         """
 
-    lis: List[str] = []
+    lis = []
     for art in items:
         atitle = escape(art.get("title", ""))
         url = art.get("url") or "#"
         source = escape(art.get("source", ""))
-        # Usiamo un bullet esplicito (&#8226;) e list-style:none
-        # così è leggibile sia in PDF sia quando incolli il testo HTML.
+
         lis.append(
-            f'<li style="margin-bottom:4px; list-style:none;">'
-            f'&#8226; <a href="{url}" '
-            f'style="color:#0052CC; text-decoration:none;">{atitle}</a>'
-            f' <span style="color:#777; font-size:12px;">({source})</span>'
-            f'</li>'
+            f'''
+            <li style="margin-bottom:4px; list-style:none;">
+              &#8226; <a href="{url}" style="color:#0052CC; text-decoration:none;">{atitle}</a>
+              <span style="color:#777; font-size:12px;">({source})</span>
+            </li>
+            '''
         )
 
     return f"""
@@ -131,29 +111,23 @@ def _render_watchlist_section(title: str, items: List[Dict]) -> str:
 
 def _render_watchlist(watchlist: Dict[str, List[Dict]]) -> str:
     """
-    watchlist è un dict: topic_key -> lista articoli (title+url+source).
+    watchlist = dict(topic_key -> lista articoli)
 
-    Qui garantiamo che le sezioni vengano SEMPRE mostrate
-    per tutti i topic definiti in TOPIC_LABELS, anche se vuote.
+    Qui garantiamo che *tutti i topic* definiti compaiano nel report,
+    anche se vuoti.
     """
-    sections_html: List[str] = []
 
+    sections = []
     for topic_key, label in TOPIC_LABELS.items():
-        items = watchlist.get(topic_key, []) or []
-        sections_html.append(_render_watchlist_section(label, items))
+        items = watchlist.get(topic_key, [])
+        sections.append(_render_watchlist_section(label, items))
 
-    return "\n".join(sections_html)
+    return "\n".join(sections)
 
 
 def build_html_report(*, deep_dives, watchlist, date_str: str) -> str:
-    """
-    Costruisce l'HTML completo.
+    """Costruisce l’intero HTML del report."""
 
-    Parametri:
-      - deep_dives: lista di 3 articoli "full" (già arricchiti dal summarizer)
-      - watchlist: dict categoria -> lista articoli (solo titolo+url+source)
-      - date_str: 'YYYY-MM-DD'
-    """
     header = _render_header(date_str)
     deep_dives_html = _render_deep_dives(deep_dives)
     watchlist_html = _render_watchlist(watchlist)
@@ -164,8 +138,14 @@ def build_html_report(*, deep_dives, watchlist, date_str: str) -> str:
   <meta charset="utf-8" />
   <title>MaxBits · Daily Tech Watch · {escape(date_str)}</title>
 </head>
-<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif; font-size:14px; color:#111; background:#fafafa; margin:0; padding:24px;">
-  <div style="max-width:900px; margin:0 auto; background:#fff; padding:24px 32px; border-radius:8px; box-shadow:0 0 12px rgba(0,0,0,0.04);">
+
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+             font-size:14px; color:#111; background:#fafafa; margin:0; padding:24px;">
+
+  <div style="max-width:900px; margin:0 auto; background:#fff;
+              padding:24px 32px; border-radius:8px;
+              box-shadow:0 0 12px rgba(0,0,0,0.04);">
+
     {header}
 
     <section style="margin-bottom:32px;">
@@ -177,6 +157,7 @@ def build_html_report(*, deep_dives, watchlist, date_str: str) -> str:
       <h2 style="margin:0 0 8px 0; font-size:20px;">Curated watchlist · 3–5 links per topic</h2>
       {watchlist_html}
     </section>
+
   </div>
 </body>
 </html>
