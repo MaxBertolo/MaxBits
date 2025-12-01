@@ -8,7 +8,8 @@ import yaml
 from .rss_collector import collect_from_rss, rank_articles
 from .cleaning import clean_articles
 from .summarizer import summarize_articles
-from .report_builder import build_html_report
+# CAMBIATO: importiamo il modulo intero, non la funzione
+from . import report_builder
 from .pdf_export import html_to_pdf
 from .telegram_sender import send_telegram_pdf
 
@@ -460,7 +461,7 @@ def main():
     # 7) Costruzione HTML
     print("Building HTML report...")
     date_str = today_str()
-    html = build_html_report(
+    html = report_builder.build_html_report(   # <-- QUI usiamo il modulo
         deep_dives=summaries,
         watchlist=watchlist_grouped,
         date_str=date_str,
