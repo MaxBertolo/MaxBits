@@ -16,6 +16,9 @@ jobs:
       # 1) Checkout del repository
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0        # importante per git pull
+          persist-credentials: true
 
       # 2) Installazione wkhtmltopdf (per PDF)
       - name: Install system dependencies (wkhtmltopdf)
@@ -35,39 +38,45 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      # 5) Esecuzione script principale (genera HTML + PDF + invio Telegram)
+      # 5) Esecuzione script principale (report + PDF + Telegram)
       - name: Run MaxBits daily report script
         env:
-          # --- LLM / Gemini ---
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           GEMINI_MODEL: "gemini-2.5-flash"
-
-          # --- Telegram ---
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          TELEGRAM_CHAT_ID:   ${{ secrets.TELEGRAM_CHAT_ID }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: |
           python -m src.main
 
-      # 6) Costruzione mini-sito "Max Bits Magazine" (ultimo 7 giorni)
+      # 6) Costruzione mini-sito (HTML) in docs/
       - name: Build Max Bits Magazine archive (GitHub Pages)
         run: |
           python -m src.archive_builder
 
-      # 7) Commit automatico di docs/ per GitHub Pages
+      # 7) Commit dei docs per GitHub Pages
       - name: Commit docs for GitHub Pages
-        uses: stefanzweifel/git-auto-commit-action@v5
-        with:
-          commit_message: "Update Max Bits Magazine archive"
-          file_pattern: docs/**
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          # allineiamo il branch locale con quello remoto
+          git pull --rebase origin main
+          # aggiungiamo solo la cartella docs/
+          git add docs/
+          git status
+          # se non ci sono cambi, il commit fallirebbe: lo trasformiamo in echo
+          git commit -m "Update MaxBits Magazine archive" || echo "No changes to commit"
+          git push origin main
 
-      # 8) Upload report HTML come artifact (facoltativo, ma utile)
+      # 8) Upload report HTML
       - name: Upload HTML reports as artifact
         uses: actions/upload-artifact@v4
         with:
           name: maxbits-report-html
           path: reports/html/
 
-      # 9) Upload report PDF come artifact
+      # 9) Upload report PDF
       - name: Upload PDF reports as artifact
         uses: actions/upload-artifact@v4
         with:
