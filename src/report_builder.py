@@ -1,150 +1,170 @@
-from pathlib import Path
-from datetime import datetime
-import re
-from typing import List, Tuple
+from typing import List, Dict
+from html import escape
+
+# Etichette leggibili per i topic
+TOPIC_LABELS = {
+    "TV/Streaming": "TV & Streaming",
+    "Telco/5G": "Telco & 5G",
+    "Media/Platforms": "Media · Platforms · Social",
+    "AI/Cloud/Quantum": "AI · Cloud · Quantum",
+    "Space/Infra": "Space · Infrastructure",
+    "Robotics/Automation": "Robotics & Automation",
+    "Broadcast/Video": "Broadcast · Video Tech",
+    "Satellite/Satcom": "Satellite & Satcom",
+}
 
 
-# Root del repo (cartella padre di src/)
-BASE_DIR = Path(__file__).resolve().parent.parent
-
-
-def _collect_last_reports(max_days: int = 7) -> List[Tuple[datetime.date, str, Path, Path | None]]:
+def _render_header(date_str: str) -> str:
+    """Intestazione del report."""
+    return f"""
+    <header style="margin-bottom: 24px;">
+      <h1 style="margin:0; font-size:28px;">MaxBits · Daily Tech Watch</h1>
+      <p style="margin:4px 0 0 0; color:#555;">Daily brief · {escape(date_str)}</p>
+    </header>
     """
-    Cerca i file reports/html/report_YYYY-MM-DD.html,
-    li ordina per data (più recente prima) e ne ritorna al massimo max_days.
-
-    Ritorna lista di tuple:
-      (data, date_str, html_path, pdf_path_or_None)
-    """
-    html_dir = BASE_DIR / "reports" / "html"
-    pdf_dir = BASE_DIR / "reports" / "pdf"
-
-    if not html_dir.exists():
-        print("[ARCHIVE] reports/html directory does not exist.")
-        return []
-
-    files = sorted(html_dir.glob("report_*.html"))
-    items: List[Tuple[datetime.date, str, Path, Path | None]] = []
-
-    for f in files:
-        m = re.match(r"report_(\d{4}-\d{2}-\d{2})\.html", f.name)
-        if not m:
-            continue
-        date_str = m.group(1)
-        try:
-            dt = datetime.strptime(date_str, "%Y-%m-%d").date()
-        except ValueError:
-            continue
-
-        pdf_path = pdf_dir / f"report_{date_str}.pdf"
-        if not pdf_path.exists():
-            pdf_path = None
-
-        items.append((dt, date_str, f, pdf_path))
-
-    items.sort(key=lambda x: x[0], reverse=True)
-    return items[:max_days]
 
 
-def build_archive(max_days: int = 7) -> None:
-    """
-    Costruisce il mini-sito Max Bits Magazine:
+def _render_deep_dives(deep_dives: List[Dict]) -> str:
+    """Rendering dei 3 articoli deep-dive."""
 
-      - Copia gli ultimi N report HTML in docs/daily/report_YYYY-MM-DD.html
-      - Copia gli eventuali PDF corrispondenti in docs/daily/report_YYYY-MM-DD.pdf
-      - Cancella HTML/PDF più vecchi di N giorni in docs/daily/
-      - Genera docs/index.html con la lista degli ultimi N giorni (più recente per primo)
-    """
-    docs_dir = BASE_DIR / "docs"
-    daily_dir = docs_dir / "daily"
+    if not deep_dives:
+        return "<p>No deep–dive articles for today.</p>"
 
-    docs_dir.mkdir(exist_ok=True)
-    daily_dir.mkdir(parents=True, exist_ok=True)
+    blocks: List[str] = []
 
-    items = _collect_last_reports(max_days=max_days)
-    if not items:
-        print("[ARCHIVE] No reports found, skipping archive build.")
-        return
+    for item in deep_dives:
+        title = escape(item.get("title_clean") or item.get("title", ""))
+        url = item.get("url") or "#"
+        source = escape(item.get("source", ""))
+        topic = escape(item.get("topic", "General"))
 
-    keep_filenames: set[str] = set()
+        what = escape(item.get("what_it_is", ""))
+        who = escape(item.get("who", ""))
+        what_does = escape(item.get("what_it_does", ""))
+        why = escape(item.get("why_it_matters", ""))
+        strategic = escape(item.get("strategic_view", ""))
 
-    # 1) Copia i report selezionati in docs/daily/
-    for dt, date_str, html_src, pdf_src in items:
-        html_dest = daily_dir / f"report_{date_str}.html"
-        html_text = html_src.read_text(encoding="utf-8")
-        html_dest.write_text(html_text, encoding="utf-8")
-        keep_filenames.add(html_dest.name)
+        block = f"""
+        <article style="margin-bottom: 24px; padding-bottom:16px; border-bottom:1px solid #eee;">
+          <h2 style="margin:0 0 4px 0; font-size:20px;">
+            <a href="{url}" style="color:#0052CC; text-decoration:none;">{title}</a>
+          </h2>
 
-        if pdf_src is not None and pdf_src.exists():
-            pdf_dest = daily_dir / f"report_{date_str}.pdf"
-            pdf_dest.write_bytes(pdf_src.read_bytes())
-            keep_filenames.add(pdf_dest.name)
-
-    # 2) Rimuovi HTML/PDF più vecchi in docs/daily
-    for f in daily_dir.glob("report_*.*"):
-        if f.name not in keep_filenames:
-            print(f"[ARCHIVE] Removing old file from docs/daily: {f.name}")
-            f.unlink()
-
-    # 3) Costruisci docs/index.html
-    cards: List[str] = []
-    for dt, date_str, _html_src, pdf_src in items:
-        pdf_link_html = ""
-        if pdf_src is not None:
-            pdf_href = f"daily/report_{date_str}.pdf"
-            pdf_link_html = (
-                f'<a href="{pdf_href}" '
-                f'style="font-size:13px; text-decoration:none; color:#444;">'
-                f'Download PDF</a>'
-            )
-
-        cards.append(
-            f"""
-        <article style="border-radius:8px; border:1px solid #eee;
-                        padding:16px 20px; margin-bottom:16px; background:#fff;">
-          <h2 style="margin:0 0 4px 0; font-size:18px;">{date_str}</h2>
-          <p style="margin:0 0 8px 0; color:#777; font-size:13px;">
-            MaxBits · Daily Tech Intelligence
+          <p style="margin:0; color:#777; font-size:13px;">
+            {source} · Topic: <strong>{topic}</strong>
           </p>
-          <div style="display:flex; gap:12px; align-items:center; flex-wrap:wrap;">
-            <a href="daily/report_{date_str}.html"
-               style="font-size:14px; text-decoration:none; color:#0052CC;">
-              Open full report →
-            </a>
-            {pdf_link_html}
-          </div>
+
+          <ul style="margin:8px 0 0 18px; padding:0; font-size:14px;">
+            <li><strong>What it is:</strong> {what}</li>
+            <li><strong>Who:</strong> {who}</li>
+            <li><strong>What it does:</strong> {what_does}</li>
+            <li><strong>Why it matters:</strong> {why}</li>
+            <li><strong>Strategic view:</strong> {strategic}</li>
+          </ul>
         </article>
         """
+        blocks.append(block)
+
+    return "\n".join(blocks)
+
+
+def _render_watchlist_section(title: str, items: List[Dict]) -> str:
+    """Una sezione della watchlist (es. Telco & 5G)."""
+
+    safe_title = escape(title)
+
+    # Nessun articolo per questo topic
+    if not items:
+        return f"""
+        <section style="margin-top:16px;">
+          <h3 style="margin:0 0 4px 0; font-size:16px;">{safe_title}</h3>
+          <p style="margin:2px 0 0 0; font-size:13px; color:#777;">
+            No headlines selected today.
+          </p>
+        </section>
+        """
+
+    lis: List[str] = []
+    for art in items:
+        atitle = escape(art.get("title", ""))
+        url = art.get("url") or "#"
+        source = escape(art.get("source", ""))
+
+        lis.append(
+            f"""
+            <li style="margin-bottom:6px; list-style:none;">
+              <strong>
+                <a href="{url}" style="color:#0052CC; text-decoration:none;">
+                  {atitle}
+                </a>
+              </strong><br/>
+              <span style="color:#777; font-size:12px;">
+                {source}
+              </span>
+            </li>
+            """
         )
 
-    index_html = f"""<!DOCTYPE html>
+    return f"""
+    <section style="margin-top:16px;">
+      <h3 style="margin:0 0 4px 0; font-size:16px;">{safe_title}</h3>
+      <ul style="margin:4px 0 0 18px; padding:0; font-size:14px;">
+        {''.join(lis)}
+      </ul>
+    </section>
+    """
+
+
+def _render_watchlist(watchlist: Dict[str, List[Dict]]) -> str:
+    """
+    watchlist = dict(topic_key -> lista articoli)
+
+    Qui garantiamo che *tutti i topic* definiti compaiano nel report,
+    anche se vuoti.
+    """
+
+    sections: List[str] = []
+    for topic_key, label in TOPIC_LABELS.items():
+        items = watchlist.get(topic_key, []) or []
+        sections.append(_render_watchlist_section(label, items))
+
+    return "\n".join(sections)
+
+
+def build_html_report(*, deep_dives, watchlist, date_str: str) -> str:
+    """Costruisce l’intero HTML del report."""
+
+    header = _render_header(date_str)
+    deep_dives_html = _render_deep_dives(deep_dives)
+    watchlist_html = _render_watchlist(watchlist)
+
+    return f"""<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>Max Bits Magazine · Daily Tech Watch</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>MaxBits · Daily Tech Watch · {escape(date_str)}</title>
 </head>
+
 <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
-             font-size:14px; color:#111; background:#fafafa; margin:0; padding:16px;">
+             font-size:14px; color:#111; background:#fafafa; margin:0; padding:24px;">
 
-  <div style="max-width:900px; margin:0 auto;">
+  <div style="max-width:900px; margin:0 auto; background:#fff;
+              padding:24px 32px; border-radius:8px;
+              box-shadow:0 0 12px rgba(0,0,0,0.04);">
 
-    <header style="margin:8px 0 16px 0;">
-      <h1 style="margin:0 0 4px 0; font-size:26px;">Max Bits Magazine</h1>
-      <p style="margin:0; color:#555; font-size:13px;">
-        Daily tech intelligence · last {max_days} days · newest first
-      </p>
-    </header>
+    {header}
 
-    {''.join(cards)}
+    <section style="margin-bottom:32px;">
+      <h2 style="margin:0 0 12px 0; font-size:22px;">3 deep-dives you should really read</h2>
+      {deep_dives_html}
+    </section>
+
+    <section>
+      <h2 style="margin:0 0 8px 0; font-size:20px;">Curated watchlist · 3–5 links per topic</h2>
+      {watchlist_html}
+    </section>
 
   </div>
 </body>
 </html>
 """
-    (docs_dir / "index.html").write_text(index_html, encoding="utf-8")
-    print(f"[ARCHIVE] Updated docs/index.html with last {len(items)} reports.")
-
-
-if __name__ == "__main__":
-    build_archive(max_days=7)
