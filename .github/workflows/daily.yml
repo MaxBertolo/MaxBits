@@ -35,7 +35,7 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      # 5) Esecuzione script principale
+      # 5) Esecuzione script principale (genera HTML + PDF + invio Telegram)
       - name: Run MaxBits daily report script
         env:
           # --- LLM / Gemini ---
@@ -48,14 +48,26 @@ jobs:
         run: |
           python -m src.main
 
-      # 6) Upload report HTML
+      # 6) Costruzione mini-sito "Max Bits Magazine" (ultimo 7 giorni)
+      - name: Build Max Bits Magazine archive (GitHub Pages)
+        run: |
+          python -m src.archive_builder
+
+      # 7) Commit automatico di docs/ per GitHub Pages
+      - name: Commit docs for GitHub Pages
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "Update Max Bits Magazine archive"
+          file_pattern: docs/**
+
+      # 8) Upload report HTML come artifact (facoltativo, ma utile)
       - name: Upload HTML reports as artifact
         uses: actions/upload-artifact@v4
         with:
           name: maxbits-report-html
           path: reports/html/
 
-      # 7) Upload report PDF
+      # 9) Upload report PDF come artifact
       - name: Upload PDF reports as artifact
         uses: actions/upload-artifact@v4
         with:
