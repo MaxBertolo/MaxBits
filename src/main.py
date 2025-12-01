@@ -1,8 +1,9 @@
 from pathlib import Path
 from datetime import datetime
 import re
-import yaml
 from typing import Dict, List, Any
+
+import yaml
 
 from .rss_collector import collect_from_rss, rank_articles
 from .cleaning import clean_articles
@@ -15,7 +16,7 @@ from .telegram_sender import send_telegram_pdf
 # Root del repo (cartella padre di src/)
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-# All topics we want to manage in the watchlist
+# Tutti i topic gestiti
 TOPIC_KEYS = [
     "TV/Streaming",
     "Telco/5G",
@@ -29,12 +30,12 @@ TOPIC_KEYS = [
 
 
 def today_str() -> str:
-    """Return today's date as YYYY-MM-DD."""
+    """Restituisce la data di oggi come stringa YYYY-MM-DD."""
     return datetime.now().strftime("%Y-%m-%d")
 
 
 def load_config() -> Dict[str, Any]:
-    """Load config/config.yaml."""
+    """Carica config/config.yaml."""
     config_path = BASE_DIR / "config" / "config.yaml"
     print("[DEBUG] Loading config from:", config_path)
     with open(config_path, "r", encoding="utf-8") as f:
@@ -43,7 +44,7 @@ def load_config() -> Dict[str, Any]:
 
 
 def load_rss_sources() -> List[Dict[str, Any]]:
-    """Load RSS feed list from config/sources_rss.yaml."""
+    """Carica la lista dei feed da config/sources_rss.yaml."""
     rss_path = BASE_DIR / "config" / "sources_rss.yaml"
     print("[DEBUG] Loading RSS sources from:", rss_path)
     with open(rss_path, "r", encoding="utf-8") as f:
@@ -51,18 +52,30 @@ def load_rss_sources() -> List[Dict[str, Any]]:
     return data["feeds"]
 
 
-# ---------- HELPERS: TITLE NORMALIZATION ----------
+# ---------- HELPERS PER TITOLI / NORMALIZZAZIONE ----------
+
+def _strip_html_tags(text: str) -> str:
+    """
+    Rimuove tutti i tag HTML da una stringa (es. <a href=...>).
+    Usato per avere titoli 'puliti' nella watchlist.
+    """
+    if not text:
+        return ""
+    cleaned = re.sub(r"<[^>]+>", "", text)      # rimuove qualunque tag <...>
+    cleaned = re.sub(r"\s+", " ", cleaned)      # comprime spazi e newline
+    return cleaned.strip()
+
 
 def _normalize_title(raw_title: str) -> str:
     """
-    Normalize title for comparison:
-    - remove HTML tags
-    - lowercase
-    - collapse whitespace
+    Normalizza il titolo per confrontarlo:
+    - rimuove eventuali tag HTML
+    - abbassa in minuscolo
+    - comprime spazi
     """
     if not raw_title:
         return ""
-    text = re.sub(r"<[^>]+>", "", raw_title)  # remove HTML tags
+    text = _strip_html_tags(raw_title)
     text = text.lower()
     text = re.sub(r"\s+", " ", text)
     return text.strip()
@@ -150,7 +163,7 @@ TOPIC_KEYWORDS: Dict[str, List[str]] = {
 
 
 def _assign_topic_by_source(source: str) -> str | None:
-    """Try to derive topic based on feed name."""
+    """Prova a derivare il topic dal nome della fonte RSS."""
     src = (source or "").lower()
     for key, topic in FEED_TOPIC_MAP.items():
         if key.lower() in src:
@@ -160,8 +173,8 @@ def _assign_topic_by_source(source: str) -> str | None:
 
 def _assign_topic_by_keywords(title: str, content: str, source: str) -> str:
     """
-    Fallback: search for keywords in title + content + source.
-    If nothing matches, default to AI/Cloud/Quantum.
+    Fallback: cerca parole chiave in title + content + source.
+    Se non trova nulla, default su AI/Cloud/Quantum.
     """
     text = f"{title} {content} {source}".lower()
     for topic, keywords in TOPIC_KEYWORDS.items():
@@ -173,9 +186,9 @@ def _assign_topic_by_keywords(title: str, content: str, source: str) -> str:
 
 def assign_topic(article) -> str:
     """
-    Single function to assign topic to an article.
-    1) try feed-name map
-    2) otherwise use keyword-based classification
+    Funzione unica per assegnare un topic a un articolo.
+    1) prova con la mappa dei feed
+    2) altrimenti usa keyword-based classification
     """
     source = getattr(article, "source", "") or ""
     title = getattr(article, "title", "") or ""
@@ -188,7 +201,7 @@ def assign_topic(article) -> str:
     return _assign_topic_by_keywords(title, content, source)
 
 
-# ---------- WATCHLIST BUILDING (no dup + min 1 per topic) ----------
+# ---------- WATCHLIST (dedup, min 1 per topic, titoli puliti) ----------
 
 def build_watchlist_by_topic(
     candidates,
@@ -196,22 +209,24 @@ def build_watchlist_by_topic(
     min_per_topic: int = 1,
 ) -> Dict[str, List[Dict[str, str]]]:
     """
-    Build watchlist by topic.
+    Crea la watchlist per topic.
 
-    - global dedup by normalized title
-    - deep-dives are not included (they are removed from candidates before calling this)
-    - try to guarantee at least `min_per_topic` items per topic if there are candidates.
+    - dedup globale per titolo normalizzato
+    - non include i deep-dives (rimossi prima)
+    - garantisce almeno `min_per_topic` item per topic se ci sono candidati
+    - titoli SEMPRE "puliti" da HTML (niente <a href=...> nella watchlist)
     """
     grouped: Dict[str, List[Dict[str, str]]] = {topic: [] for topic in TOPIC_KEYS}
     seen_titles = set()  # normalized titles
 
-    # First pass: fill buckets up to max_per_topic
+    # First pass: riempiamo i bucket fino a max_per_topic
     for art in candidates:
-        title = getattr(art, "title", "") or ""
-        norm_title = _normalize_title(title)
-        if not norm_title:
+        raw_title = getattr(art, "title", "") or ""
+        plain_title = _strip_html_tags(raw_title)
+        if not plain_title:
             continue
 
+        norm_title = _normalize_title(plain_title)
         if norm_title in seen_titles:
             continue
 
@@ -225,14 +240,14 @@ def build_watchlist_by_topic(
 
         bucket.append(
             {
-                "title": title,
+                "title": plain_title,
                 "url": getattr(art, "url", "") or "",
                 "source": getattr(art, "source", "") or "",
             }
         )
         seen_titles.add(norm_title)
 
-    # Second pass: try to guarantee at least 1 per topic
+    # Second pass: proviamo a garantire almeno 1 item per topic
     for topic in TOPIC_KEYS:
         if len(grouped[topic]) >= min_per_topic:
             continue
@@ -242,14 +257,18 @@ def build_watchlist_by_topic(
             if art_topic != topic:
                 continue
 
-            title = getattr(art, "title", "") or ""
-            norm_title = _normalize_title(title)
-            if not norm_title or norm_title in seen_titles:
+            raw_title = getattr(art, "title", "") or ""
+            plain_title = _strip_html_tags(raw_title)
+            if not plain_title:
+                continue
+
+            norm_title = _normalize_title(plain_title)
+            if norm_title in seen_titles:
                 continue
 
             grouped[topic].append(
                 {
-                    "title": title,
+                    "title": plain_title,
                     "url": getattr(art, "url", "") or "",
                     "source": getattr(art, "source", "") or "",
                 }
@@ -268,26 +287,26 @@ def select_deep_dives_and_watchlist(
     max_watchlist_per_topic: int = 5,
 ) -> tuple[list, Dict[str, List[Dict[str, str]]]]:
     """
-    - Deep-dives: first N articles from 'ranked'
-    - Watchlist: uses ALL 'cleaned' articles (wider pool) minus deep-dives.
+    - Deep-dives: primi N articoli da 'ranked'
+    - Watchlist: usa TUTTI gli articoli 'cleaned' (pool più ampio) meno i deep-dives.
     """
     if not ranked or not cleaned:
         return [], {}
 
-    # ensure all cleaned articles have a topic
+    # assicuriamoci che tutti i cleaned abbiano un topic
     for art in cleaned:
         setattr(art, "topic", assign_topic(art))
 
-    # Deep-dives = first N from ranked
+    # Deep-dives = primi N da ranked
     deep_dives: List[Any] = []
     for art in ranked:
         if len(deep_dives) >= deep_dives_count:
             break
         deep_dives.append(art)
 
-    deep_norm_titles = {_normalize_title(a.title) for a in deep_dives}
+    deep_norm_titles = {_normalize_title(getattr(a, "title", "") or "") for a in deep_dives}
 
-    # Watchlist candidates = all cleaned minus deep-dives
+    # Candidati watchlist = tutti i cleaned meno i deep-dives (via titolo)
     watch_candidates = []
     for art in cleaned:
         norm_title = _normalize_title(getattr(art, "title", "") or "")
@@ -304,7 +323,7 @@ def select_deep_dives_and_watchlist(
     return deep_dives, watchlist_by_topic
 
 
-# ---------- DEEP-DIVE NORMALIZATION (no empty sections) ----------
+# ---------- DEEP-DIVE NORMALIZATION (sezioni sempre piene) ----------
 
 DEEP_DIVE_FIELDS = [
     "what_it_is",
@@ -317,7 +336,8 @@ DEEP_DIVE_FIELDS = [
 
 def _ensure_deep_dive_sections(entry: Dict[str, Any]) -> Dict[str, Any]:
     """
-    Ensure each deep-dive has all sections filled.
+    Garantisce che ogni deep-dive abbia tutte le sezioni valorizzate.
+    Se mancano, usa fallback generici ma sensati.
     """
     out = dict(entry) if entry is not None else {}
 
@@ -345,8 +365,8 @@ def _ensure_deep_dive_sections(entry: Dict[str, Any]) -> Dict[str, Any]:
 
 def _normalize_deep_dives(summaries: List[Dict[str, Any]], deep_articles) -> List[Dict[str, Any]]:
     """
-    Align title/source/url/topic from the original deep-dive articles
-    and ensure all sections are present.
+    Allinea title/source/url/topic dai deep-dives originali
+    e garantisce tutte le sezioni piene.
     """
     normalized: List[Dict[str, Any]] = []
 
@@ -370,7 +390,7 @@ def _normalize_deep_dives(summaries: List[Dict[str, Any]], deep_articles) -> Lis
 
 
 def main():
-    # Debug info for GitHub Actions
+    # Info utili per il debug su GitHub Actions
     cwd = Path.cwd()
     print("[DEBUG] CWD:", cwd)
     try:
@@ -378,7 +398,7 @@ def main():
     except Exception as e:
         print("[DEBUG] Cannot list repo contents:", repr(e))
 
-    # 1) Config + RSS sources
+    # 1) Config + fonti RSS
     cfg = load_config()
     feeds = load_rss_sources()
 
@@ -387,9 +407,9 @@ def main():
     model = llm_cfg.get("model", "")
     temperature = float(llm_cfg.get("temperature", 0.25))
     max_tokens = int(llm_cfg.get("max_tokens", 900))
-    language = llm_cfg.get("language", "en")  # reserved for future use
+    language = llm_cfg.get("language", "en")  # riservato per uso futuro
 
-    # 2) Collect RSS
+    # 2) Raccolta RSS
     print("Collecting RSS...")
     raw_articles = collect_from_rss(feeds)
     print(f"[RSS] Total raw articles collected: {len(raw_articles)}")
@@ -406,11 +426,11 @@ def main():
         print("No recent articles after cleaning. Exiting.")
         return
 
-    # 4) Ranking for deep-dives
+    # 4) Ranking per deep-dives
     ranked = rank_articles(cleaned)
     print(f"[RANK] Selected top {len(ranked)} articles out of {len(cleaned)}")
 
-    # 5) Select deep-dives + watchlist
+    # 5) Selezione deep-dives + watchlist
     deep_articles, watchlist_grouped = select_deep_dives_and_watchlist(
         ranked=ranked,
         cleaned=cleaned,
@@ -425,7 +445,7 @@ def main():
         print("No deep-dive candidates. Exiting.")
         return
 
-    # 6) Summarization with LLM
+    # 6) Summarization con LLM
     print("Summarizing deep-dive articles with LLM...")
     summaries = summarize_articles(
         deep_articles,
@@ -434,10 +454,10 @@ def main():
         max_tokens=max_tokens,
     )
 
-    # Normalize deep-dives
+    # Normalizzazione deep-dives
     summaries = _normalize_deep_dives(summaries, deep_articles)
 
-    # 7) Build HTML
+    # 7) Costruzione HTML
     print("Building HTML report...")
     date_str = today_str()
     html = build_html_report(
@@ -446,7 +466,7 @@ def main():
         date_str=date_str,
     )
 
-    # 8) Save HTML + PDF
+    # 8) Salvataggio HTML + PDF
     output_cfg = cfg.get("output", {})
     html_dir = Path(output_cfg.get("html_dir", "reports/html"))
     pdf_dir = Path(output_cfg.get("pdf_dir", "reports/pdf"))
@@ -468,7 +488,7 @@ def main():
     print("Done. HTML report:", html_path)
     print("Done. PDF report:", pdf_path)
 
-    # 9) Send report via Telegram
+    # 9) Invio via Telegram
     print("Sending report via Telegram...")
     send_telegram_pdf(str(pdf_path), date_str)
 
