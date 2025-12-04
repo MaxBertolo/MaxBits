@@ -1,9 +1,9 @@
-from __future__ import annotations
+# src/main.py
 
 from pathlib import Path
 from datetime import datetime
-from typing import Dict, List, Set
-
+from typing import Dict, List, Tuple
+import json
 import yaml
 
 from .rss_collector import collect_from_rss, rank_articles
@@ -12,10 +12,8 @@ from .summarizer import summarize_articles
 from .report_builder import build_html_report
 from .pdf_export import html_to_pdf
 from .email_sender import send_report_email
-from .models import RawArticle
 
 
-# Root del repo (cartella padre di src/)
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 
@@ -24,27 +22,27 @@ def today_str() -> str:
     return datetime.now().strftime("%Y-%m-%d")
 
 
-def load_config() -> Dict:
+def load_config() -> dict:
     """Carica config/config.yaml."""
     config_path = BASE_DIR / "config" / "config.yaml"
     print("[DEBUG] Loading config from:", config_path)
     with open(config_path, "r", encoding="utf-8") as f:
         data = yaml.safe_load(f)
-    return data
+    return data or {}
 
 
-def load_rss_sources() -> List[Dict]:
+def load_rss_sources() -> list:
     """Carica la lista dei feed da config/sources_rss.yaml."""
     rss_path = BASE_DIR / "config" / "sources_rss.yaml"
     print("[DEBUG] Loading RSS sources from:", rss_path)
     with open(rss_path, "r", encoding="utf-8") as f:
         data = yaml.safe_load(f)
-    return data["feeds"]
+    return data.get("feeds", [])
 
 
-# ---------------------------------------------------------------------------
-#  WATCHLIST HELPERS
-# ---------------------------------------------------------------------------
+# -------------------------------
+#  HELPERS PER WATCHLIST & DEDUP
+# -------------------------------
 
 WATCHLIST_TOPICS_ORDER = [
     "TV/Streaming",
@@ -58,68 +56,118 @@ WATCHLIST_TOPICS_ORDER = [
 ]
 
 
-def _canonical_title(title: str) -> str:
-    return (title or "").strip().lower()
+def _normalise_title(title: str) -> str:
+    """Titolo normalizzato per il confronto dedup."""
+    if not title:
+        return ""
+    t = title.strip().lower()
+    # rimuovo alcuni caratteri finali inutili
+    while t.endswith((" .", ".", "!", "?", "…")):
+        t = t[:-1].strip()
+    return t
+
+
+def _article_topic(article) -> str:
+    """
+    Ritorna il topic dell'articolo.
+    Assume che rss_collector abbia impostato article.topic in base al feed.
+    Se manca, lo mette in 'AI/Cloud/Quantum' come default.
+    """
+    topic = getattr(article, "topic", None) or "AI/Cloud/Quantum"
+    if topic not in WATCHLIST_TOPICS_ORDER:
+        # topic non previsto -> mappiamo su uno sensato
+        if "space" in topic.lower() or "sat" in topic.lower():
+            return "Space/Infra"
+        return "AI/Cloud/Quantum"
+    return topic
 
 
 def build_watchlist(
-    ranked_articles: List[RawArticle],
-    deep_dives: List[RawArticle],
-    per_topic_min: int = 3,
-    per_topic_max: int = 5,
+    ranked_articles,
+    deep_dive_articles,
+    max_per_topic: int = 5,
 ) -> Dict[str, List[Dict]]:
     """
     Costruisce la watchlist per topic, senza duplicazioni:
-
-    - Nessun articolo può comparire sia nei deep-dives sia nella watchlist.
-    - Nessun articolo può essere duplicato in più topic (vince il primo in ordine).
-    - Ogni topic ha 0–per_topic_max articoli.
+      - nessun articolo che sia già fra i deep-dives (per titolo)
+      - nessun titolo duplicato all'interno della watchlist stessa
+      - max 3–5 (configurabile) articoli per topic
     """
 
-    # titoli già usati nei deep-dives
-    used_titles: Set[str] = {_canonical_title(a.title) for a in deep_dives}
+    deep_titles = {_normalise_title(a.title) for a in deep_dive_articles}
 
-    buckets: Dict[str, List[Dict]] = {t: [] for t in WATCHLIST_TOPICS_ORDER}
+    watchlist: Dict[str, List[Dict]] = {topic: [] for topic in WATCHLIST_TOPICS_ORDER}
+    seen_titles_per_topic: Dict[str, set] = {topic: set() for topic in WATCHLIST_TOPICS_ORDER}
 
     for art in ranked_articles:
-        title_key = _canonical_title(art.title)
-        if not art.title:
-            continue
-        if title_key in used_titles:
-            # già usato in deep-dives o watchlist
+        # salta gli stessi oggetti già usati nei deep-dives
+        if art in deep_dive_articles:
             continue
 
-        topic = getattr(art, "topic", None)
-        if topic not in WATCHLIST_TOPICS_ORDER:
-            # se non mappato, per ora lo ignoriamo
+        topic = _article_topic(art)
+        if topic not in watchlist:
             continue
 
-        if len(buckets[topic]) >= per_topic_max:
+        norm_title = _normalise_title(art.title)
+        if not norm_title:
             continue
 
-        buckets[topic].append(
-            {
-                "id": f"{topic.replace('/', '_')}_{len(buckets[topic]) + 1}",
-                "title": art.title,
-                "url": art.url,
-                "source": art.source,
-            }
-        )
-        used_titles.add(title_key)
+        # salta se è uno dei deep-dives (stesso titolo)
+        if norm_title in deep_titles:
+            continue
 
-    # log di servizio
-    for t in WATCHLIST_TOPICS_ORDER:
-        print(f"[WATCHLIST] {t}: {len(buckets[t])} items")
+        # salta se già presente nello stesso topic
+        if norm_title in seen_titles_per_topic[topic]:
+            continue
 
-    return buckets
+        if len(watchlist[topic]) >= max_per_topic:
+            continue
+
+        item = {
+            "id": f"wl|{topic}|{art.source}|{art.title}",
+            "title": art.title,
+            "url": art.url,
+            "source": art.source,
+        }
+        watchlist[topic].append(item)
+        seen_titles_per_topic[topic].add(norm_title)
+
+    return watchlist
 
 
-# ---------------------------------------------------------------------------
-#  MAIN PIPELINE
-# ---------------------------------------------------------------------------
+def build_deep_dives_payload(
+    deep_dive_articles,
+    summaries: List[Dict],
+) -> List[Dict]:
+    """
+    Combina i RawArticle deep-dive con i riassunti dello summarizer
+    in un payload unico per il report builder.
+    """
+    payload: List[Dict] = []
+    for art, summ in zip(deep_dive_articles, summaries):
+        topic = _article_topic(art)
+        entry = {
+            "id": f"deep|{art.source}|{art.title}",
+            "title": art.title,
+            "url": art.url,
+            "source": art.source,
+            "topic": topic,
+            "published_at": art.published_at.isoformat(),
+            "what_it_is": summ.get("what_it_is", ""),
+            "who": summ.get("who", ""),
+            "what_it_does": summ.get("what_it_does", ""),
+            "why_it_matters": summ.get("why_it_matters", ""),
+            "strategic_view": summ.get("strategic_view", ""),
+        }
+        payload.append(entry)
+    return payload
 
 
-def main() -> None:
+# -----------
+#   MAIN
+# -----------
+
+def main():
     # Info utili per il debug su GitHub Actions
     cwd = Path.cwd()
     print("[DEBUG] CWD:", cwd)
@@ -132,17 +180,20 @@ def main() -> None:
     cfg = load_config()
     feeds = load_rss_sources()
 
-    max_articles_for_cleaning = int(cfg.get("max_articles_per_day", 50))
+    # parametri LLM
     llm_cfg = cfg.get("llm", {})
     model = llm_cfg.get("model", "")
     temperature = float(llm_cfg.get("temperature", 0.25))
     max_tokens = int(llm_cfg.get("max_tokens", 900))
     language = llm_cfg.get("language", "en")
 
+    # impostazioni output
     output_cfg = cfg.get("output", {})
-    html_dir_cfg = output_cfg.get("html_dir", "reports/html")
-    pdf_dir_cfg = output_cfg.get("pdf_dir", "reports/pdf")
+    html_dir = Path(output_cfg.get("html_dir", "reports/html"))
+    pdf_dir = Path(output_cfg.get("pdf_dir", "reports/pdf"))
     file_prefix = output_cfg.get("file_prefix", "report_")
+
+    max_articles_for_cleaning = int(cfg.get("max_articles_per_day", 50))
 
     # 2) Raccolta RSS
     print("Collecting RSS...")
@@ -161,69 +212,52 @@ def main() -> None:
         print("No recent articles after cleaning. Exiting.")
         return
 
-    # 4) Ranking
+    # 4) Ranking globale (priorità fonti + keyword, ecc.)
     ranked = rank_articles(cleaned)
-    print(f"After ranking: {len(ranked)} articles")
+    print(f"[RANK] Selected top {len(ranked)} articles out of {len(cleaned)}")
 
     if not ranked:
-        print("No ranked articles, exiting.")
+        print("No ranked articles. Exiting.")
         return
 
-    # 5) Selezione deep-dives + watchlist
-    #    - primi 3: deep dives
-    #    - successivi: pool per watchlist
-    deep_dives_articles: List[RawArticle] = ranked[:3]
-    watchlist_pool: List[RawArticle] = ranked[3:]
+    # 5) Selezione deep-dives (3 articoli migliori)
+    deep_dive_articles = ranked[:3]
+    print("[SELECT] Deep-dive articles:", [a.title for a in deep_dive_articles])
 
-    print(f"[SELECT] Deep-dives articles: {len(deep_dives_articles)}")
-    print(f"[SELECT] Watchlist candidates: {len(watchlist_pool)}")
+    # 6) Watchlist per topic (3–5 articoli max per topic) senza duplicazioni
+    watchlist_grouped = build_watchlist(
+        ranked_articles=ranked,
+        deep_dive_articles=deep_dive_articles,
+        max_per_topic=5,
+    )
+    print("[SELECT] Watchlist built with topics:",
+          list(watchlist_grouped.keys()))
 
-    # 6) Summarization dei 3 deep-dives
+    # 7) Summarization con LLM – SOLO sui 3 deep-dives
     print("Summarizing deep-dive articles with LLM...")
     deep_dives_summaries = summarize_articles(
-        deep_dives_articles,
+        deep_dive_articles,
         model=model,
         temperature=temperature,
         max_tokens=max_tokens,
     )
 
-    # arricchiamo i summaries con topic e id
-    deep_dives_payload: List[Dict] = []
-    for idx, (art, summary) in enumerate(zip(deep_dives_articles, deep_dives_summaries)):
-        topic = getattr(art, "topic", "General")
-        payload = {
-            **summary,
-            "id": summary.get("id") or f"deep_{idx + 1}",
-            "topic": topic,
-        }
-        deep_dives_payload.append(payload)
+    # 8) Prepara payload finale per il report builder
+    deep_dives_payload = build_deep_dives_payload(
+        deep_dive_articles=deep_dive_articles,
+        summaries=deep_dives_summaries,
+    )
 
-    # salviamo anche un JSON "raw" per eventuali usi futuri
-    json_dir = BASE_DIR / "reports" / "json"
+    # salva anche un JSON dei deep-dives (utile per debug / future feature)
+    json_dir = Path("reports/json")
     json_dir.mkdir(parents=True, exist_ok=True)
     date_str = today_str()
     json_path = json_dir / f"deep_dives_{date_str}.json"
-
-    import json
-
-    with open(json_path, "w", encoding="utf-8") as f:
-        json.dump(deep_dives_payload, f, ensure_ascii=False, indent=2)
-
+    with open(json_path, "w", encoding="utf-8") as jf:
+        json.dump(deep_dives_payload, jf, ensure_ascii=False, indent=2)
     print(f"[DEBUG] Saved deep-dives JSON to: {json_path}")
 
-    # 7) Costruzione watchlist per topic, senza duplicazioni
-    print("Building watchlist by topic...")
-    watchlist_grouped = build_watchlist(
-        ranked_articles=watchlist_pool,
-        deep_dives=deep_dives_articles,
-        per_topic_min=3,
-        per_topic_max=5,
-    )
-
-    print("[SELECT] Watchlist built with topics:",
-          list(watchlist_grouped.keys()))
-
-    # 8) Costruzione HTML
+    # 9) Costruzione HTML
     print("Building HTML report...")
     html = build_html_report(
         deep_dives=deep_dives_payload,
@@ -231,9 +265,7 @@ def main() -> None:
         date_str=date_str,
     )
 
-    # 9) Salvataggio HTML + PDF
-    html_dir = BASE_DIR / html_dir_cfg
-    pdf_dir = BASE_DIR / pdf_dir_cfg
+    # 10) Salvataggio HTML + PDF
     html_dir.mkdir(parents=True, exist_ok=True)
     pdf_dir.mkdir(parents=True, exist_ok=True)
 
@@ -250,7 +282,7 @@ def main() -> None:
     print("Done. HTML report:", html_path)
     print("Done. PDF report:", pdf_path)
 
-    # 10) Invio email (NON fa fallire il job se qualcosa va storto)
+    # 11) Invio email (se configurato) – non deve far fallire il job
     print("Sending report via email...")
     try:
         send_report_email(
@@ -258,10 +290,10 @@ def main() -> None:
             date_str=date_str,
             html_path=str(html_path),
         )
-        print("Email step completed (check [EMAIL] logs for details).")
+        print("[EMAIL] Email step completed (check SMTP / mailbox for details).")
     except Exception as e:
         print("[EMAIL] Unhandled error while sending email:", repr(e))
-        print("Continuing anyway – report generation completed.")
+        print("[EMAIL] Continuing anyway – report generation completed.")
 
     print("Process completed.")
 
