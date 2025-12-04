@@ -46,8 +46,8 @@ def _build_history_list(reports: List[Dict]) -> str:
     """
     Costruisce l'HTML della lista "Last 7 daily reports".
     I link a HTML/PDF sono relativi alla pagina docs/index.html:
-      ../reports/html/...
-      ../reports/pdf/...
+      reports/html/...
+      reports/pdf/...
     """
     if not reports:
         return "<li>No reports available yet.</li>"
@@ -55,15 +55,17 @@ def _build_history_list(reports: List[Dict]) -> str:
     items_html: List[str] = []
     for r in reports[:7]:
         date = r["date"]
-        html_url = f"../reports/html/{r['html_file'].name}"
+        html_url = f"reports/html/{r['html_file'].name}"
         pdf_url = (
-            f"../reports/pdf/{r['pdf_file'].name}"
+            f"reports/pdf/{r['pdf_file'].name}"
             if r["pdf_file"] is not None
             else None
         )
 
-        row = f"<li><strong>{date}</strong> – " \
-              f"<a href=\"{html_url}\" target=\"_blank\" rel=\"noopener\">HTML</a>"
+        row = (
+            f"<li><strong>{date}</strong> – "
+            f"<a href=\"{html_url}\" target=\"_blank\" rel=\"noopener\">HTML</a>"
+        )
         if pdf_url:
             row += f" · <a href=\"{pdf_url}\" target=\"_blank\" rel=\"noopener\">PDF</a>"
         row += "</li>"
@@ -81,7 +83,7 @@ def _build_latest_embed(reports: List[Dict]) -> str:
 
     latest = reports[0]
     date = latest["date"]
-    html_url = f"../reports/html/{latest['html_file'].name}"
+    html_url = f"reports/html/{latest['html_file'].name}"
 
     return f"""
 <h2 style="margin:16px 0 8px 0; font-size:18px;">Latest report · {date}</h2>
