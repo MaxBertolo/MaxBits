@@ -9,7 +9,8 @@ from html import escape
 def _render_header(date_str: str) -> str:
     """
     Header principale del daily + box link storico ultimi 7 giorni.
-    Lo storico viene gestito da JS leggendo la lista dei file disponibili.
+    Lo storico viene gestito da JS leggendo una lista (window.MAXBITS_HISTORY)
+    che puoi iniettare dal workflow GitHub Pages.
     """
     return f"""
 <header style="margin-bottom: 24px;">
@@ -27,11 +28,12 @@ def _render_header(date_str: str) -> str:
     </span>
   </div>
 
-  <section id="history-box" style="margin-top:14px; padding:10px 12px; border-radius:6px; background:#f5f5f5;">
+  <section id="history-box"
+           style="margin-top:14px; padding:10px 12px; border-radius:6px; background:#f5f5f5;">
     <strong style="font-size:13px;">Last 7 daily reports</strong>
     <p style="margin:4px 0 0 0; font-size:12px; color:#555;">
-      La lista è gestita dal workflow che pubblica i report. Qui sotto JS inserirà i link
-      agli ultimi 7 (HTML + PDF) quando disponibili.
+      La lista è popolata da JS usando una variabile globale
+      <code>window.MAXBITS_HISTORY</code> che il workflow può generare.
     </p>
     <ul id="history-list"
         style="margin:6px 0 0 16px; padding:0; font-size:12px; color:#333;">
@@ -44,8 +46,7 @@ def _render_header(date_str: str) -> str:
 def _render_deep_dives(deep_dives: List[Dict]) -> str:
     """
     deep_dives: lista di dizionari con chiavi:
-      - id (string) – opzionale; se non c'è usiamo l'indice
-      - title, url, source, topic
+      - id, title, url, source, topic
       - what_it_is, who, what_it_does, why_it_matters, strategic_view
     """
     if not deep_dives:
@@ -103,7 +104,7 @@ def _render_deep_dives(deep_dives: List[Dict]) -> str:
 
 def _render_watchlist_section(title: str, items: List[Dict]) -> str:
     """
-    items: lista di dict con almeno title, url, source, id opzionale
+    items: lista di dict con almeno id, title, url, source
     """
     if not items:
         return ""
@@ -148,6 +149,7 @@ def _render_watchlist_section(title: str, items: List[Dict]) -> str:
 def _render_watchlist(watchlist: Dict[str, List[Dict]]) -> str:
     """
     watchlist: dict topic -> lista articoli (già deduplicati in main)
+
     Le chiavi attese (anche se alcune possono essere vuote) sono:
       "TV/Streaming",
       "Telco/5G",
@@ -176,9 +178,14 @@ def _render_watchlist(watchlist: Dict[str, List[Dict]]) -> str:
 
     for topic in ordered_topics:
         items = watchlist.get(topic, [])
-        if items:
-            pretty_title = topic.replace("/", " / ").replace("Infra", "Infrastructure")
-            sections_html.append(_render_watchlist_section(pretty_title, items))
+        if not items:
+            continue
+
+        pretty_title = topic.replace("/", " / ").replace("Infra", "Infrastructure")
+        sections_html.append(_render_watchlist_section(pretty_title, items))
+
+    if not sections_html:
+        return "<p>No additional watchlist items today.</p>"
 
     return "\n".join(sections_html)
 
@@ -196,7 +203,7 @@ def build_html_report(*, deep_dives, watchlist, date_str: str) -> str:
     deep_dives_html = _render_deep_dives(deep_dives)
     watchlist_html = _render_watchlist(watchlist)
 
-    # NB: meta name="report-date" serve al JS per sapere la data del report corrente
+    # meta name="report-date" serve al JS per sapere la data del report corrente
     return f"""<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -360,15 +367,8 @@ def build_html_report(*, deep_dives, watchlist, date_str: str) -> str:
       btn.addEventListener("click", openWeeklyView);
     }}
 
-    // Storico ultimi 7 giorni – qui JS può riempire #history-list se hai una API
-    // o una lista generata dal workflow (es. via window.MAXBITS_HISTORY inserito dallo stesso).
+    // Storico ultimi 7 giorni – popola #history-list usando window.MAXBITS_HISTORY
     function initHistoryBox() {{
-      // Per ora lasciamo vuoto: il workflow può iniettare script con la lista.
-      // Esempio:
-      //   window.MAXBITS_HISTORY = [
-      //     {{ date: "2025-12-04", html: "reports/html/report_2025-12-04.html",
-      //        pdf: "reports/pdf/report_2025-12-04.pdf" }},
-      //   ];
       const history = window.MAXBITS_HISTORY || [];
       const ul = document.getElementById("history-list");
       if (!ul || !history.length) return;
