@@ -39,3 +39,12 @@ output:
   html_dir: "reports/html"
   pdf_dir: "reports/pdf"
   file_prefix: "report_"   # final name example: report_2025-11-28.pdf
+
+  output:
+  html_dir: "reports/html"
+  pdf_dir: "reports/pdf"
+  weekly_dir: "reports/weekly"
+  weekly_html_dir: "reports/weekly_html"
+  json_dir: "reports/json"
+  file_prefix: "report_"
+
