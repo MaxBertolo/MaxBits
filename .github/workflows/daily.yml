@@ -1,88 +1,104 @@
 name: MaxBits Daily Tech Report
 
 on:
-  # Avvio manuale dal tab "Actions"
+  # Lancio automatico (cron in UTC) — modifica se vuoi un orario diverso
+  schedule:
+    - cron: "0 5 * * 1-5"   # lun–ven alle 06:00 italiane circa (05:00 UTC)
+  # Lancio manuale da GitHub UI
   workflow_dispatch:
 
-  # Schedulato (esempio: 06:00 UTC tutti i giorni feriali)
-  schedule:
-    - cron: "0 6 * * 1-5"
+permissions:
+  contents: write   # necessario per fare commit/push su main
 
 jobs:
   run-report:
     runs-on: ubuntu-latest
 
     steps:
-      # 1) Checkout del repository
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0
-          persist-credentials: true
+          fetch-depth: 0   # serve la history completa per git push
 
-      # 2) Installazione wkhtmltopdf (per PDF)
       - name: Install system dependencies (wkhtmltopdf)
         run: |
           sudo apt-get update
           sudo apt-get install -y wkhtmltopdf
 
-      # 3) Setup Python
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.10"
+          python-version: "3.11"
 
-      # 4) Installazione dipendenze Python
       - name: Install Python dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      # 5) Esecuzione script principale (report + PDF + Telegram)
       - name: Run MaxBits daily report script
         env:
+          # --- LLM / Gemini ---
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          GEMINI_MODEL: "gemini-2.5-flash"
-          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          GEMINI_MODEL: ${{ secrets.GEMINI_MODEL }}
+
+          # --- SMTP / Email ---
+          SMTP_HOST: ${{ secrets.SMTP_HOST }}
+          SMTP_PORT: ${{ secrets.SMTP_PORT }}
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
+          FROM_EMAIL: ${{ secrets.FROM_EMAIL }}
+          TO_EMAIL: ${{ secrets.TO_EMAIL }}
         run: |
           python -m src.main
 
-      # 6) Costruzione archivio mini-sito (GitHub Pages)
-      - name: Build Max Bits Magazine archive (GitHub Pages)
-        run: |
-          python -m src.archive_builder
-
-      # 7) Commit dei docs per GitHub Pages
-      - name: Commit docs for GitHub Pages
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-
-          # Aggiungiamo solo la cartella docs/
-          git add docs/
-
-          # Se non ci sono cambi, usciamo senza errore
-          if git diff --cached --quiet; then
-            echo "No changes to commit"
-            exit 0
-          fi
-
-          git commit -m "Update MaxBits Magazine archive"
-          git push origin main
-
-      # 8) Upload report HTML
       - name: Upload HTML reports as artifact
         uses: actions/upload-artifact@v4
         with:
           name: maxbits-report-html
           path: reports/html/
 
-      # 9) Upload report PDF
       - name: Upload PDF reports as artifact
         uses: actions/upload-artifact@v4
         with:
           name: maxbits-report-pdf
           path: reports/pdf/
+
+      # -----------------------------------
+      # Build mini-app / GitHub Pages docs
+      # -----------------------------------
+      - name: Build MaxBits Magazine archive (GitHub Pages)
+        run: |
+          # Script che genera/aggiorna la mini-app in /docs
+          # (assicurati che esista es. src/magazine_builder.py)
+          python -m src.magazine_builder
+
+      # -----------------------------------
+      # Commit & push docs/ -> main
+      # -----------------------------------
+      - name: Commit docs for GitHub Pages
+        if: github.ref == 'refs/heads/main'
+        run: |
+          git config --global user.name  "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
+          echo "[DOCS] Current branch: $(git rev-parse --abbrev-ref HEAD)"
+
+          # Allineo il main locale con il remote
+          git fetch origin main
+          git checkout main
+
+          # Provo un fast-forward; se fallisce, continuo comunque con il main locale
+          git pull --ff-only origin main || echo "[DOCS] git pull --ff-only failed, uso il main locale."
+
+          # Stagio solo la mini-app (docs/)
+          git add docs/ || echo "[DOCS] Nessun file in docs/ da aggiungere."
+
+          # Creo il commit solo se ci sono modifiche
+          if git diff --cached --quiet; then
+            echo "[DOCS] Nessuna modifica in docs/, salto il commit."
+          else
+            git commit -m "Update MaxBits Magazine archive"
+          fi
+
+          # Push best-effort: se il push viene rifiutato NON fallisce il job
+          git push origin main || echo "[DOCS] git push fallito (probabile nuovo commit su main). Salto il push."
