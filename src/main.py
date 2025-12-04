@@ -1,7 +1,8 @@
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timedelta
+from typing import Dict, List
 import re
-from typing import Dict, List, Any
+import json
 import yaml
 
 from .rss_collector import collect_from_rss, rank_articles
@@ -9,12 +10,9 @@ from .cleaning import clean_articles
 from .summarizer import summarize_articles
 from .report_builder import build_html_report
 from .pdf_export import html_to_pdf
-from .telegram_sender import send_telegram_pdf
+from .email_sender import send_report_email
+from .models import RawArticle
 
-
-# =========================================================
-# ROOT DEL PROGETTO
-# =========================================================
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -34,306 +32,269 @@ def today_str() -> str:
     return datetime.now().strftime("%Y-%m-%d")
 
 
-# =========================================================
-# CONFIGURATION LOADERS
-# =========================================================
-
-def load_config() -> Dict[str, Any]:
-    path = BASE_DIR / "config" / "config.yaml"
-    with open(path, "r", encoding="utf-8") as f:
-        return yaml.safe_load(f)
+def load_config() -> Dict:
+    config_path = BASE_DIR / "config" / "config.yaml"
+    print("[DEBUG] Loading config from:", config_path)
+    with open(config_path, "r", encoding="utf-8") as f:
+        data = yaml.safe_load(f)
+    return data or {}
 
 
-def load_rss_sources() -> List[Dict[str, str]]:
-    path = BASE_DIR / "config" / "sources_rss.yaml"
-    with open(path, "r", encoding="utf-8") as f:
-        return yaml.safe_load(f)["feeds"]
+def load_rss_sources() -> List[Dict]:
+    rss_path = BASE_DIR / "config" / "sources_rss.yaml"
+    print("[DEBUG] Loading RSS sources from:", rss_path)
+    with open(rss_path, "r", encoding="utf-8") as f:
+        data = yaml.safe_load(f)
+    return data.get("feeds", [])
 
 
-# =========================================================
-# TITLE CLEANING + NORMALIZATION
-# =========================================================
+# ---------- HELPERS PER DEDUPLICA / WATCHLIST ----------
 
-def _strip_html_tags(text: str) -> str:
-    """Rimuove *qualunque* tag HTML da un titolo."""
-    if not text:
+def _normalize_title(raw_title: str) -> str:
+    if not raw_title:
         return ""
-    x = re.sub(r"<[^>]+>", "", text)
-    x = re.sub(r"\s+", " ", x)
-    return x.strip()
-
-
-def _normalize_title(text: str) -> str:
-    """Usato per dedup e matching."""
-    if not text:
-        return ""
-    text = _strip_html_tags(text)
+    text = re.sub(r"<[^>]+>", "", raw_title)
     text = text.lower()
     text = re.sub(r"\s+", " ", text)
     return text.strip()
 
 
-# =========================================================
-# TOPIC ASSIGNMENT (feed → keywords → fallback)
-# =========================================================
+def build_watchlist_by_topic(candidates: List[RawArticle], max_per_topic: int = 5) -> Dict[str, List[Dict]]:
+    grouped: Dict[str, List[Dict]] = {topic: [] for topic in TOPIC_KEYS}
+    seen_titles_global = set()
 
-FEED_TOPIC_MAP = {
-    "TechCrunch AI": "AI/Cloud/Quantum",
-    "TechCrunch Mobility": "Telco/5G",
-    "The Verge": "AI/Cloud/Quantum",
-    "Ars Technica": "AI/Cloud/Quantum",
-    "Wired – Tech": "AI/Cloud/Quantum",
-    "Wired – Business": "Media/Platforms",
-    "The Information": "Media/Platforms",
-    "Light Reading": "Telco/5G",
-    "Fierce Telecom": "Telco/5G",
-    "Telecoms.com": "Telco/5G",
-    "Capacity Media": "Telco/5G",
-    "Advanced Television": "Broadcast/Video",
-    "Broadband TV News": "TV/Streaming",
-    "SatNews": "Satellite/Satcom",
-    "Space News": "Space/Infra",
-    "Social Media Today": "Media/Platforms",
-    "Marketing Dive": "Media/Platforms",
-    "AdWeek": "Media/Platforms",
-    "Data Center Knowledge": "AI/Cloud/Quantum",
-    "Data Center Dynamics": "AI/Cloud/Quantum",
-    "CyberSecurity News": "AI/Cloud/Quantum",
-    "Robotics 24/7": "Robotics/Automation",
-    "IEEE Spectrum": "Robotics/Automation",
-    "MIT Technology Review": "AI/Cloud/Quantum",
-    "VentureBeat": "AI/Cloud/Quantum",
-}
-
-TOPIC_KEYWORDS: Dict[str, List[str]] = {
-    "TV/Streaming": ["streaming", "vod", "svod", "hulu", "netflix", "iptv"],
-    "Telco/5G": ["5g", "6g", "fiber", "ftth", "mno", "operator", "broadband"],
-    "Media/Platforms": ["social", "platform", "instagram", "tiktok", "advertising"],
-    "AI/Cloud/Quantum": ["ai", "gen ai", "llm", "inference", "cloud", "nvidia"],
-    "Space/Infra": ["space", "launch", "orbit", "payload"],
-    "Robotics/Automation": ["robot", "autonomous", "automation", "drone"],
-    "Broadcast/Video": ["broadcast", "ott", "encoding"],
-    "Satellite/Satcom": ["satellite", "satcom", "leo", "meo", "geo"],
-}
-
-
-def assign_topic(article) -> str:
-    source = getattr(article, "source", "").lower()
-    title = getattr(article, "title", "")
-    content = getattr(article, "content", "")
-
-    # 1) feed-based
-    for k, topic in FEED_TOPIC_MAP.items():
-        if k.lower() in source:
-            return topic
-
-    # 2) keyword-based
-    text = f"{title} {content}".lower()
-    for topic, kws in TOPIC_KEYWORDS.items():
-        for kw in kws:
-            if kw in text:
-                return topic
-
-    # 3) fallback
-    return "AI/Cloud/Quantum"
-
-
-# =========================================================
-# WATCHLIST (dedup intelligente, min 1 per topic)
-# =========================================================
-
-def build_watchlist_by_topic(candidates, max_per_topic=5, min_per_topic=1):
-    grouped = {t: [] for t in TOPIC_KEYS}
-    seen = set()
-
-    # FIRST PASS — riempi fino a max_per_topic
     for art in candidates:
-        raw = getattr(art, "title", "")
-        title = _strip_html_tags(raw)
-        if not title:
+        norm_title = _normalize_title(art.title)
+        if norm_title in seen_titles_global:
             continue
+        seen_titles_global.add(norm_title)
 
-        norm = _normalize_title(title)
-        if norm in seen:
-            continue
-
-        topic = getattr(art, "topic", None) or assign_topic(art)
+        topic = getattr(art, "topic", None) or "AI/Cloud/Quantum"
         if topic not in grouped:
+            topic = "AI/Cloud/Quantum"
+
+        bucket = grouped[topic]
+        if len(bucket) >= max_per_topic:
             continue
 
-        if len(grouped[topic]) < max_per_topic:
-            grouped[topic].append({
-                "title": title,
-                "url": getattr(art, "url", ""),
-                "source": getattr(art, "source", "")
-            })
-            seen.add(norm)
-
-    # SECOND PASS — garantire almeno 1 item
-    for topic in TOPIC_KEYS:
-        if len(grouped[topic]) >= min_per_topic:
-            continue
-
-        for art in candidates:
-            if assign_topic(art) != topic:
-                continue
-
-            raw = getattr(art, "title", "")
-            title = _strip_html_tags(raw)
-            if not title:
-                continue
-
-            norm = _normalize_title(title)
-            if norm in seen:
-                continue
-
-            grouped[topic].append({
-                "title": title,
-                "url": getattr(art, "url", ""),
-                "source": getattr(art, "source", "")
-            })
-            seen.add(norm)
-            break
+        bucket.append(
+            {
+                "title": art.title,
+                "url": art.url,
+                "source": art.source,
+            }
+        )
 
     return grouped
 
 
-# =========================================================
-# DEEP-DIVE NORMALIZATION
-# =========================================================
+def select_deep_dives_and_watchlist(
+    articles: List[RawArticle],
+    deep_dives_count: int = 3,
+    max_watchlist_per_topic: int = 5,
+):
+    if not articles:
+        return [], {topic: [] for topic in TOPIC_KEYS}
 
-DEEP_FIELDS = [
-    "what_it_is",
-    "who",
-    "what_it_does",
-    "why_it_matters",
-    "strategic_view",
-]
+    deep_dives = articles[:deep_dives_count]
+    deep_norm_titles = {_normalize_title(a.title) for a in deep_dives}
 
+    watch_candidates: List[RawArticle] = []
+    for art in articles[deep_dives_count:]:
+        norm_title = _normalize_title(art.title)
+        if norm_title in deep_norm_titles:
+            continue
+        watch_candidates.append(art)
 
-def _ensure_deep_fields(entry: Dict[str, Any]):
-    """Fallback testuale per deep-dive mancanti."""
-    title = entry.get("title") or "This article"
-    topic = entry.get("topic", "General")
+    watchlist_by_topic = build_watchlist_by_topic(
+        watch_candidates,
+        max_per_topic=max_watchlist_per_topic,
+    )
 
-    fallback = {
-        "what_it_is": f"Overview of {title}.",
-        "who": "Key stakeholders mentioned in the article.",
-        "what_it_does": "Describes relevant actions, launches or decisions.",
-        "why_it_matters": "Explains impact for Telco/Media/AI decision-makers.",
-        "strategic_view": f"Track how this evolves across {topic}.",
-    }
-
-    for f in DEEP_FIELDS:
-        if not entry.get(f):
-            entry[f] = fallback[f]
-
-    return entry
+    return deep_dives, watchlist_by_topic
 
 
-def normalize_deep_dives(summaries, deep_articles):
-    out = []
-    for i, s in enumerate(summaries):
-        d = dict(s)
-        art = deep_articles[i]
+def _collect_recent_daily_pdfs(
+    *,
+    base_pdf_dir: Path,
+    prefix: str,
+    today: datetime,
+    days_back: int = 6,
+) -> List[Dict]:
+    """
+    Ritorna i PDF esistenti dei giorni precedenti (max days_back),
+    in ordine dal più recente al meno recente.
+    """
+    items: List[Dict] = []
+    for delta in range(1, days_back + 1):
+        d = (today - timedelta(days=delta)).date()
+        date_str = d.strftime("%Y-%m-%d")
+        filename = f"{prefix}{date_str}.pdf"
+        pdf_path = base_pdf_dir / filename
+        if pdf_path.exists():
+            # dal punto di vista dell'HTML (reports/html), il PDF è in ../pdf/
+            href = f"../pdf/{filename}"
+            items.append({"date": date_str, "href": href})
+    return items
 
-        d.setdefault("title", art.title)
-        d.setdefault("title_clean", art.title)
-        d.setdefault("url", art.url)
-        d.setdefault("source", art.source)
-        d.setdefault("topic", art.topic)
 
-        d = _ensure_deep_fields(d)
+def _find_latest_weekly_pdf(base_weekly_dir: Path) -> str | None:
+    """
+    Cerca l'ultimo weekly report generato (pattern 'weekly_*.pdf').
+    Ritorna l'href relativo visto dall'HTML daily (../weekly/xxx.pdf) o None.
+    """
+    if not base_weekly_dir.exists():
+        return None
 
-        out.append(d)
-    return out
+    pdfs = sorted(base_weekly_dir.glob("weekly_*.pdf"))
+    if not pdfs:
+        return None
+
+    latest = pdfs[-1].name
+    # l'HTML daily è in reports/html, i weekly PDF in reports/weekly
+    return f"../weekly/{latest}"
 
 
-# =========================================================
-# MAIN PIPELINE
-# =========================================================
+# ------------------------ MAIN ------------------------
 
 def main():
-    print("[INIT] Loading configuration...")
+    cwd = Path.cwd()
+    print("[DEBUG] CWD:", cwd)
+    try:
+        print("[DEBUG] Repo contents:", [p.name for p in cwd.iterdir()])
+    except Exception as e:
+        print("[DEBUG] Cannot list repo contents:", repr(e))
+
     cfg = load_config()
     feeds = load_rss_sources()
 
-    max_articles = cfg.get("max_articles_per_day", 50)
-    model_cfg = cfg["llm"]
+    max_articles_for_cleaning = int(cfg.get("max_articles_per_day", 50))
+    llm_cfg = cfg.get("llm", {})
+    model = llm_cfg.get("model", "")
+    temperature = float(llm_cfg.get("temperature", 0.25))
+    max_tokens = int(llm_cfg.get("max_tokens", 900))
+    language = llm_cfg.get("language", "en")
 
-    # =====================================================
-    # 1) RSS COLLECTION
-    # =====================================================
-    print("[RSS] Collecting...")
+    print("Collecting RSS...")
     raw_articles = collect_from_rss(feeds)
+    print(f"[RSS] Total raw articles collected: {len(raw_articles)}")
 
-    cleaned = clean_articles(raw_articles, max_articles=max_articles)
+    if not raw_articles:
+        print("No articles collected from RSS. Exiting.")
+        return
+
+    cleaned = clean_articles(raw_articles, max_articles=max_articles_for_cleaning)
+    print(f"After cleaning: {len(cleaned)} articles")
+
+    if not cleaned:
+        print("No recent articles after cleaning. Exiting.")
+        return
+
     ranked = rank_articles(cleaned)
+    print(f"[RANK] Selected top {len(ranked)} articles out of {len(cleaned)}")
 
-    # Assign topics
-    for art in cleaned:
-        setattr(art, "topic", assign_topic(art))
+    if not ranked:
+        print("No ranked articles. Exiting.")
+        return
 
-    # =====================================================
-    # 2) Deep-dives + Watchlist
-    # =====================================================
-    deep_articles = ranked[:3]
-    deep_titles = {_normalize_title(a.title) for a in deep_articles}
+    deep_articles, watchlist_grouped = select_deep_dives_and_watchlist(
+        ranked,
+        deep_dives_count=3,
+        max_watchlist_per_topic=5,
+    )
 
-    watch_candidates = [a for a in cleaned if _normalize_title(a.title) not in deep_titles]
-    watchlist = build_watchlist_by_topic(watch_candidates)
+    print(f"[SELECT] Deep-dives: {len(deep_articles)}")
+    print(f"[SELECT] Watchlist topics: {list(watchlist_grouped.keys())}")
 
-    # =====================================================
-    # 3) Summaries
-    # =====================================================
-    print("[LLM] Summarizing deep-dives...")
-    summaries = summarize_articles(
+    if not deep_articles:
+        print("No deep-dive candidates. Exiting.")
+        return
+
+    print("Summarizing deep-dive articles with LLM...")
+    deep_dives_summaries = summarize_articles(
         deep_articles,
-        model=model_cfg["model"],
-        temperature=model_cfg["temperature"],
-        max_tokens=model_cfg["max_tokens"],
+        model=model,
+        temperature=temperature,
+        max_tokens=max_tokens,
     )
 
-    deep_dives = normalize_deep_dives(summaries, deep_articles)
+    # aggiungo topic ai deep-dives
+    for art, summary in zip(deep_articles, deep_dives_summaries):
+        topic = getattr(art, "topic", None)
+        if topic not in TOPIC_KEYS:
+            topic = "AI/Cloud/Quantum"
+        summary["topic"] = topic
 
-    # =====================================================
-    # 4) HTML REPORT
-    # =====================================================
-    print("[BUILD] HTML...")
-    date_str = today_str()
-    html = build_html_report(
-        deep_dives=deep_dives,
-        watchlist=watchlist,
-        date_str=date_str,
-    )
+    # ---------- OUTPUT PATHS ----------
 
-    # =====================================================
-    # 5) SAVE HTML + PDF
-    # =====================================================
-    out = cfg["output"]
-    html_dir = Path(out["html_dir"])
-    pdf_dir = Path(out["pdf_dir"])
-    prefix = out["file_prefix"]
+    out_cfg = cfg.get("output", {})
+    html_dir = Path(out_cfg.get("html_dir", "reports/html"))
+    pdf_dir = Path(out_cfg.get("pdf_dir", "reports/pdf"))
+    weekly_dir = Path(out_cfg.get("weekly_dir", "reports/weekly"))
+    json_dir = Path(out_cfg.get("json_dir", "reports/json"))
+    prefix = out_cfg.get("file_prefix", "report_")
 
     html_dir.mkdir(parents=True, exist_ok=True)
     pdf_dir.mkdir(parents=True, exist_ok=True)
+    weekly_dir.mkdir(parents=True, exist_ok=True)
+    json_dir.mkdir(parents=True, exist_ok=True)
 
+    date_str = today_str()
     html_path = html_dir / f"{prefix}{date_str}.html"
     pdf_path = pdf_dir / f"{prefix}{date_str}.pdf"
 
-    html_path.write_text(html, encoding="utf-8")
+    # ---------- STORICO 7 GIORNI + WEEKLY LINK ----------
+
+    today_dt = datetime.now()
+    recent_reports = _collect_recent_daily_pdfs(
+        base_pdf_dir=pdf_dir,
+        prefix=prefix,
+        today=today_dt,
+        days_back=6,
+    )
+    latest_weekly_href = _find_latest_weekly_pdf(weekly_dir)
+
+    # ---------- SALVA JSON DEI DEEP-DIVE (per weekly) ----------
+
+    json_path = json_dir / f"deep_dives_{date_str}.json"
+    with open(json_path, "w", encoding="utf-8") as jf:
+        json.dump(deep_dives_summaries, jf, ensure_ascii=False, indent=2)
+    print("[DEBUG] Saved deep-dives JSON to:", json_path)
+
+    # ---------- COSTRUZIONE HTML + PDF ----------
+
+    print("Building HTML report...")
+    html = build_html_report(
+        deep_dives=deep_dives_summaries,
+        watchlist=watchlist_grouped,
+        date_str=date_str,
+        recent_reports=recent_reports,
+        weekly_pdf=latest_weekly_href,
+    )
+
+    print("[DEBUG] Saving HTML to:", html_path)
+    with open(html_path, "w", encoding="utf-8") as f:
+        f.write(html)
+
+    print("[DEBUG] Converting HTML to PDF at:", pdf_path)
     html_to_pdf(html, str(pdf_path))
 
-    print(f"[DONE] HTML → {html_path}")
-    print(f"[DONE] PDF  → {pdf_path}")
+    print("Done. HTML report:", html_path)
+    print("Done. PDF report:", pdf_path)
 
-    # =====================================================
-    # 6) TELEGRAM DELIVERY
-    # =====================================================
-    print("[TG] Sending PDF to Telegram...")
-    send_telegram_pdf(str(pdf_path), date_str)
+    print("Sending report via email...")
+    try:
+        send_report_email(
+            pdf_path=str(pdf_path),
+            date_str=date_str,
+            html_path=str(html_path),
+        )
+        print("[EMAIL] Email step completed (check SMTP / mailbox for details).")
+    except Exception as e:
+        print("[EMAIL] Unhandled error while sending email:", repr(e))
+        print("[EMAIL] Continuing anyway – report generation completed.")
 
-    print("[DONE] Process completed successfully.")
+    print("Process completed.")
 
 
 if __name__ == "__main__":
