@@ -13,7 +13,7 @@ llm:
   provider: "gemini"
   model: "gemini-2.5-flash"   # <– nome modello aggiornato
   temperature: 0.25
-  max_tokens: 900
+  max_tokens: 1200
   language: "en"              # riassunti in inglese
 
 
