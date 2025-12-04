@@ -4,32 +4,47 @@ from __future__ import annotations
 
 from pathlib import Path
 import re
+import shutil
 from typing import List, Dict
 
 
+# Cartelle nel workspace del workflow
 BASE_DIR = Path(__file__).resolve().parent.parent
-HTML_DIR = BASE_DIR / "reports" / "html"
-PDF_DIR = BASE_DIR / "reports" / "pdf"
+
+# Qui il daily genera i report
+HTML_SRC_DIR = BASE_DIR / "reports" / "html"
+PDF_SRC_DIR = BASE_DIR / "reports" / "pdf"
+
+# Qui vive il sito GitHub Pages
 DOCS_DIR = BASE_DIR / "docs"
+HTML_DST_DIR = DOCS_DIR / "reports" / "html"
+PDF_DST_DIR = DOCS_DIR / "reports" / "pdf"
 
 
 def _find_reports() -> List[Dict]:
     """
-    Trova tutti i report_* .html e (se presenti) i PDF abbinati.
-    Ritorna una lista ordinata per data decrescente.
+    Trova tutti i report_*.html in reports/html, e se esiste
+    anche il PDF associato in reports/pdf.
+
+    Ritorna: lista di dict con chiavi:
+      - date (YYYY-MM-DD)
+      - html_file (Path)
+      - pdf_file (Path | None)
+    Ordinata per data decrescente.
     """
     reports: List[Dict] = []
-    if not HTML_DIR.exists():
+    if not HTML_SRC_DIR.exists():
+        print(f"[MAG] HTML source dir not found: {HTML_SRC_DIR}")
         return reports
 
     pattern = re.compile(r"report_(\d{4}-\d{2}-\d{2})\.html$")
 
-    for f in HTML_DIR.glob("report_*.html"):
+    for f in HTML_SRC_DIR.glob("report_*.html"):
         m = pattern.match(f.name)
         if not m:
             continue
         date_str = m.group(1)
-        pdf_file = PDF_DIR / f"report_{date_str}.pdf"
+        pdf_file = PDF_SRC_DIR / f"report_{date_str}.pdf"
         reports.append(
             {
                 "date": date_str,
@@ -39,13 +54,57 @@ def _find_reports() -> List[Dict]:
         )
 
     reports.sort(key=lambda x: x["date"], reverse=True)
+    print(f"[MAG] Found {len(reports)} reports in {HTML_SRC_DIR}")
     return reports
+
+
+def _copy_last_reports_to_docs(reports: List[Dict]) -> List[Dict]:
+    """
+    Copia negli /docs/reports/html|pdf gli ultimi 7 report.
+    Ritorna una nuova lista con i path di destinazione, usati per i link.
+    """
+    HTML_DST_DIR.mkdir(parents=True, exist_ok=True)
+    PDF_DST_DIR.mkdir(parents=True, exist_ok=True)
+
+    selected = reports[:7]
+    out: List[Dict] = []
+
+    for r in selected:
+        date = r["date"]
+        src_html = r["html_file"]
+        dst_html = HTML_DST_DIR / src_html.name
+
+        shutil.copy2(src_html, dst_html)
+        print(f"[MAG] Copied HTML for {date} -> {dst_html}")
+
+        dst_pdf = None
+        if r["pdf_file"] is not None:
+            src_pdf = r["pdf_file"]
+            dst_pdf = PDF_DST_DIR / src_pdf.name
+            shutil.copy2(src_pdf, dst_pdf)
+            print(f"[MAG] Copied PDF for {date} -> {dst_pdf}")
+        else:
+            print(f"[MAG] No PDF for {date}, skipping PDF copy.")
+
+        out.append(
+            {
+                "date": date,
+                "html_file": dst_html,
+                "pdf_file": dst_pdf,
+            }
+        )
+
+    return out
 
 
 def _build_history_list(reports: List[Dict]) -> str:
     """
     Costruisce l'HTML della lista "Last 7 daily reports".
-    I link a HTML/PDF sono relativi alla pagina docs/index.html:
+
+    ATTENZIONE: a questo punto 'reports' contiene i path
+    dentro /docs/reports/... perché è il risultato di
+    _copy_last_reports_to_docs().
+    I link sono quindi relativi a docs/index.html:
       reports/html/...
       reports/pdf/...
     """
@@ -53,22 +112,22 @@ def _build_history_list(reports: List[Dict]) -> str:
         return "<li>No reports available yet.</li>"
 
     items_html: List[str] = []
-    for r in reports[:7]:
+    for r in reports:
         date = r["date"]
-        html_url = f"reports/html/{r['html_file'].name}"
-        pdf_url = (
-            f"reports/pdf/{r['pdf_file'].name}"
-            if r["pdf_file"] is not None
-            else None
-        )
+        html_rel = f"reports/html/{r['html_file'].name}"
+        if r["pdf_file"] is not None:
+            pdf_rel = f"reports/pdf/{r['pdf_file'].name}"
+        else:
+            pdf_rel = None
 
         row = (
             f"<li><strong>{date}</strong> – "
-            f"<a href=\"{html_url}\" target=\"_blank\" rel=\"noopener\">HTML</a>"
+            f"<a href=\"{html_rel}\" target=\"_blank\" rel=\"noopener\">HTML</a>"
         )
-        if pdf_url:
-            row += f" · <a href=\"{pdf_url}\" target=\"_blank\" rel=\"noopener\">PDF</a>"
+        if pdf_rel:
+            row += f" · <a href=\"{pdf_rel}\" target=\"_blank\" rel=\"noopener\">PDF</a>"
         row += "</li>"
+
         items_html.append(row)
 
     return "\n".join(items_html)
@@ -76,19 +135,20 @@ def _build_history_list(reports: List[Dict]) -> str:
 
 def _build_latest_embed(reports: List[Dict]) -> str:
     """
-    Se esiste almeno un report, embeddiamo il più recente in un iframe.
+    Embed dell'ultimo report disponibile (il più recente).
+    Anche qui usiamo i path già copiati in /docs/reports.
     """
     if not reports:
         return "<p>No latest report to display.</p>"
 
     latest = reports[0]
     date = latest["date"]
-    html_url = f"reports/html/{latest['html_file'].name}"
+    html_rel = f"reports/html/{latest['html_file'].name}"
 
     return f"""
 <h2 style="margin:16px 0 8px 0; font-size:18px;">Latest report · {date}</h2>
 <iframe
-  src="{html_url}"
+  src="{html_rel}"
   loading="lazy"
   style="
     width: 100%;
@@ -104,14 +164,18 @@ def _build_latest_embed(reports: List[Dict]) -> str:
 def build_magazine() -> None:
     """
     Genera /docs/index.html con:
-      - lista ultimi report (max 7)
+      - copia degli ultimi 7 report dentro /docs/reports/html|pdf
+      - lista "Last 7 daily reports"
       - embed dell'ultimo daily
     """
-    reports = _find_reports()
+    raw_reports = _find_reports()
     DOCS_DIR.mkdir(parents=True, exist_ok=True)
 
-    history_html = _build_history_list(reports)
-    latest_html = _build_latest_embed(reports)
+    # Copia gli ultimi 7 dentro docs/
+    reports_for_docs = _copy_last_reports_to_docs(raw_reports)
+
+    history_html = _build_history_list(reports_for_docs)
+    latest_html = _build_latest_embed(reports_for_docs)
 
     index_path = DOCS_DIR / "index.html"
 
