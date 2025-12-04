@@ -75,9 +75,18 @@ def _render_deep_dives(deep_dives: List[Dict]) -> str:
     return "\n".join(blocks)
 
 
-def _render_watchlist_section(title: str, items: List[Dict]) -> str:
+def _render_watchlist_topic_block(title: str, items: List[Dict]) -> str:
+    """Mostra SEMPRE la sezione, anche se vuota."""
+    pretty = title.replace("/", " / ").replace("Infra", "Infrastructure")
     if not items:
-        return ""
+        return f"""
+<section style="margin-top:18px;">
+  <h3 style="margin:0 0 4px 0; font-size:16px;">{escape(pretty)}</h3>
+  <p style="margin:2px 0 0 0; font-size:12px; color:#999;">
+    No relevant links today.
+  </p>
+</section>
+"""
 
     rows = []
     for i, art in enumerate(items):
@@ -105,7 +114,7 @@ def _render_watchlist_section(title: str, items: List[Dict]) -> str:
 
     return f"""
 <section style="margin-top:18px;">
-  <h3 style="margin:0 0 6px 0; font-size:16px;">{escape(title)}</h3>
+  <h3 style="margin:0 0 4px 0; font-size:16px;">{escape(pretty)}</h3>
   <ul style="margin:0 0 0 18px; font-size:14px; padding:0; list-style:disc;">
     {''.join(rows)}
   </ul>
@@ -128,11 +137,9 @@ def _render_watchlist(watchlist: Dict[str, List[Dict]]) -> str:
     sections = []
     for topic in order:
         items = watchlist.get(topic, [])
-        if items:
-            pretty = topic.replace("/", " / ").replace("Infra", "Infrastructure")
-            sections.append(_render_watchlist_section(pretty, items))
+        sections.append(_render_watchlist_topic_block(topic, items))
 
-    return "\n".join(sections) if sections else "<p>No watchlist items today.</p>"
+    return "\n".join(sections)
 
 
 def build_html_report(*, deep_dives, watchlist, date_str: str) -> str:
@@ -153,8 +160,7 @@ def build_html_report(*, deep_dives, watchlist, date_str: str) -> str:
       font-size:13px;
       color:#111;
       background:#ffffff;
-      margin:0;
-      padding:24px;
+      margin:12mm;
       line-height:1.4;
     }}
     li {{ margin-bottom:4px; }}
@@ -163,8 +169,7 @@ def build_html_report(*, deep_dives, watchlist, date_str: str) -> str:
 </head>
 
 <body>
-<div style="max-width:900px; margin:0 auto; background:white;
-            padding:24px 32px; border-radius:8px; box-shadow:0 0 12px rgba(0,0,0,0.05);">
+<div style="max-width:900px; margin:0 auto;">
 
   {header}
 
@@ -234,7 +239,10 @@ def build_html_report(*, deep_dives, watchlist, date_str: str) -> str:
     dates.forEach(d => {{
       win.document.write("<h2>" + d + "</h2><ul>");
       data[d].forEach(it => {{
-        win.document.write("<li><a href='" + it.url + "' target='_blank'>" + it.title + "</a> (" + (it.source || "") + ")</li>");
+        win.document.write(
+          "<li><a href='" + it.url + "' target='_blank'>" +
+          it.title + "</a> (" + (it.source || "") + ")</li>"
+        );
       }});
       win.document.write("</ul>");
     }});
@@ -268,4 +276,3 @@ def build_html_report(*, deep_dives, watchlist, date_str: str) -> str:
 </body>
 </html>
 """
-
