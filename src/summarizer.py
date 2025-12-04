@@ -1,107 +1,122 @@
-# ==========================================
-#  SUMMARIZER — VERSIONE STABILE / CORRETTA
-# ==========================================
-
+# src/summarizer.py
 from __future__ import annotations
+
 import os
 import re
-import textwrap
+import json
 import html
-from typing import Dict, List
+import textwrap
+from typing import List, Dict, Any
 
 import google.generativeai as genai
 
 from .models import RawArticle
 
 
-# -----------------------------------------------------
-# LLM INITIALIZATION
-# -----------------------------------------------------
+# ==============================
+#  CONFIG LLM (GEMINI)
+# ==============================
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
-GEMINI_MODEL_DEFAULT = "gemini-2.5-flash"
-MAX_LLM_CALLS = 3
+GEMINI_MODEL_DEFAULT = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
+MAX_LLM_CALLS = 3  # nel tuo flusso: 3 deep-dive al giorno
 
 if GEMINI_API_KEY:
     genai.configure(api_key=GEMINI_API_KEY)
+else:
+    print("[LLM] WARNING: GEMINI_API_KEY not set – using ONLY local fallback.")
 
 
-# -----------------------------------------------------
-# TEXT CLEANING & VALIDATION UTILITIES
-# -----------------------------------------------------
+# ==============================
+#  HELPERS DI BASE
+# ==============================
 
-def clean_sentence(s: str) -> str:
-    """Cleanup: remove double spaces, fix punctuation, trim."""
+FIELDS = [
+    "what_it_is",
+    "who",
+    "what_it_does",
+    "why_it_matters",
+    "strategic_view",
+]
+
+
+def _strip_html(text: str) -> str:
+    if not text:
+        return ""
+    text = re.sub(r"<[^>]+>", "", text)
+    return html.unescape(text).strip()
+
+
+def _clean_sentence(s: str) -> str:
     if not s:
         return ""
-
     s = html.unescape(s)
-    s = re.sub(r"\s+", " ", s)
-    s = s.strip(" -–—\n\t")
-
-    # Fix: ensure sentence ends with punctuation.
+    s = re.sub(r"\s+", " ", s).strip(" -–—\n\t")
     if s and s[-1] not in ".!?":
         s += "."
-
     return s
 
 
-def is_messy(s: str) -> bool:
-    """Detect garbage: multiple labels inside one field, too long, nonsense."""
-    if not s:
-        return True
-    if len(s) > 300:
-        return True
-    if re.search(r"WHAT IT|WHY IT|STRATEGIC|WHO:", s.upper()):
-        return True
-    return False
+def _basic_fallback(article: RawArticle) -> Dict[str, str]:
+    title = _strip_html(article.title)
+    source = article.source or "the company"
+
+    return {
+        "what_it_is": f"This news concerns an update related to {title}.",
+        "who": f"The main actors involved include {source}.",
+        "what_it_does": (
+            "It introduces or describes a concrete development, product, service or initiative "
+            "that affects how technology and services are delivered."
+        ),
+        "why_it_matters": (
+            "It may change strategy, infrastructure, partnerships or customer experience for "
+            "Telco, Media and Tech players."
+        ),
+        "strategic_view": (
+            "Over the next 6–24 months, it could open new opportunities or risks in competition, "
+            "ecosystem positioning and innovation speed."
+        ),
+    }
 
 
-def sanitize_field(s: str) -> str:
-    """Return cleaned field or empty if garbage."""
-    s = clean_sentence(s)
-    if is_messy(s):
-        return ""
-    return s
+# ==============================
+#  PROMPT BUILDER (JSON ONLY)
+# ==============================
 
-
-def ensure_english_capitalization(s: str) -> str:
-    if not s:
-        return ""
-    s = s.strip()
-    return s[0].upper() + s[1:]
-
-
-# -----------------------------------------------------
-# PROMPT GENERATION
-# -----------------------------------------------------
-
-def build_prompt(article: RawArticle) -> str:
+def _build_json_prompt(article: RawArticle) -> str:
     content = (article.content or "").replace("\n", " ")
-    if len(content) > 6000:
-        content = content[:6000] + " [...]"
+    if len(content) > 8000:
+        content = content[:8000] + " [...]"
 
-    title = html.unescape(article.title)
+    title = _strip_html(article.title)
 
     instructions = """
-You are a senior technology analyst writing for C-level executives.
+You are a senior technology analyst writing for C-level executives in Telco, Media and Tech.
 
-Produce EXACTLY 5 SECTIONS in English.
+Your task:
+- Read the news (title, source, content).
+- Think deeply about the strategic meaning.
+- Then produce a CLEAN JSON object with exactly 5 string fields.
+
+The JSON MUST have exactly these keys:
+- "what_it_is": one clear sentence (max 35 words) describing the type of news
+  (product, partnership, acquisition, regulation, funding, trend, etc.).
+- "who": one clear sentence naming the main companies / organizations / actors involved.
+- "what_it_does": one clear sentence describing concretely what is introduced or enabled
+  (features, capabilities, architecture, use cases).
+- "why_it_matters": one clear sentence explaining the impact for Telco / Media / Tech
+  (in terms of business, technology, customers, regulation or competition).
+- "strategic_view": one clear sentence giving a strategic view over the next 6–24 months,
+  including potential opportunities, risks and ecosystem implications.
+
 STRICT RULES:
-- Each section must start with the label in UPPERCASE + colon.
-- Each section must be ONE sentence (max ~35 words).
-- No bullets, no markdown, no extra text.
-- No mixing of labels on the same line.
-
-Labels:
-WHAT IT IS:
-WHO:
-WHAT IT DOES:
-WHY IT MATTERS:
-STRATEGIC VIEW:
+- Output MUST be VALID JSON, no surrounding text, no markdown.
+- Do NOT include line breaks inside values.
+- Do NOT include the labels ("WHAT IT IS", etc.) inside the strings.
+- Do NOT add keys other than the 5 required keys.
 """
 
-    return f"""{textwrap.dedent(instructions).strip()}
+    prompt = f"""{textwrap.dedent(instructions).strip()}
 
 Title: {title}
 Source: {article.source}
@@ -110,114 +125,171 @@ URL: {article.url}
 Content:
 {content}
 """
+    return prompt.strip()
 
 
-# -----------------------------------------------------
-# PARSER ROBUSTO
-# -----------------------------------------------------
-
-def parse_llm_output(text: str) -> Dict[str, str]:
+def _build_repair_prompt(article: RawArticle, draft_fields: Dict[str, str]) -> str:
     """
-    Parser ULTRA-Robusto.
-    Taglia, separa e pulisce anche output sporchi.
+    Seconda passata: prendo il draft (anche se sporco) e chiedo al modello
+    di ripulirlo completamente e riscriverlo in JSON perfetto.
     """
+    title = _strip_html(article.title)
+    content = (article.content or "")[:2000]
 
-    labels = [
-        ("what_it_is", "WHAT IT IS:"),
-        ("who", "WHO:"),
-        ("what_it_does", "WHAT IT DOES:"),
-        ("why_it_matters", "WHY IT MATTERS:"),
-        ("strategic_view", "STRATEGIC VIEW:"),
-    ]
+    instructions = """
+You previously tried to summarize this news into structured fields for a C-level audience.
+The draft you produced was noisy or incomplete.
 
-    out = {k: "" for k, _ in labels}
-    upper = text.upper()
+Now you must FIX and REWRITE the summary into a PERFECT JSON object.
 
-    for i, (key, label) in enumerate(labels):
-        start = upper.find(label)
-        if start == -1:
-            continue
+The JSON MUST have EXACTLY these 5 keys, all non-empty strings:
+- "what_it_is"
+- "who"
+- "what_it_does"
+- "why_it_matters"
+- "strategic_view"
 
-        start_val = start + len(label)
+Constraints:
+- One sentence per field, max ~35 words, in clear English.
+- Do NOT include any label words like "WHAT IT IS" inside the values.
+- Do NOT add extra keys.
+- Output MUST be valid JSON, no extra text before or after.
+"""
 
-        # look ahead for next label
-        next_positions = []
-        for _, nxt in labels[i+1:]:
-            pos = upper.find(nxt, start_val)
-            if pos != -1:
-                next_positions.append(pos)
+    prompt = f"""{textwrap.dedent(instructions).strip()}
 
-        end_val = min(next_positions) if next_positions else len(text)
+Title: {title}
+Source: {article.source}
 
-        segment = text[start_val:end_val].strip()
-        out[key] = sanitize_field(segment)
+Original draft fields (may be noisy or wrong):
+{json.dumps(draft_fields, ensure_ascii=False, indent=2)}
 
-    return out
+Article excerpt:
+{content}
+"""
+    return prompt.strip()
 
 
-# -----------------------------------------------------
-# RULE-BASED RECONSTRUCTION (if fields missing)
-# -----------------------------------------------------
+# ==============================
+#  LLM CALL + JSON PARSING
+# ==============================
 
-def reconstruct_fields(article: RawArticle, fields: Dict[str, str]) -> Dict[str, str]:
+def _call_gemini(prompt: str, model_name: str | None = None) -> str:
+    if not GEMINI_API_KEY:
+        raise RuntimeError("GEMINI_API_KEY not set")
+
+    model = genai.GenerativeModel(model_name or GEMINI_MODEL_DEFAULT)
+    resp = model.generate_content(prompt)
+    txt = getattr(resp, "text", "") or ""
+    txt = txt.strip()
+    if not txt:
+        raise RuntimeError("Empty response from Gemini")
+    return txt
+
+
+def _extract_json_block(text: str) -> str:
     """
-    If some fields are empty or garbage, reconstruct them with rules-based logic.
+    Se il modello, nonostante tutto, aggiunge testo prima/dopo il JSON,
+    troviamo il blocco compreso fra la prima '{' e l'ultima '}'.
     """
+    start = text.find("{")
+    end = text.rfind("}")
+    if start == -1 or end == -1 or end <= start:
+        raise ValueError("No JSON object found in text")
+    return text[start : end + 1]
 
-    title = html.unescape(article.title)
+
+def _parse_json_summary(text: str) -> Dict[str, Any]:
+    """
+    Prova a parsare il JSON in modo robusto.
+    """
+    raw = _extract_json_block(text)
+    data = json.loads(raw)
+
+    if not isinstance(data, dict):
+        raise ValueError("JSON summary is not an object")
+
+    return data
+
+
+# ==============================
+#  VALIDAZIONE + NORMALIZZAZIONE
+# ==============================
+
+def _validate_and_normalise_fields(data: Dict[str, Any]) -> Dict[str, str]:
+    """
+    - Tiene solo le 5 chiavi note
+    - Pulisce le stringhe
+    - Scarta roba assurda
+    - Valuta qualità minima
+    """
+    cleaned: Dict[str, str] = {}
+    for key in FIELDS:
+        val = data.get(key, "")
+        if not isinstance(val, str):
+            val = str(val)
+        val = val.strip()
+
+        # niente label ripetute dentro
+        if re.search(r"WHAT IT|WHY IT MATTERS|STRATEGIC VIEW|WHO:", val.upper()):
+            val = ""
+
+        # niente stringhe lunghissime
+        if len(val) > 350:
+            val = val[:350]
+
+        val = _clean_sentence(val)
+        cleaned[key] = val
+
+    # scoring qualità
+    score = 0
+    for key in FIELDS:
+        v = cleaned[key]
+        if 15 <= len(v) <= 350:
+            score += 1
+
+    # se meno di 3 campi ok → consideriamo l'output scarso
+    if score < 3:
+        raise ValueError(f"Summary too weak (score={score})")
+
+    return cleaned
+
+
+def _reconstruct_if_missing(article: RawArticle, fields: Dict[str, str]) -> Dict[str, str]:
+    """
+    Se qualche campo è vuoto dopo la validazione,
+    lo ricostruiamo via regole.
+    """
+    title = _strip_html(article.title)
     source = article.source or "the company"
 
     if not fields["what_it_is"]:
         fields["what_it_is"] = f"This news concerns an update related to {title}."
-
     if not fields["who"]:
         fields["who"] = f"The main actors involved include {source}."
-
     if not fields["what_it_does"]:
         fields["what_it_does"] = (
-            f"It introduces new capabilities or actions connected with {title.lower()}."
+            "It introduces new or enhanced capabilities, services or initiatives that may affect technology or customer propositions."
         )
-
     if not fields["why_it_matters"]:
         fields["why_it_matters"] = (
-            "It may influence technology, strategy, partnerships, market competition or "
-            "infrastructure priorities for Telco, Media or Tech companies."
+            "It can impact Telco, Media or Tech players in terms of strategy, infrastructure, competition or regulation."
         )
-
     if not fields["strategic_view"]:
         fields["strategic_view"] = (
-            "Over the next 6–24 months, this could reshape competitive positions, "
-            "ecosystem partnerships or long-term investment decisions."
+            "Over the next 6–24 months, this move may reshape the ecosystem, partnerships and competitive positioning."
         )
 
-    # final cleanup
-    for k in fields:
-        fields[k] = ensure_english_capitalization(clean_sentence(fields[k]))
+    # pulizia finale
+    for k in FIELDS:
+        fields[k] = _clean_sentence(fields[k])
 
     return fields
 
 
-# -----------------------------------------------------
-# LLM CALL
-# -----------------------------------------------------
-
-def call_gemini(prompt: str) -> str:
-    if not GEMINI_API_KEY:
-        raise RuntimeError("Missing Gemini key")
-
-    model = genai.GenerativeModel(GEMINI_MODEL_DEFAULT)
-    resp = model.generate_content(prompt)
-    txt = getattr(resp, "text", "").strip()
-
-    if not txt:
-        raise RuntimeError("Gemini returned empty response")
-
-    return txt
-
-
-# -----------------------------------------------------
-# SINGLE ARTICLE SUMMARIZATION (ROBUST)
-# -----------------------------------------------------
+# ==============================
+#  API PUBBLICHE
+# ==============================
 
 def summarize_article(
     article: RawArticle,
@@ -226,66 +298,90 @@ def summarize_article(
     max_tokens: int,
 ) -> Dict[str, str]:
     """
-    Nuova pipeline SUPER ROBUSTA:
-    1. prompt → Gemini
-    2. parsing robusto
-    3. validazione + correzione
-    4. ricostruzione automatica dei campi mancanti
+    Pipelines:
+      1) Primo tentativo Gemini → JSON
+      2) Validazione
+      3) Se fail → prompt di repair + nuova chiamata
+      4) Se ancora fail → fallback locale
     """
-
     if not GEMINI_API_KEY:
-        print("[LLM] No Gemini key → fallback local summary.")
-        fields = _local_summary(article)
-        return _final(article, fields)
+        print("[LLM] No GEMINI_API_KEY → using basic fallback.")
+        fields = _basic_fallback(article)
+        return {
+            "title": _strip_html(article.title),
+            "url": article.url,
+            "source": article.source,
+            "published_at": article.published_at.isoformat(),
+            **fields,
+        }
 
-    prompt = build_prompt(article)
-
+    # -------- PRIMO TENTATIVO --------
     try:
-        raw = call_gemini(prompt)
-        fields = parse_llm_output(raw)
+        prompt = _build_json_prompt(article)
+        raw_text = _call_gemini(prompt, model or GEMINI_MODEL_DEFAULT)
+        data = _parse_json_summary(raw_text)
+        fields = _validate_and_normalise_fields(data)
+        fields = _reconstruct_if_missing(article, fields)
+        print("[LLM] First-pass summary OK.")
+    except Exception as e1:
+        print("[LLM] First-pass failed:", repr(e1))
 
-        # If fields are too empty → fix automatically
-        empty_count = sum(1 for v in fields.values() if not v)
-        if empty_count > 2:
-            print("[LLM] Output incomplete → reconstructing fields.")
-            fields = reconstruct_fields(article, fields)
+        # -------- SECONDO TENTATIVO (REPAIR) --------
+        try:
+            # se abbiamo qualche data parziale la passiamo,
+            # altrimenti passiamo dict vuoto
+            try:
+                partial = data  # type: ignore[name-defined]
+            except Exception:
+                partial = {}
 
-    except Exception as e:
-        print("[LLM] ERROR:", e)
-        fields = reconstruct_fields(article, {"what_it_is": "", "who": "", "what_it_does": "", "why_it_matters": "", "strategic_view": ""})
+            repair_prompt = _build_repair_prompt(article, partial)
+            raw_text2 = _call_gemini(repair_prompt, model or GEMINI_MODEL_DEFAULT)
+            data2 = _parse_json_summary(raw_text2)
+            fields = _validate_and_normalise_fields(data2)
+            fields = _reconstruct_if_missing(article, fields)
+            print("[LLM] Repair-pass summary OK.")
+        except Exception as e2:
+            print("[LLM] Repair-pass failed:", repr(e2))
+            fields = _basic_fallback(article)
 
-    return _final(article, fields)
-
-
-# fallback local
-def _local_summary(article: RawArticle) -> Dict[str, str]:
     return {
-        "what_it_is": f"This news concerns {article.title}.",
-        "who": f"The article involves {article.source}.",
-        "what_it_does": "It introduces new development or initiative.",
-        "why_it_matters": "It may affect Telco/Media/Tech strategy or operations.",
-        "strategic_view": "This could open new opportunities over the next 6–24 months.",
-    }
-
-
-def _final(article: RawArticle, fields: Dict[str, str]) -> Dict[str, str]:
-    return {
-        "title": html.unescape(article.title),
+        "title": _strip_html(article.title),
         "url": article.url,
         "source": article.source,
         "published_at": article.published_at.isoformat(),
-        **fields
+        **fields,
     }
 
 
-# -----------------------------------------------------
-# MULTI-ARTICLE
-# -----------------------------------------------------
+def summarize_articles(
+    articles: List[RawArticle],
+    model: str,
+    temperature: float,
+    max_tokens: int,
+) -> List[Dict]:
+    """
+    Nel tuo flusso deep-dive: in pratica 3 articoli.
+    Facciamo comunque un limite di sicurezza (MAX_LLM_CALLS).
+    """
+    results: List[Dict] = []
 
-def summarize_articles(articles: List[RawArticle], model: str, temperature: float, max_tokens: int) -> List[Dict]:
-    results = []
-    for i, art in enumerate(articles):
-        print(f"[LLM] Summarizing article {i+1}/{len(articles)}")
-        res = summarize_article(art, model, temperature, max_tokens)
+    for idx, article in enumerate(articles):
+        use_llm = GEMINI_API_KEY and idx < MAX_LLM_CALLS
+
+        print(f"[LLM] Article {idx + 1}/{len(articles)} – use_llm={bool(use_llm)}")
+
+        if use_llm:
+            res = summarize_article(article, model=model, temperature=temperature, max_tokens=max_tokens)
+        else:
+            fields = _basic_fallback(article)
+            res = {
+                "title": _strip_html(article.title),
+                "url": article.url,
+                "source": article.source,
+                "published_at": article.published_at.isoformat(),
+                **fields,
+            }
         results.append(res)
+
     return results
