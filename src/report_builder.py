@@ -1,13 +1,7 @@
-# src/report_builder.py
-
 from __future__ import annotations
 from html import escape
 from typing import List, Dict
 
-
-# -------------------------------------------------------
-# HEADER + STORICO 7 GIORNI + PULSANTE WEEKLY
-# -------------------------------------------------------
 
 def _render_header(date_str: str) -> str:
     return f"""
@@ -37,16 +31,11 @@ def _render_header(date_str: str) -> str:
 """
 
 
-# -------------------------------------------------------
-# DEEP DIVES
-# -------------------------------------------------------
-
 def _render_deep_dives(deep_dives: List[Dict]) -> str:
     if not deep_dives:
         return "<p>No deep-dives today.</p>"
 
     blocks = []
-
     for idx, item in enumerate(deep_dives):
         art_id = escape(item.get("id") or f"deep_{idx+1}")
         title = escape(item.get("title", ""))
@@ -54,7 +43,7 @@ def _render_deep_dives(deep_dives: List[Dict]) -> str:
         source = escape(item.get("source", ""))
         topic = escape(item.get("topic", "General"))
 
-        block = f"""
+        blocks.append(f"""
 <article style="margin-bottom:24px; padding-bottom:16px; border-bottom:1px solid #eee;">
   <h2 style="margin:0 0 4px 0; font-size:20px;">
     <a href="{url}" style="color:#0052CC; text-decoration:none;">{title}</a>
@@ -81,15 +70,10 @@ def _render_deep_dives(deep_dives: List[Dict]) -> str:
     Add to Weekly
   </label>
 </article>
-"""
-        blocks.append(block)
+""")
 
     return "\n".join(blocks)
 
-
-# -------------------------------------------------------
-# WATCHLIST
-# -------------------------------------------------------
 
 def _render_watchlist_section(title: str, items: List[Dict]) -> str:
     if not items:
@@ -98,9 +82,9 @@ def _render_watchlist_section(title: str, items: List[Dict]) -> str:
     rows = []
     for i, art in enumerate(items):
         aid = escape(art.get("id") or f"wl_{title}_{i}")
-        t = escape(art.get("title",""))
+        t = escape(art.get("title", ""))
         u = art.get("url") or "#"
-        s = escape(art.get("source",""))
+        s = escape(art.get("source", ""))
 
         rows.append(f"""
 <li style="margin-bottom:4px;">
@@ -145,23 +129,17 @@ def _render_watchlist(watchlist: Dict[str, List[Dict]]) -> str:
     for topic in order:
         items = watchlist.get(topic, [])
         if items:
-            pretty = topic.replace("/", " / ") \
-                           .replace("Infra","Infrastructure")
+            pretty = topic.replace("/", " / ").replace("Infra", "Infrastructure")
             sections.append(_render_watchlist_section(pretty, items))
 
     return "\n".join(sections) if sections else "<p>No watchlist items today.</p>"
 
-
-# -------------------------------------------------------
-# HTML GENERATION
-# -------------------------------------------------------
 
 def build_html_report(*, deep_dives, watchlist, date_str: str) -> str:
     header = _render_header(date_str)
     deep_html = _render_deep_dives(deep_dives)
     wl_html = _render_watchlist(watchlist)
 
-    # !!! IMPORTANTE: nessuna doppia { in JS o Python crasha. Versione pulita qui sotto.
     return f"""<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -169,11 +147,22 @@ def build_html_report(*, deep_dives, watchlist, date_str: str) -> str:
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="report-date" content="{escape(date_str)}" />
   <title>MaxBits · Daily Tech Watch · {escape(date_str)}</title>
+  <style>
+    body {{
+      font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;
+      font-size:13px;
+      color:#111;
+      background:#ffffff;
+      margin:0;
+      padding:24px;
+      line-height:1.4;
+    }}
+    li {{ margin-bottom:4px; }}
+    article {{ page-break-inside: avoid; }}
+  </style>
 </head>
 
-<body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;
-             background:#fafafa; margin:0; padding:24px; color:#111;">
-
+<body>
 <div style="max-width:900px; margin:0 auto; background:white;
             padding:24px 32px; border-radius:8px; box-shadow:0 0 12px rgba(0,0,0,0.05);">
 
@@ -203,13 +192,14 @@ def build_html_report(*, deep_dives, watchlist, date_str: str) -> str:
   function saveSel(x) {{ localStorage.setItem(KEY, JSON.stringify(x)); }}
 
   function setupCheckboxes() {{
-    const date = document.querySelector("meta[name='report-date']").content;
+    const meta = document.querySelector("meta[name='report-date']");
+    if (!meta) return;
+    const date = meta.content;
     const data = loadSel();
     const todays = data[date] || [];
 
     document.querySelectorAll(".weekly-checkbox").forEach(cb => {{
       const id = cb.dataset.id;
-
       if (todays.some(a => a.id === id)) cb.checked = true;
 
       cb.onchange = () => {{
@@ -235,30 +225,35 @@ def build_html_report(*, deep_dives, watchlist, date_str: str) -> str:
     const data = loadSel();
     const dates = Object.keys(data).sort().reverse();
     const win = window.open("", "_blank");
+    if (!win) {{
+      alert("Popup blocked: allow popups to see weekly view.");
+      return;
+    }}
+    win.document.open();
     win.document.write("<h1>MaxBits Weekly (local)</h1>");
-
     dates.forEach(d => {{
       win.document.write("<h2>" + d + "</h2><ul>");
       data[d].forEach(it => {{
-        win.document.write("<li><a href='" + it.url + "'>" + it.title + "</a></li>");
+        win.document.write("<li><a href='" + it.url + "' target='_blank'>" + it.title + "</a> (" + (it.source || "") + ")</li>");
       }});
       win.document.write("</ul>");
     }});
+    win.document.close();
   }}
 
   function initWeeklyBtn() {{
-    document.getElementById("open-weekly-btn")
-            .addEventListener("click", openWeekly);
+    const btn = document.getElementById("open-weekly-btn");
+    if (btn) btn.addEventListener("click", openWeekly);
   }}
 
   function initHistory() {{
     const hist = window.MAXBITS_HISTORY || [];
     const ul = document.getElementById("history-list");
-    if (!ul) return;
+    if (!ul || !hist.length) return;
     ul.innerHTML = hist.slice(0,7).map(it =>
       "<li><strong>" + it.date + "</strong> – " +
-      "<a href='" + it.html + "'>HTML</a> · " +
-      "<a href='" + it.pdf + "'>PDF</a></li>"
+      "<a href='" + it.html + "' target='_blank'>HTML</a> · " +
+      "<a href='" + it.pdf + "' target='_blank'>PDF</a></li>"
     ).join("");
   }}
 
@@ -273,5 +268,4 @@ def build_html_report(*, deep_dives, watchlist, date_str: str) -> str:
 </body>
 </html>
 """
-
 
