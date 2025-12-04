@@ -10,6 +10,8 @@ from .summarizer import summarize_articles
 from .report_builder import build_html_report
 from .pdf_export import html_to_pdf
 from .email_sender import send_report_email
+from .telegram_sender import send_telegram_pdf
+
 
 
 BASE_DIR = Path(__file__).resolve().parent.parent
