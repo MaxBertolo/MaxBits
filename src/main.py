@@ -13,15 +13,16 @@ from .email_sender import send_report_email
 from .telegram_sender import send_telegram_pdf
 
 
-
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 
 def today_str() -> str:
+    """Return today's date as YYYY-MM-DD."""
     return datetime.now().strftime("%Y-%m-%d")
 
 
 def load_config() -> dict:
+    """Load config/config.yaml."""
     config_path = BASE_DIR / "config" / "config.yaml"
     print("[DEBUG] Loading config from:", config_path)
     with open(config_path, "r", encoding="utf-8") as f:
@@ -30,6 +31,7 @@ def load_config() -> dict:
 
 
 def load_rss_sources() -> list:
+    """Load RSS feeds from config/sources_rss.yaml."""
     rss_path = BASE_DIR / "config" / "sources_rss.yaml"
     print("[DEBUG] Loading RSS sources from:", rss_path)
     with open(rss_path, "r", encoding="utf-8") as f:
@@ -97,6 +99,12 @@ def build_watchlist(
     deep_dive_articles,
     max_per_topic: int = 5,
 ) -> Dict[str, List[Dict]]:
+    """
+    Crea la watchlist per topic:
+      - esclude i 3 deep-dives
+      - niente duplicazioni per titolo
+      - max max_per_topic articoli per topic
+    """
     deep_titles = {_normalise_title(a.title) for a in deep_dive_articles}
 
     watchlist: Dict[str, List[Dict]] = {topic: [] for topic in WATCHLIST_TOPICS_ORDER}
@@ -139,6 +147,9 @@ def build_deep_dives_payload(
     deep_dive_articles,
     summaries: List[Dict],
 ) -> List[Dict]:
+    """
+    Combina i RawArticle deep-dive con i riassunti LLM in un payload unico.
+    """
     payload: List[Dict] = []
     for art, summ in zip(deep_dive_articles, summaries):
         topic = _article_topic(art)
@@ -164,6 +175,7 @@ def build_deep_dives_payload(
 # -----------
 
 def main():
+    # Debug sul workspace GitHub Actions
     cwd = Path.cwd()
     print("[DEBUG] CWD:", cwd)
     try:
@@ -171,6 +183,7 @@ def main():
     except Exception as e:
         print("[DEBUG] Cannot list repo contents:", repr(e))
 
+    # 1) Config + fonti RSS
     cfg = load_config()
     feeds = load_rss_sources()
 
@@ -186,6 +199,7 @@ def main():
 
     max_articles_for_cleaning = int(cfg.get("max_articles_per_day", 50))
 
+    # 2) RSS → raw articles
     print("Collecting RSS...")
     raw_articles = collect_from_rss(feeds)
     print(f"Collected {len(raw_articles)} raw articles")
@@ -193,21 +207,25 @@ def main():
         print("No articles collected from RSS. Exiting.")
         return
 
+    # 3) Cleaning
     cleaned = clean_articles(raw_articles, max_articles=max_articles_for_cleaning)
     print(f"After cleaning: {len(cleaned)} articles")
     if not cleaned:
         print("No recent articles after cleaning. Exiting.")
         return
 
+    # 4) Ranking
     ranked = rank_articles(cleaned)
     print(f"[RANK] Selected top {len(ranked)} articles out of {len(cleaned)}")
     if not ranked:
         print("No ranked articles. Exiting.")
         return
 
+    # 5) Deep-dives (top 3)
     deep_dive_articles = ranked[:3]
     print("[SELECT] Deep-dive articles:", [a.title for a in deep_dive_articles])
 
+    # 6) Watchlist per topic
     watchlist_grouped = build_watchlist(
         ranked_articles=ranked,
         deep_dive_articles=deep_dive_articles,
@@ -215,6 +233,7 @@ def main():
     )
     print("[SELECT] Watchlist built with topics:", list(watchlist_grouped.keys()))
 
+    # 7) Summarization deep-dives
     print("Summarizing deep-dive articles with LLM...")
     deep_dives_summaries = summarize_articles(
         deep_dive_articles,
@@ -228,6 +247,7 @@ def main():
         summaries=deep_dives_summaries,
     )
 
+    # 8) Salva JSON per debug
     json_dir = Path("reports/json")
     json_dir.mkdir(parents=True, exist_ok=True)
     date_str = today_str()
@@ -236,6 +256,7 @@ def main():
         json.dump(deep_dives_payload, jf, ensure_ascii=False, indent=2)
     print(f"[DEBUG] Saved deep-dives JSON to: {json_path}")
 
+    # 9) Build HTML
     print("Building HTML report...")
     html = build_html_report(
         deep_dives=deep_dives_payload,
@@ -243,6 +264,7 @@ def main():
         date_str=date_str,
     )
 
+    # 10) Save HTML + PDF
     html_dir.mkdir(parents=True, exist_ok=True)
     pdf_dir.mkdir(parents=True, exist_ok=True)
 
@@ -259,6 +281,7 @@ def main():
     print("Done. HTML report:", html_path)
     print("Done. PDF report:", pdf_path)
 
+    # 11) Email
     print("Sending report via email...")
     try:
         send_report_email(
@@ -270,6 +293,14 @@ def main():
     except Exception as e:
         print("[EMAIL] Unhandled error while sending email:", repr(e))
         print("[EMAIL] Continuing anyway – report generation completed.")
+
+    # 12) Telegram PDF
+    print("Sending report PDF to Telegram...")
+    try:
+        send_telegram_pdf(str(pdf_path), date_str)
+        print("[TELEGRAM] Telegram step completed (check bot/chat).")
+    except Exception as e:
+        print("[TELEGRAM] Unhandled error while sending Telegram PDF:", repr(e))
 
     print("Process completed.")
 
