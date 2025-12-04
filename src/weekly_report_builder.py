@@ -1,72 +1,164 @@
-from typing import List, Dict
-from html import escape
+from __future__ import annotations
+
+from pathlib import Path
+from typing import Dict, List
+import json
+from datetime import datetime
+
+from .models import RawArticle
+from .summarizer import summarize_article
+from .report_builder import build_html_report as build_weekly_html  # puoi anche creare un builder dedicato
+from .pdf_export import html_to_pdf
 
 
-def build_weekly_html_report(*, items: List[Dict], week_label: str) -> str:
+BASE_DIR = Path(__file__).resolve().parent.parent
+DATA_DIR = BASE_DIR / "data"
+WEEKLY_JSON = DATA_DIR / "weekly_votes.json"
+
+
+def _load_weekly_votes() -> Dict[str, Dict]:
+    if not WEEKLY_JSON.exists():
+        print(f"[WEEKLY] No weekly_votes.json found at {WEEKLY_JSON}")
+        return {}
+    with open(WEEKLY_JSON, "r", encoding="utf-8") as f:
+        data = json.load(f)
+    if not isinstance(data, dict):
+        print("[WEEKLY] weekly_votes.json is not a dict, ignoring.")
+        return {}
+    return data
+
+
+def _select_top15(votes_dict: Dict[str, Dict]) -> List[Dict]:
     """
-    items: lista di dict con campi:
-      - date (YYYY-MM-DD)
-      - title, url, source
-      - what_it_is, who, what_it_does, why_it_matters, strategic_view
+    votes_dict: { article_id -> { ... , "votes": N, ... } }
+    Ritorna una lista di max 15 articoli ordinati per votes desc.
     """
-    header = f"""
-    <header style="margin-bottom: 24px;">
-      <h1 style="margin:0; font-size:28px;">MaxBits · Weekly Tech Highlights</h1>
-      <p style="margin:4px 0 0 0; color:#555;">Week {escape(week_label)}</p>
-    </header>
+    articles = []
+    for art_id, payload in votes_dict.items():
+        v = payload.get("votes", 0)
+        try:
+            v = int(v)
+        except Exception:
+            v = 0
+        payload["votes"] = v
+        payload["id"] = payload.get("id", art_id)
+        articles.append(payload)
+
+    # sort by votes desc, then title
+    articles.sort(key=lambda a: (-a["votes"], a.get("title", "")))
+    top_15 = articles[:15]
+
+    print(f"[WEEKLY] Selected {len(top_15)} articles for weekly (top by votes).")
+    return top_15
+
+
+def _raw_article_from_candidate(c: Dict) -> RawArticle:
     """
+    Costruisce un RawArticle minimo per poter usare summarize_article.
+    Se non hai published_at, usiamo "oggi".
+    """
+    published = datetime.now()
+    try:
+        if "published_at" in c:
+            published = datetime.fromisoformat(c["published_at"])
+    except Exception:
+        pass
 
-    if not items:
-        body = "<p>No deep-dive articles found for the last 7 days.</p>"
-    else:
-        blocks = []
-        # ordina per data decrescente
-        items_sorted = sorted(items, key=lambda x: x.get("date", ""), reverse=True)
+    return RawArticle(
+        title=c.get("title", ""),
+        url=c.get("url", ""),
+        source=c.get("source", ""),
+        content=c.get("content", "") or (c.get("title", "") + " " + c.get("url", "")),
+        published_at=published,
+    )
 
-        for it in items_sorted:
-            date_str = escape(it.get("date", ""))
-            title = escape(it.get("title_clean") or it.get("title", ""))
-            url = it.get("url") or "#"
-            source = escape(it.get("source", ""))
 
-            what = escape(it.get("what_it_is", ""))
-            who = escape(it.get("who", ""))
-            what_does = escape(it.get("what_it_does", ""))
-            why = escape(it.get("why_it_matters", ""))
-            strategic = escape(it.get("strategic_view", ""))
+def _ensure_summary_for_candidate(c: Dict) -> Dict:
+    """
+    Garantisce che il candidato abbia tutti i campi:
+      what_it_is, who, what_it_does, why_it_matters, strategic_view
+    Usando il summarizer robusto se mancano o sono deboli.
+    """
+    needed_keys = [
+        "what_it_is",
+        "who",
+        "what_it_does",
+        "why_it_matters",
+        "strategic_view",
+    ]
 
-            block = f"""
-            <article style="margin-bottom: 24px; padding-bottom:16px; border-bottom:1px solid #eee;">
-              <h2 style="margin:0 0 4px 0; font-size:20px;">
-                <a href="{url}" style="color:#0052CC; text-decoration:none;">{title}</a>
-              </h2>
-              <p style="margin:0; color:#777; font-size:13px;">
-                {source} · {date_str}
-              </p>
-              <ul style="margin:8px 0 0 18px; padding:0; font-size:14px;">
-                <li><strong>What it is:</strong> {what}</li>
-                <li><strong>Who:</strong> {who}</li>
-                <li><strong>What it does:</strong> {what_does}</li>
-                <li><strong>Why it matters:</strong> {why}</li>
-                <li><strong>Strategic view:</strong> {strategic}</li>
-              </ul>
-            </article>
-            """
-            blocks.append(block)
+    already_ok = True
+    for k in needed_keys:
+        v = c.get(k, "") or ""
+        if len(v.strip()) < 20:   # se troppo corto o vuoto → consideriamo da riempire
+            already_ok = False
+            break
 
-        body = "\n".join(blocks)
+    if already_ok:
+        return c
 
-    return f"""<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="utf-8" />
-  <title>MaxBits · Weekly Tech Highlights · Week {escape(week_label)}</title>
-</head>
-<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif; font-size:14px; color:#111; background:#fafafa; margin:0; padding:24px;">
-  <div style="max-width:900px; margin:0 auto; background:#fff; padding:24px 32px; border-radius:8px; box-shadow:0 0 12px rgba(0,0,0,0.04);">
-    {header}
-    {body}
-  </div>
-</body>
-</html>
-"""
+    print(f"[WEEKLY] Enriching article via LLM: {c.get('title','')}")
+    ra = _raw_article_from_candidate(c)
+
+    # Usiamo i parametri di default del summarizer; non ci serve temperature qui.
+    summary = summarize_article(
+        ra,
+        model="",          # usa default dal summarizer
+        temperature=0.3,
+        max_tokens=900,
+        language="en",
+    )
+
+    for k in needed_keys:
+        if summary.get(k):
+            c[k] = summary[k]
+
+    return c
+
+
+def build_weekly_report():
+    """
+    Entry point per il weekly:
+      - carica i voti
+      - seleziona top 15
+      - arricchisce con summarizer
+      - genera HTML + PDF in reports/weekly/
+    """
+    votes_dict = _load_weekly_votes()
+    if not votes_dict:
+        print("[WEEKLY] No votes found – skipping weekly generation.")
+        return
+
+    top_articles = _select_top15(votes_dict)
+
+    enriched: List[Dict] = []
+    for c in top_articles:
+        enriched.append(_ensure_summary_for_candidate(c))
+
+    # qui puoi fare un builder dedicato; per semplicità riuso build_html_report
+    # interpretando "deep_dives" come i 15 weekly articles e una watchlist vuota.
+    date_str = datetime.now().strftime("%Y-%m-%d")
+    html = build_weekly_html(
+        deep_dives=enriched,
+        watchlist={},           # niente watchlist nel weekly
+        date_str=f"Weekly {date_str}",
+    )
+
+    weekly_html_dir = BASE_DIR / "reports" / "weekly" / "html"
+    weekly_pdf_dir = BASE_DIR / "reports" / "weekly" / "pdf"
+    weekly_html_dir.mkdir(parents=True, exist_ok=True)
+    weekly_pdf_dir.mkdir(parents=True, exist_ok=True)
+
+    html_path = weekly_html_dir / f"weekly_{date_str}.html"
+    pdf_path = weekly_pdf_dir / f"weekly_{date_str}.pdf"
+
+    with open(html_path, "w", encoding="utf-8") as f:
+        f.write(html)
+    html_to_pdf(html, str(pdf_path))
+
+    print(f"[WEEKLY] Weekly HTML: {html_path}")
+    print(f"[WEEKLY] Weekly PDF: {pdf_path}")
+
+
+if __name__ == "__main__":
+    build_weekly_report()
