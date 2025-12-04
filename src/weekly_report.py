@@ -19,6 +19,28 @@ WEEKLY_JSON = DATA_DIR / "weekly_votes.json"
 
 
 def _load_weekly_votes() -> Dict[str, Dict]:
+    """
+    Legge data/weekly_votes.json che contiene tutti gli articoli flaggati
+    durante la settimana, con struttura tipo:
+
+    {
+      "some-id": {
+        "id": "...",
+        "title": "...",
+        "url": "...",
+        "source": "...",
+        "topic": "...",
+        "votes": 5,
+        "content": "...",
+        "what_it_is": "... (opzionale)",
+        "who": "...",
+        "what_it_does": "...",
+        "why_it_matters": "...",
+        "strategic_view": "..."
+      },
+      ...
+    }
+    """
     if not WEEKLY_JSON.exists():
         print(f"[WEEKLY] No weekly_votes.json found at {WEEKLY_JSON}")
         return {}
@@ -32,20 +54,22 @@ def _load_weekly_votes() -> Dict[str, Dict]:
 
 def _select_top15(votes_dict: Dict[str, Dict]) -> List[Dict]:
     """
-    votes_dict: { article_id -> { ... , "votes": N, ... } }
-    Ritorna una lista di max 15 articoli ordinati per votes desc.
+    Prende tutti i candidati dal JSON, li ordina per numero di voti
+    e ritorna i migliori 15 (o meno se ce ne sono meno).
     """
-    articles = []
+    articles: List[Dict] = []
     for art_id, payload in votes_dict.items():
         v = payload.get("votes", 0)
         try:
             v = int(v)
         except Exception:
             v = 0
+
         payload["votes"] = v
         payload["id"] = payload.get("id", art_id)
         articles.append(payload)
 
+    # ordina per votes desc, poi per titolo
     articles.sort(key=lambda a: (-a["votes"], a.get("title", "")))
     top_15 = articles[:15]
 
@@ -56,7 +80,6 @@ def _select_top15(votes_dict: Dict[str, Dict]) -> List[Dict]:
 def _raw_article_from_candidate(c: Dict) -> RawArticle:
     """
     Costruisce un RawArticle minimo per poter usare summarize_article.
-    Se non hai published_at, usiamo la data corrente.
     """
     published = datetime.now()
     try:
@@ -78,7 +101,8 @@ def _ensure_summary_for_candidate(c: Dict) -> Dict:
     """
     Garantisce che il candidato abbia tutti i campi:
       what_it_is, who, what_it_does, why_it_matters, strategic_view
-    Usando il summarizer robusto se mancano o sono troppo deboli.
+
+    Se mancano o sono troppo corti → chiama il summarizer (Gemini + fallback).
     """
     needed_keys = [
         "what_it_is",
@@ -88,11 +112,10 @@ def _ensure_summary_for_candidate(c: Dict) -> Dict:
         "strategic_view",
     ]
 
-    # controlla se tutti i campi sono già decenti
     already_ok = True
     for k in needed_keys:
         v = c.get(k, "") or ""
-        if len(v.strip()) < 20:   # se troppo corto o vuoto → da riempire
+        if len(v.strip()) < 20:   # se corto/vuoto → da arricchire
             already_ok = False
             break
 
@@ -119,11 +142,11 @@ def _ensure_summary_for_candidate(c: Dict) -> Dict:
 
 def build_weekly_report():
     """
-    Entry point per il weekly:
-      - carica i voti
-      - seleziona top 15 per votes
-      - arricchisce con summarizer
-      - genera HTML + PDF in reports/weekly/
+    Pipeline weekly:
+      - legge i voti da data/weekly_votes.json
+      - seleziona le top 15 per numero di voti
+      - arricchisce ogni articolo con i 5 campi (se mancano)
+      - genera HTML + PDF in reports/weekly/html|pdf
     """
     votes_dict = _load_weekly_votes()
     if not votes_dict:
