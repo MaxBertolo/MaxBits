@@ -1,9 +1,9 @@
 name: MaxBits Daily Tech Report
 
 on:
-  # Lancio automatico (cron in UTC) — modifica se vuoi un orario diverso
+  # Lancio automatico (cron in UTC) – lun–ven alle 06:00 italiane circa (05:00 UTC)
   schedule:
-    - cron: "0 5 * * 1-5"   # lun–ven alle 06:00 italiane circa (05:00 UTC)
+    - cron: "0 5 * * 1-5"
   # Lancio manuale da GitHub UI
   workflow_dispatch:
 
@@ -38,6 +38,7 @@ jobs:
       - name: Run MaxBits daily report script
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+
           SMTP_HOST: ${{ secrets.SMTP_HOST }}
           SMTP_PORT: ${{ secrets.SMTP_PORT }}
           SMTP_USER: ${{ secrets.SMTP_USER }}
@@ -49,8 +50,6 @@ jobs:
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: |
           python -m src.main
-
-      - name: Run MaxBits daily report script
 
       - name: Upload HTML reports as artifact
         uses: actions/upload-artifact@v4
@@ -70,7 +69,6 @@ jobs:
       - name: Build MaxBits Magazine archive (GitHub Pages)
         run: |
           # Script che genera/aggiorna la mini-app in /docs
-          # (assicurati che esista es. src/magazine_builder.py)
           python -m src.magazine_builder
 
       # -----------------------------------
@@ -84,22 +82,16 @@ jobs:
 
           echo "[DOCS] Current branch: $(git rev-parse --abbrev-ref HEAD)"
 
-          # Allineo il main locale con il remote
           git fetch origin main
           git checkout main
-
-          # Provo un fast-forward; se fallisce, continuo comunque con il main locale
           git pull --ff-only origin main || echo "[DOCS] git pull --ff-only failed, uso il main locale."
 
-          # Stagio solo la mini-app (docs/)
           git add docs/ || echo "[DOCS] Nessun file in docs/ da aggiungere."
 
-          # Creo il commit solo se ci sono modifiche
           if git diff --cached --quiet; then
             echo "[DOCS] Nessuna modifica in docs/, salto il commit."
           else
             git commit -m "Update MaxBits Magazine archive"
           fi
 
-          # Push best-effort: se il push viene rifiutato NON fallisce il job
           git push origin main || echo "[DOCS] git push fallito (probabile nuovo commit su main). Salto il push."
