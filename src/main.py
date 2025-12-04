@@ -1,8 +1,9 @@
+from __future__ import annotations
+
 from pathlib import Path
-from datetime import datetime, timedelta
-from typing import Dict, List
-import re
-import json
+from datetime import datetime
+from typing import Dict, List, Set
+
 import yaml
 
 from .rss_collector import collect_from_rss, rank_articles
@@ -14,9 +15,38 @@ from .email_sender import send_report_email
 from .models import RawArticle
 
 
+# Root del repo (cartella padre di src/)
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-TOPIC_KEYS = [
+
+def today_str() -> str:
+    """Restituisce la data di oggi come stringa YYYY-MM-DD."""
+    return datetime.now().strftime("%Y-%m-%d")
+
+
+def load_config() -> Dict:
+    """Carica config/config.yaml."""
+    config_path = BASE_DIR / "config" / "config.yaml"
+    print("[DEBUG] Loading config from:", config_path)
+    with open(config_path, "r", encoding="utf-8") as f:
+        data = yaml.safe_load(f)
+    return data
+
+
+def load_rss_sources() -> List[Dict]:
+    """Carica la lista dei feed da config/sources_rss.yaml."""
+    rss_path = BASE_DIR / "config" / "sources_rss.yaml"
+    print("[DEBUG] Loading RSS sources from:", rss_path)
+    with open(rss_path, "r", encoding="utf-8") as f:
+        data = yaml.safe_load(f)
+    return data["feeds"]
+
+
+# ---------------------------------------------------------------------------
+#  WATCHLIST HELPERS
+# ---------------------------------------------------------------------------
+
+WATCHLIST_TOPICS_ORDER = [
     "TV/Streaming",
     "Telco/5G",
     "Media/Platforms",
@@ -28,136 +58,69 @@ TOPIC_KEYS = [
 ]
 
 
-def today_str() -> str:
-    return datetime.now().strftime("%Y-%m-%d")
+def _canonical_title(title: str) -> str:
+    return (title or "").strip().lower()
 
 
-def load_config() -> Dict:
-    config_path = BASE_DIR / "config" / "config.yaml"
-    print("[DEBUG] Loading config from:", config_path)
-    with open(config_path, "r", encoding="utf-8") as f:
-        data = yaml.safe_load(f)
-    return data or {}
+def build_watchlist(
+    ranked_articles: List[RawArticle],
+    deep_dives: List[RawArticle],
+    per_topic_min: int = 3,
+    per_topic_max: int = 5,
+) -> Dict[str, List[Dict]]:
+    """
+    Costruisce la watchlist per topic, senza duplicazioni:
 
+    - Nessun articolo può comparire sia nei deep-dives sia nella watchlist.
+    - Nessun articolo può essere duplicato in più topic (vince il primo in ordine).
+    - Ogni topic ha 0–per_topic_max articoli.
+    """
 
-def load_rss_sources() -> List[Dict]:
-    rss_path = BASE_DIR / "config" / "sources_rss.yaml"
-    print("[DEBUG] Loading RSS sources from:", rss_path)
-    with open(rss_path, "r", encoding="utf-8") as f:
-        data = yaml.safe_load(f)
-    return data.get("feeds", [])
+    # titoli già usati nei deep-dives
+    used_titles: Set[str] = {_canonical_title(a.title) for a in deep_dives}
 
+    buckets: Dict[str, List[Dict]] = {t: [] for t in WATCHLIST_TOPICS_ORDER}
 
-# ---------- HELPERS PER DEDUPLICA / WATCHLIST ----------
-
-def _normalize_title(raw_title: str) -> str:
-    if not raw_title:
-        return ""
-    text = re.sub(r"<[^>]+>", "", raw_title)
-    text = text.lower()
-    text = re.sub(r"\s+", " ", text)
-    return text.strip()
-
-
-def build_watchlist_by_topic(candidates: List[RawArticle], max_per_topic: int = 5) -> Dict[str, List[Dict]]:
-    grouped: Dict[str, List[Dict]] = {topic: [] for topic in TOPIC_KEYS}
-    seen_titles_global = set()
-
-    for art in candidates:
-        norm_title = _normalize_title(art.title)
-        if norm_title in seen_titles_global:
+    for art in ranked_articles:
+        title_key = _canonical_title(art.title)
+        if not art.title:
             continue
-        seen_titles_global.add(norm_title)
-
-        topic = getattr(art, "topic", None) or "AI/Cloud/Quantum"
-        if topic not in grouped:
-            topic = "AI/Cloud/Quantum"
-
-        bucket = grouped[topic]
-        if len(bucket) >= max_per_topic:
+        if title_key in used_titles:
+            # già usato in deep-dives o watchlist
             continue
 
-        bucket.append(
+        topic = getattr(art, "topic", None)
+        if topic not in WATCHLIST_TOPICS_ORDER:
+            # se non mappato, per ora lo ignoriamo
+            continue
+
+        if len(buckets[topic]) >= per_topic_max:
+            continue
+
+        buckets[topic].append(
             {
+                "id": f"{topic.replace('/', '_')}_{len(buckets[topic]) + 1}",
                 "title": art.title,
                 "url": art.url,
                 "source": art.source,
             }
         )
+        used_titles.add(title_key)
 
-    return grouped
+    # log di servizio
+    for t in WATCHLIST_TOPICS_ORDER:
+        print(f"[WATCHLIST] {t}: {len(buckets[t])} items")
 
-
-def select_deep_dives_and_watchlist(
-    articles: List[RawArticle],
-    deep_dives_count: int = 3,
-    max_watchlist_per_topic: int = 5,
-):
-    if not articles:
-        return [], {topic: [] for topic in TOPIC_KEYS}
-
-    deep_dives = articles[:deep_dives_count]
-    deep_norm_titles = {_normalize_title(a.title) for a in deep_dives}
-
-    watch_candidates: List[RawArticle] = []
-    for art in articles[deep_dives_count:]:
-        norm_title = _normalize_title(art.title)
-        if norm_title in deep_norm_titles:
-            continue
-        watch_candidates.append(art)
-
-    watchlist_by_topic = build_watchlist_by_topic(
-        watch_candidates,
-        max_per_topic=max_watchlist_per_topic,
-    )
-
-    return deep_dives, watchlist_by_topic
+    return buckets
 
 
-def _collect_recent_daily_pdfs(
-    *,
-    base_pdf_dir: Path,
-    prefix: str,
-    today: datetime,
-    days_back: int = 6,
-) -> List[Dict]:
-    """
-    Ritorna i PDF esistenti dei giorni precedenti (max days_back),
-    in ordine dal più recente al meno recente.
-    """
-    items: List[Dict] = []
-    for delta in range(1, days_back + 1):
-        d = (today - timedelta(days=delta)).date()
-        date_str = d.strftime("%Y-%m-%d")
-        filename = f"{prefix}{date_str}.pdf"
-        pdf_path = base_pdf_dir / filename
-        if pdf_path.exists():
-            # dal punto di vista dell'HTML (reports/html), il PDF è in ../pdf/
-            href = f"../pdf/{filename}"
-            items.append({"date": date_str, "href": href})
-    return items
+# ---------------------------------------------------------------------------
+#  MAIN PIPELINE
+# ---------------------------------------------------------------------------
 
 
-def _find_latest_weekly_pdf(base_weekly_dir: Path) -> str | None:
-    """
-    Cerca l'ultimo weekly report generato (pattern 'weekly_*.pdf').
-    Ritorna l'href relativo visto dall'HTML daily (../weekly/xxx.pdf) o None.
-    """
-    if not base_weekly_dir.exists():
-        return None
-
-    pdfs = sorted(base_weekly_dir.glob("weekly_*.pdf"))
-    if not pdfs:
-        return None
-
-    latest = pdfs[-1].name
-    # l'HTML daily è in reports/html, i weekly PDF in reports/weekly
-    return f"../weekly/{latest}"
-
-
-# ------------------------ MAIN ------------------------
-
-def main():
+def main() -> None:
+    # Info utili per il debug su GitHub Actions
     cwd = Path.cwd()
     print("[DEBUG] CWD:", cwd)
     try:
@@ -165,6 +128,7 @@ def main():
     except Exception as e:
         print("[DEBUG] Cannot list repo contents:", repr(e))
 
+    # 1) Config + fonti RSS
     cfg = load_config()
     feeds = load_rss_sources()
 
@@ -175,14 +139,21 @@ def main():
     max_tokens = int(llm_cfg.get("max_tokens", 900))
     language = llm_cfg.get("language", "en")
 
+    output_cfg = cfg.get("output", {})
+    html_dir_cfg = output_cfg.get("html_dir", "reports/html")
+    pdf_dir_cfg = output_cfg.get("pdf_dir", "reports/pdf")
+    file_prefix = output_cfg.get("file_prefix", "report_")
+
+    # 2) Raccolta RSS
     print("Collecting RSS...")
     raw_articles = collect_from_rss(feeds)
-    print(f"[RSS] Total raw articles collected: {len(raw_articles)}")
+    print(f"Collected {len(raw_articles)} raw articles")
 
     if not raw_articles:
         print("No articles collected from RSS. Exiting.")
         return
 
+    # 3) Cleaning (es. ultime 24h, dedup, sort, limite massimo)
     cleaned = clean_articles(raw_articles, max_articles=max_articles_for_cleaning)
     print(f"After cleaning: {len(cleaned)} articles")
 
@@ -190,87 +161,84 @@ def main():
         print("No recent articles after cleaning. Exiting.")
         return
 
+    # 4) Ranking
     ranked = rank_articles(cleaned)
-    print(f"[RANK] Selected top {len(ranked)} articles out of {len(cleaned)}")
+    print(f"After ranking: {len(ranked)} articles")
 
     if not ranked:
-        print("No ranked articles. Exiting.")
+        print("No ranked articles, exiting.")
         return
 
-    deep_articles, watchlist_grouped = select_deep_dives_and_watchlist(
-        ranked,
-        deep_dives_count=3,
-        max_watchlist_per_topic=5,
-    )
+    # 5) Selezione deep-dives + watchlist
+    #    - primi 3: deep dives
+    #    - successivi: pool per watchlist
+    deep_dives_articles: List[RawArticle] = ranked[:3]
+    watchlist_pool: List[RawArticle] = ranked[3:]
 
-    print(f"[SELECT] Deep-dives: {len(deep_articles)}")
-    print(f"[SELECT] Watchlist topics: {list(watchlist_grouped.keys())}")
+    print(f"[SELECT] Deep-dives articles: {len(deep_dives_articles)}")
+    print(f"[SELECT] Watchlist candidates: {len(watchlist_pool)}")
 
-    if not deep_articles:
-        print("No deep-dive candidates. Exiting.")
-        return
-
+    # 6) Summarization dei 3 deep-dives
     print("Summarizing deep-dive articles with LLM...")
     deep_dives_summaries = summarize_articles(
-        deep_articles,
+        deep_dives_articles,
         model=model,
         temperature=temperature,
         max_tokens=max_tokens,
     )
 
-    # aggiungo topic ai deep-dives
-    for art, summary in zip(deep_articles, deep_dives_summaries):
-        topic = getattr(art, "topic", None)
-        if topic not in TOPIC_KEYS:
-            topic = "AI/Cloud/Quantum"
-        summary["topic"] = topic
+    # arricchiamo i summaries con topic e id
+    deep_dives_payload: List[Dict] = []
+    for idx, (art, summary) in enumerate(zip(deep_dives_articles, deep_dives_summaries)):
+        topic = getattr(art, "topic", "General")
+        payload = {
+            **summary,
+            "id": summary.get("id") or f"deep_{idx + 1}",
+            "topic": topic,
+        }
+        deep_dives_payload.append(payload)
 
-    # ---------- OUTPUT PATHS ----------
-
-    out_cfg = cfg.get("output", {})
-    html_dir = Path(out_cfg.get("html_dir", "reports/html"))
-    pdf_dir = Path(out_cfg.get("pdf_dir", "reports/pdf"))
-    weekly_dir = Path(out_cfg.get("weekly_dir", "reports/weekly"))
-    json_dir = Path(out_cfg.get("json_dir", "reports/json"))
-    prefix = out_cfg.get("file_prefix", "report_")
-
-    html_dir.mkdir(parents=True, exist_ok=True)
-    pdf_dir.mkdir(parents=True, exist_ok=True)
-    weekly_dir.mkdir(parents=True, exist_ok=True)
+    # salviamo anche un JSON "raw" per eventuali usi futuri
+    json_dir = BASE_DIR / "reports" / "json"
     json_dir.mkdir(parents=True, exist_ok=True)
-
     date_str = today_str()
-    html_path = html_dir / f"{prefix}{date_str}.html"
-    pdf_path = pdf_dir / f"{prefix}{date_str}.pdf"
-
-    # ---------- STORICO 7 GIORNI + WEEKLY LINK ----------
-
-    today_dt = datetime.now()
-    recent_reports = _collect_recent_daily_pdfs(
-        base_pdf_dir=pdf_dir,
-        prefix=prefix,
-        today=today_dt,
-        days_back=6,
-    )
-    latest_weekly_href = _find_latest_weekly_pdf(weekly_dir)
-
-    # ---------- SALVA JSON DEI DEEP-DIVE (per weekly) ----------
-
     json_path = json_dir / f"deep_dives_{date_str}.json"
-    with open(json_path, "w", encoding="utf-8") as jf:
-        json.dump(deep_dives_summaries, jf, ensure_ascii=False, indent=2)
-    print("[DEBUG] Saved deep-dives JSON to:", json_path)
 
-    # ---------- COSTRUZIONE HTML + PDF ----------
+    import json
 
+    with open(json_path, "w", encoding="utf-8") as f:
+        json.dump(deep_dives_payload, f, ensure_ascii=False, indent=2)
+
+    print(f"[DEBUG] Saved deep-dives JSON to: {json_path}")
+
+    # 7) Costruzione watchlist per topic, senza duplicazioni
+    print("Building watchlist by topic...")
+    watchlist_grouped = build_watchlist(
+        ranked_articles=watchlist_pool,
+        deep_dives=deep_dives_articles,
+        per_topic_min=3,
+        per_topic_max=5,
+    )
+
+    print("[SELECT] Watchlist built with topics:",
+          list(watchlist_grouped.keys()))
+
+    # 8) Costruzione HTML
     print("Building HTML report...")
     html = build_html_report(
-        deep_dives=deep_dives_summaries,
+        deep_dives=deep_dives_payload,
         watchlist=watchlist_grouped,
         date_str=date_str,
-        recent_reports=recent_reports,
-        weekly_pdf=latest_weekly_href,
     )
+
+    # 9) Salvataggio HTML + PDF
+    html_dir = BASE_DIR / html_dir_cfg
+    pdf_dir = BASE_DIR / pdf_dir_cfg
+    html_dir.mkdir(parents=True, exist_ok=True)
+    pdf_dir.mkdir(parents=True, exist_ok=True)
+
+    html_path = html_dir / f"{file_prefix}{date_str}.html"
+    pdf_path = pdf_dir / f"{file_prefix}{date_str}.pdf"
 
     print("[DEBUG] Saving HTML to:", html_path)
     with open(html_path, "w", encoding="utf-8") as f:
@@ -282,6 +250,7 @@ def main():
     print("Done. HTML report:", html_path)
     print("Done. PDF report:", pdf_path)
 
+    # 10) Invio email (NON fa fallire il job se qualcosa va storto)
     print("Sending report via email...")
     try:
         send_report_email(
@@ -289,10 +258,10 @@ def main():
             date_str=date_str,
             html_path=str(html_path),
         )
-        print("[EMAIL] Email step completed (check SMTP / mailbox for details).")
+        print("Email step completed (check [EMAIL] logs for details).")
     except Exception as e:
         print("[EMAIL] Unhandled error while sending email:", repr(e))
-        print("[EMAIL] Continuing anyway – report generation completed.")
+        print("Continuing anyway – report generation completed.")
 
     print("Process completed.")
 
