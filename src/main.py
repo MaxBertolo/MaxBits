@@ -62,11 +62,15 @@ def _normalise_title(title: str) -> str:
 
 def _article_topic(article) -> str:
     """
-    Mappa il topic del feed (o la source) su uno degli 8 temi.
-    Usa keyword, così i feed non devono avere il nome esatto.
+    1) Se rss_collector ha già messo topic esatto in WATCHLIST_TOPICS_ORDER → usalo.
+    2) Altrimenti usa keyword (topic o source) per assegnare uno degli 8 temi.
     """
-    raw = getattr(article, "topic", None) or getattr(article, "source", "") or ""
-    t = raw.lower()
+    raw_topic = getattr(article, "topic", "") or ""
+    if raw_topic in WATCHLIST_TOPICS_ORDER:
+        return raw_topic
+
+    base = raw_topic or getattr(article, "source", "") or ""
+    t = base.lower()
 
     if any(k in t for k in ("tv", "stream", "ott", "vod")):
         return "TV/Streaming"
@@ -82,7 +86,7 @@ def _article_topic(article) -> str:
         return "Satellite/Satcom"
     if any(k in t for k in ("space", "orbital", "launch", "rocket")):
         return "Space/Infra"
-    # default: AI / Cloud / Quantum
+
     return "AI/Cloud/Quantum"
 
 
