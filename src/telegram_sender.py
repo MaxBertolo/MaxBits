@@ -1,3 +1,4 @@
+# src/telegram_sender.py
 import os
 import requests
 from pathlib import Path
@@ -15,7 +16,12 @@ def send_telegram_pdf(pdf_path: str, date_str: str) -> None:
     chat_id = (os.getenv("TELEGRAM_CHAT_ID") or "").strip()
 
     if not bot_token or not chat_id:
-        print("[TELEGRAM] Missing TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID. Skipping Telegram step.")
+        print(
+            "[TELEGRAM] Missing TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID. "
+            "Skipping Telegram step."
+        )
+        print(f"[TELEGRAM] TELEGRAM_BOT_TOKEN set? {bool(bot_token)}")
+        print(f"[TELEGRAM] TELEGRAM_CHAT_ID set? {bool(chat_id)}")
         return
 
     pdf_file = Path(pdf_path)
@@ -24,10 +30,10 @@ def send_telegram_pdf(pdf_path: str, date_str: str) -> None:
         return
 
     url = f"https://api.telegram.org/bot{bot_token}/sendDocument"
-
     print(f"[TELEGRAM] Sending '{pdf_file.name}' to chat_id={chat_id}...")
+
     try:
-        with open(pdf_file, "rb") as f:
+        with pdf_file.open("rb") as f:
             files = {"document": (pdf_file.name, f, "application/pdf")}
             data = {
                 "chat_id": chat_id,
@@ -36,9 +42,8 @@ def send_telegram_pdf(pdf_path: str, date_str: str) -> None:
 
             response = requests.post(url, data=data, files=files, timeout=60)
             print("[TELEGRAM] Status:", response.status_code)
-            print("[TELEGRAM] Response:", response.text)
-
             if response.status_code != 200:
+                print("[TELEGRAM] Response body:", response.text)
                 print("[TELEGRAM] Warning: Telegram API did not return 200 OK.")
     except Exception as e:
         print("[TELEGRAM] Unhandled error while sending PDF:", repr(e))
