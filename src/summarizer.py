@@ -5,7 +5,7 @@ import os
 import re
 import textwrap
 import html
-import json
+from datetime import datetime
 
 import google.generativeai as genai
 
@@ -17,16 +17,19 @@ from .models import RawArticle
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 GEMINI_MODEL_DEFAULT = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
 
+# Max articoli per cui usare il modello al giorno (deep-dives)
+MAX_LLM_CALLS = 3
+
 if GEMINI_API_KEY:
     genai.configure(api_key=GEMINI_API_KEY)
 else:
-    print("[LLM] Warning: GEMINI_API_KEY not set – ONLY local fallback will be used.")
+    print("[LLM] Warning: GEMINI_API_KEY non impostata – verrà usato SOLO il fallback locale.")
 
 
-# ================= HELPERS DI BASE =================
+# ================= HELPERS =================
 
 def strip_html_title(raw_title: str) -> str:
-    """Rimuove eventuali tag HTML dal titolo RSS."""
+    """Rimuove eventuali tag HTML dal titolo RSS (es. <a href=...>Title</a>)."""
     if not raw_title:
         return ""
     text = re.sub(r"<[^>]+>", "", raw_title)
@@ -34,56 +37,42 @@ def strip_html_title(raw_title: str) -> str:
     return text.strip()
 
 
-def _short_content_snippet(article: RawArticle, max_chars: int = 600) -> str:
-    """Piccolo snippet di contenuto per arricchire i fallback strategici."""
-    txt = (article.content or "").replace("\n", " ").strip()
-    if len(txt) <= max_chars:
-        return txt
-    return txt[:max_chars].rsplit(" ", 1)[0] + " [...]"
-
-
-# ================= PROMPT (JSON-ONLY) =================
-
-def build_prompt_json(article: RawArticle, language: str = "en") -> str:
+def build_prompt(article: RawArticle, language: str = "en") -> str:
     """
-    Prompt strutturato: chiediamo ESCLUSIVAMENTE JSON con 5 campi.
-    Questo massimizza la robustezza nel parsing.
+    Prompt per Gemini: chiediamo ESATTAMENTE 5 blocchi etichettati.
+
+    Anche se il modello non va a capo fra le righe, il parser userà
+    i label 'WHAT IT IS:', 'WHO:' ecc. per separarli.
     """
     content = (article.content or "").replace("\n", " ")
-    if len(content) > 10000:
-        content = content[:10000] + " [...]"
+    if len(content) > 6000:
+        content = content[:6000] + " [...]"
 
     title_clean = strip_html_title(article.title)
 
     instructions = """
-You are a senior technology strategist for Telco / Media / Tech.
+You are a senior technology analyst writing for a C-level manager in Telco / Media / Tech.
 
-Read the following news (title, source, content) and generate a deep, executive-level analysis.
+Read the following news (title, source, content) and produce EXACTLY 5 labeled sections in English.
 
-You MUST return ONLY valid JSON (no markdown, no backticks, no comments), 
-with EXACTLY these keys and values as single-line strings:
+Each section MUST start with the label in ALL CAPS, followed by a colon and a short explanation
+(max 2 sentences, around 20–35 words total per section).
 
-{
-  "what_it_is": "...",
-  "who": "...",
-  "what_it_does": "...",
-  "why_it_matters": "...",
-  "strategic_view": "..."
-}
+Required labels (exact spelling):
 
-Each field MUST be:
-- in English
-- one sentence (max ~40 words)
-- non-empty and informative
+1) WHAT IT IS:
+2) WHO:
+3) WHAT IT DOES:
+4) WHY IT MATTERS:
+5) STRATEGIC VIEW:
 
-Semantics:
-- "what_it_is": short definition of the news: type (product, deal, regulation, trend, etc.) + domain (AI, cloud, 5G, media, satellite...).
-- "who": main companies / actors / institutions involved.
-- "what_it_does": what concretely changes: capabilities, architecture, business model, go-to-market, user experience, etc.
-- "why_it_matters": business / strategic impact for Telco / Media / Tech (revenue, cost, time-to-market, risk, regulation, ecosystem).
-- "strategic_view": your strategic POV: how this move fits broader trends, where it could go in 6–24 months, what opportunities or risks it opens.
+Output format (exactly these 5 labels, in this order, no bullets):
 
-Return ONLY the JSON object, with all 5 keys present.
+WHAT IT IS: ...
+WHO: ...
+WHAT IT DOES: ...
+WHY IT MATTERS: ...
+STRATEGIC VIEW: ...
 """
 
     prompt = f"""{instructions}
@@ -98,42 +87,27 @@ Content:
     return textwrap.dedent(prompt).strip()
 
 
-# ================= FALLBACK LOCALE "INTELLIGENTE" =================
-
 def _simple_local_summary(article: RawArticle) -> Dict[str, str]:
     """
-    Fallback completamente locale ma pensato per restare leggibile,
-    con un minimo di "pensiero strategico" generico.
+    Fallback locale: frasi standard ma leggibili.
     """
     title_clean = strip_html_title(article.title)
-    source = article.source or "the company"
-    snippet = _short_content_snippet(article)
+    source = article.source or ""
 
-    what_it_is = (
-        f"This news covers \"{title_clean}\" as a relevant development in connectivity, media "
-        f"or data-driven services coming from {source}."
-    )
-    who = (
-        f"The main actor is {source}, potentially together with ecosystem partners, "
-        f"vendors and platform providers."
-    )
+    what_it_is = f"This news is about: {title_clean or 'a recent technology development'}."
+    who = f"The main actor is {source or 'the company or organization mentioned in the article'}."
     what_it_does = (
-        "It introduces or describes a concrete initiative, product or deployment that changes how "
-        "networks, platforms or services are designed, delivered or consumed."
+        "It describes a new product, initiative or market move that affects infrastructure, "
+        "services or business models in Telco / Media / Tech."
     )
     why_it_matters = (
-        "It may influence CAPEX priorities, service roadmap, competitive differentiation and how "
-        "value is shared across operators, hyperscalers and content/tech players."
+        "It could change competitive dynamics, customer experience or investment priorities, "
+        "impacting how networks, platforms or services are deployed and monetised."
     )
     strategic_view = (
-        "Strategically, it should be monitored over the next 6–24 months for real adoption, "
-        "regulatory response and ecosystem reactions, as it might open new positioning and "
-        "monetisation options or accelerate existing shifts."
+        "It is worth monitoring over the next 6–24 months for ecosystem effects, partnerships, "
+        "adoption curves and regulatory or financial signals."
     )
-
-    # Piccola aggiunta con snippet se disponibile
-    if snippet:
-        strategic_view += f" The announcement is framed around themes such as: {snippet[:180]}"
 
     return {
         "what_it_is": what_it_is,
@@ -152,15 +126,13 @@ def _to_final_dict(article: RawArticle, fields: Dict[str, str]) -> Dict[str, str
         "url": article.url,
         "source": article.source,
         "published_at": article.published_at.isoformat(),
-        "what_it_is": fields.get("what_it_is", ""),
-        "who": fields.get("who", ""),
-        "what_it_does": fields.get("what_it_does", ""),
-        "why_it_matters": fields.get("why_it_matters", ""),
-        "strategic_view": fields.get("strategic_view", ""),
+        "what_it_is": (fields.get("what_it_is") or "").strip(),
+        "who": (fields.get("who") or "").strip(),
+        "what_it_does": (fields.get("what_it_does") or "").strip(),
+        "why_it_matters": (fields.get("why_it_matters") or "").strip(),
+        "strategic_view": (fields.get("strategic_view") or "").strip(),
     }
 
-
-# ================= CHIAMATA GEMINI (JSON) =================
 
 def _call_gemini(prompt: str, model_name: str) -> str:
     if not GEMINI_API_KEY:
@@ -174,58 +146,77 @@ def _call_gemini(prompt: str, model_name: str) -> str:
     return text
 
 
-def _parse_json_response(text: str) -> Dict[str, str]:
-    """
-    Prova a fare il parsing del JSON.
-    Se ci sono caratteri extra prima/dopo, prova a ripulire in modo conservativo.
-    """
-    # Prova diretta
-    try:
-        data = json.loads(text)
-    except Exception:
-        # Prova a isolare la prima { ... } grossa
-        m = re.search(r"\{.*\}", text, flags=re.DOTALL)
-        if not m:
-            raise
-        cleaned = m.group(0)
-        data = json.loads(cleaned)
+# ========= PARSER ROBUSTO PER I 5 LABEL =========
 
-    if not isinstance(data, dict):
-        raise ValueError("Gemini JSON is not an object")
+_LABELS = [
+    "WHAT IT IS",
+    "WHO",
+    "WHAT IT DOES",
+    "WHY IT MATTERS",
+    "STRATEGIC VIEW",
+]
 
-    # Normalizza stringhe e chiavi attese
-    out: Dict[str, str] = {}
-    for key in ["what_it_is", "who", "what_it_does", "why_it_matters", "strategic_view"]:
-        val = data.get(key, "")
-        if not isinstance(val, str):
-            val = str(val)
-        out[key] = val.strip()
+_LABEL_MAP = {
+    "WHAT IT IS": "what_it_is",
+    "WHO": "who",
+    "WHAT IT DOES": "what_it_does",
+    "WHY IT MATTERS": "why_it_matters",
+    "STRATEGIC VIEW": "strategic_view",
+}
+
+
+def _parse_labeled_text(text: str) -> Dict[str, str]:
+    """
+    Parsing robusto basato su regex.
+
+    Funziona sia se Gemini mette ogni label su una riga separata,
+    sia se scrive tutto su UNA riga tipo:
+      WHAT IT IS: ... WHO: ... WHAT IT DOES: ...
+
+    Regex: cattura "LABEL: contenuto ... (fino al label successivo o fine testo)".
+    """
+    out = {v: "" for v in _LABEL_MAP.values()}
+    if not text:
+        return out
+
+    pattern = (
+        r"(WHAT IT IS|WHO|WHAT IT DOES|WHY IT MATTERS|STRATEGIC VIEW)\s*:"
+        r"\s*(.*?)\s*(?=(WHAT IT IS|WHO|WHAT IT DOES|WHY IT MATTERS|STRATEGIC VIEW)\s*:|$)"
+    )
+
+    for match in re.finditer(pattern, text, flags=re.IGNORECASE | re.DOTALL):
+        label_raw = match.group(1)  # es. "WHAT IT IS"
+        content = match.group(2) or ""
+        label_norm = label_raw.upper().strip()
+
+        key = _LABEL_MAP.get(label_norm)
+        if not key:
+            continue
+
+        # Pulizia minima del contenuto
+        content_clean = " ".join(content.split())
+        out[key] = content_clean
 
     return out
 
 
-def _ensure_all_fields(article: RawArticle, fields: Dict[str, str]) -> Dict[str, str]:
+def _is_summary_good(fields: Dict[str, str]) -> bool:
     """
-    Se Gemini lascia stringhe vuote / troppo corte, le arricchiamo con un fallback locale
-    che prova a “capire il contesto” a partire da titolo + snippet.
+    Controlla se il riassunto LLM è 'accettabile':
+      - almeno 3 campi non vuoti
+      - why_it_matters e strategic_view non troppo corti
     """
-    base_fallback = _simple_local_summary(article)
-
-    def _fix(key: str, min_len: int = 20) -> None:
-        val = fields.get(key, "") or ""
-        if len(val.strip()) < min_len:
-            fields[key] = base_fallback[key]
-
-    _fix("what_it_is")
-    _fix("who")
-    _fix("what_it_does")
-    _fix("why_it_matters", min_len=40)
-    _fix("strategic_view", min_len=60)
-
-    return fields
+    non_empty = sum(1 for v in fields.values() if v and v.strip())
+    if non_empty < 3:
+        return False
+    if len(fields.get("why_it_matters", "").strip()) < 30:
+        return False
+    if len(fields.get("strategic_view", "").strip()) < 30:
+        return False
+    return True
 
 
-# ================= API PRINCIPALI =================
+# ========= API PRINCIPALI =========
 
 def summarize_article(
     article: RawArticle,
@@ -235,27 +226,47 @@ def summarize_article(
     language: str = "en",
 ) -> Dict[str, str]:
     """
-    Riassume un articolo con la massima robustezza possibile:
-    - 1) tenta Gemini in JSON
-    - 2) se fallisce parsing / risposta, usa fallback locale "intelligente"
-    - 3) in ogni caso garantisce tutti i campi non vuoti.
+    Riassume un singolo articolo usando:
+      - Gemini (se configurato, con parser robusto)
+      - fallback locale in caso di errore o risposta poco utile.
     """
     if not GEMINI_API_KEY:
-        print("[LLM] No GEMINI_API_KEY → using local fallback only.")
         fields = _simple_local_summary(article)
         return _to_final_dict(article, fields)
 
-    prompt = build_prompt_json(article, language=language)
+    prompt = build_prompt(article, language=language)
+    model_name = model or GEMINI_MODEL_DEFAULT
 
+    fields: Dict[str, str] = {}
     try:
-        model_name = model or GEMINI_MODEL_DEFAULT
+        # Primo tentativo
         print(f"[LLM] Using Gemini model: {model_name}")
         raw_text = _call_gemini(prompt, model_name=model_name)
-        fields = _parse_json_response(raw_text)
-        fields = _ensure_all_fields(article, fields)
+        fields = _parse_labeled_text(raw_text)
+
+        if not _is_summary_good(fields):
+            print("[LLM] First parse not good enough, retrying once with slightly different temperature...")
+            # Secondo tentativo leggermente diverso
+            alt_model = genai.GenerativeModel(model_name=model_name)
+            alt_resp = alt_model.generate_content(
+                prompt,
+                generation_config={
+                    "temperature": min(max(temperature, 0.1), 0.5),
+                    "max_output_tokens": max_tokens,
+                },
+            )
+            alt_text = (getattr(alt_resp, "text", "") or "").strip()
+            if alt_text:
+                fields2 = _parse_labeled_text(alt_text)
+                if _is_summary_good(fields2):
+                    fields = fields2
+
+        if not _is_summary_good(fields):
+            print("[LLM] Parsed too few / weak fields, using local fallback.")
+            fields = _simple_local_summary(article)
 
     except Exception as e:
-        print("[LLM] Error or invalid JSON from Gemini, using local fallback:", repr(e))
+        print("[LLM] Error calling Gemini, using local fallback:", repr(e))
         fields = _simple_local_summary(article)
 
     return _to_final_dict(article, fields)
@@ -268,20 +279,33 @@ def summarize_articles(
     max_tokens: int,
 ) -> List[Dict]:
     """
-    Riassume tutti gli articoli passati.
-    Nel tuo flusso attuale: sono solo i 3 deep-dives → possiamo permetterci
-    di usare SEMPRE il modello esterno per massima qualità.
+    Riassume una lista di articoli.
+    - usa Gemini per i primi MAX_LLM_CALLS articoli
+    - per gli altri usa solo il fallback locale
+      (nel tuo flusso attuale: 3 deep-dives → tutti serviti da Gemini).
     """
     results: List[Dict] = []
 
+    llm_budget = min(MAX_LLM_CALLS, len(articles))
+    print(f"[LLM] Will use Gemini for {llm_budget} article(s), then local fallback if needed.")
+
     for idx, article in enumerate(articles):
-        print(f"[LLM] Summarizing article {idx + 1}/{len(articles)}: {strip_html_title(article.title)}")
-        res = summarize_article(
-            article,
-            model=model,
-            temperature=temperature,
-            max_tokens=max_tokens,
-        )
+        use_llm = idx < llm_budget and GEMINI_API_KEY
+
+        if use_llm:
+            print(f"[LLM] Using Gemini for article {idx + 1}: {strip_html_title(article.title)}")
+            res = summarize_article(
+                article,
+                model=model,
+                temperature=temperature,
+                max_tokens=max_tokens,
+                language="en",
+            )
+        else:
+            print(f"[LLM] Skipping Gemini for article {idx + 1}, using local fallback.")
+            fields = _simple_local_summary(article)
+            res = _to_final_dict(article, fields)
+
         results.append(res)
 
     return results
