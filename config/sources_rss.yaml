@@ -1,4 +1,13 @@
 feeds:
+  - name: GigaOM – Telco
+    url: https://gigaom.com/tag/telco/feed/
+
+  - name: Technology Magazine – AI
+    url: https://technologymagazine.com/rss
+
+  - name: VentureBeat – AI
+    url: https://venturebeat.com/feed/
+
   - name: "TechCrunch AI"
     url: "https://techcrunch.com/tag/artificial-intelligence/feed/"
 
