@@ -46,8 +46,8 @@ def _render_deep_dives(deep_dives: List[Dict]) -> str:
 
     for idx, item in enumerate(deep_dives):
         art_id = escape(item.get("id") or f"deep_{idx+1}")
-        # TITOLO = esattamente quello dell’articolo di origine
-        title = escape(item.get("title", "") or "")
+        # TITOLO = esattamente quello dell’articolo sorgente
+        title = escape((item.get("title") or "").strip())
         url = item.get("url") or "#"
         source = escape(item.get("source", "") or "")
         topic = escape(item.get("topic", "General") or "")
@@ -102,7 +102,7 @@ def _render_watchlist_section(title: str, items: List[Dict]) -> str:
     rows: List[str] = []
     for i, art in enumerate(items):
         aid = escape(art.get("id") or f"wl_{title}_{i}")
-        t = escape(art.get("title", "") or "")
+        t = escape((art.get("title") or "").strip())
         u = art.get("url") or "#"
         s = escape(art.get("source", "") or "")
 
@@ -173,17 +173,20 @@ def build_html_report(*, deep_dives, watchlist, date_str: str) -> str:
     deep_html = _render_deep_dives(deep_dives)
     wl_html = _render_watchlist(watchlist)
 
-    # NB: usare {{ }} dentro CSS/JS per non rompere l'f-string
-    return f"""<!DOCTYPE html>
+    # HEAD senza CSS/JS (niente {{}})
+    head_open = f"""<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="report-date" content="{escape(date_str)}" />
   <title>MaxBits · Daily Tech Watch · {escape(date_str)}</title>
+"""
 
+    # CSS come stringa normale (non f-string → { } liberi)
+    style_block = """
   <style>
-    body {{
+    body {
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
       font-size: 14px;
       line-height: 1.5;
@@ -191,40 +194,28 @@ def build_html_report(*, deep_dives, watchlist, date_str: str) -> str:
       background: #fafafa;
       margin: 0;
       padding: 24px;
-    }}
-    .mb-container {{
+    }
+    .mb-container {
       max-width: 900px;
       margin: 0 auto;
       background: #fff;
       padding: 24px 32px;
       border-radius: 8px;
       box-shadow: 0 0 12px rgba(0,0,0,0.05);
-    }}
-    .mb-header {{
-      margin-bottom: 24px;
-    }}
-    .mb-title {{
-      margin: 0;
-      font-size: 26px;
-    }}
-    .mb-subtitle {{
-      margin: 4px 0 0 0;
-      color: #444;
-      font-size: 13px;
-    }}
-    .mb-date {{
-      margin: 4px 0 0 0;
-      color: #555;
-      font-size: 13px;
-    }}
-    .mb-weekly-bar {{
+    }
+    .mb-header { margin-bottom: 24px; }
+    .mb-title { margin: 0; font-size: 26px; }
+    .mb-subtitle { margin: 4px 0 0 0; color: #444; font-size: 13px; }
+    .mb-date { margin: 4px 0 0 0; color: #555; font-size: 13px; }
+
+    .mb-weekly-bar {
       margin-top: 10px;
       display: flex;
       flex-wrap: wrap;
       gap: 8px;
       align-items: center;
-    }}
-    .mb-btn-primary {{
+    }
+    .mb-btn-primary {
       background: #0052cc;
       color: #fff;
       border: none;
@@ -232,122 +223,76 @@ def build_html_report(*, deep_dives, watchlist, date_str: str) -> str:
       border-radius: 6px;
       cursor: pointer;
       font-size: 13px;
-    }}
-    .mb-btn-primary:hover {{
-      background: #003f9e;
-    }}
-    .mb-weekly-help {{
-      font-size: 12px;
-      color: #777;
-    }}
-    .mb-history-box {{
+    }
+    .mb-btn-primary:hover { background: #003f9e; }
+    .mb-weekly-help { font-size: 12px; color: #777; }
+
+    .mb-history-box {
       margin-top: 14px;
       padding: 10px 12px;
       border-radius: 6px;
       background: #f5f5f5;
-    }}
-    .mb-history-title {{
-      font-size: 13px;
-    }}
-    .mb-history-list {{
+    }
+    .mb-history-title { font-size: 13px; }
+    .mb-history-list {
       margin: 6px 0 0 16px;
       padding: 0;
       font-size: 12px;
-    }}
-    .mb-history-list li {{
-      margin-bottom: 2px;
-    }}
+    }
+    .mb-history-list li { margin-bottom: 2px; }
 
-    /* Deep-dives */
-    .mb-section-title {{
-      margin: 0 0 12px 0;
-      font-size: 22px;
-    }}
-    .mb-article {{
+    .mb-section-title { margin: 0 0 12px 0; font-size: 22px; }
+
+    .mb-article {
       margin-bottom: 24px;
       padding-bottom: 16px;
       border-bottom: 1px solid #eee;
       page-break-inside: avoid;
-    }}
-    .mb-article-title {{
-      margin: 0 0 4px 0;
-      font-size: 20px;
-    }}
-    .mb-article-link {{
-      color: #0052cc;
-      text-decoration: none;
-    }}
-    .mb-article-link:hover {{
-      text-decoration: underline;
-    }}
-    .mb-article-meta {{
-      margin: 0;
-      color: #777;
-      font-size: 13px;
-    }}
-    .mb-bullets {{
+    }
+    .mb-article-title { margin: 0 0 4px 0; font-size: 20px; }
+    .mb-article-link { color: #0052cc; text-decoration: none; }
+    .mb-article-link:hover { text-decoration: underline; }
+    .mb-article-meta { margin: 0; color: #777; font-size: 13px; }
+
+    .mb-bullets {
       margin: 10px 0 0 20px;
       padding: 0;
       font-size: 14px;
       list-style: disc;
-    }}
-    .mb-bullets li {{
-      margin-bottom: 4px;
-    }}
-    .mb-weekly-label {{
+    }
+    .mb-bullets li { margin-bottom: 4px; }
+
+    .mb-weekly-label {
       margin-top: 10px;
       display: inline-flex;
       gap: 6px;
       font-size: 13px;
       color: #333;
-    }}
+    }
 
-    /* Watchlist */
-    .mb-watch-section {{
-      margin-top: 18px;
-      page-break-inside: avoid;
-    }}
-    .mb-watch-title {{
-      margin: 0 0 6px 0;
-      font-size: 16px;
-    }}
-    .mb-watch-list {{
+    .mb-watch-section { margin-top: 18px; page-break-inside: avoid; }
+    .mb-watch-title { margin: 0 0 6px 0; font-size: 16px; }
+    .mb-watch-list {
       margin: 0 0 0 18px;
       padding: 0;
       list-style: disc;
       font-size: 14px;
-    }}
-    .mb-watch-item {{
-      margin-bottom: 4px;
-    }}
-    .mb-watch-link {{
-      color: #0052cc;
-      text-decoration: none;
-    }}
-    .mb-watch-link:hover {{
-      text-decoration: underline;
-    }}
-    .mb-watch-source {{
-      color: #777;
-      font-size: 12px;
-      margin-left: 2px;
-    }}
-    .mb-watch-weekly {{
-      margin-left: 8px;
-      font-size: 12px;
-      color: #333;
-    }}
-    a {{
-      word-wrap: break-word;
-    }}
-    @page {{
-      margin: 15mm;
-    }}
+    }
+    .mb-watch-item { margin-bottom: 4px; }
+    .mb-watch-link { color: #0052cc; text-decoration: none; }
+    .mb-watch-link:hover { text-decoration: underline; }
+    .mb-watch-source { color: #777; font-size: 12px; margin-left: 2px; }
+    .mb-watch-weekly { margin-left: 8px; font-size: 12px; color: #333; }
+
+    a { word-wrap: break-word; }
+    @page { margin: 15mm; }
   </style>
 </head>
-
 <body>
   <div class="mb-container">
+"""
+
+    body_content = f"""
     {header}
 
     <section style="margin-top: 30px;">
@@ -356,125 +301,134 @@ def build_html_report(*, deep_dives, watchlist, date_str: str) -> str:
     </section>
 
     <section style="margin-top: 30px;">
-      <h2 style="margin:0 0 12px 0; font-size:20px;">Curated watchlist · 3–5 links per topic</h2>
+      <h2 style="margin:0 0 12px 0; font-size:20px;">
+        Curated watchlist · 3–5 links per topic
+      </h2>
       {wl_html}
     </section>
   </div>
+"""
 
-  <script>
-  (function() {{
-    const KEY = "maxbits_weekly_selections_v1";
+    # JS blocco normale (non f-string → { } liberi)
+    script_block = """
+<script>
+(function() {
+  const KEY = "maxbits_weekly_selections_v1";
 
-    function loadSel() {{
-      try {{
-        return JSON.parse(localStorage.getItem(KEY) || "{{}}");
-      }} catch (e) {{
-        return {{}};
-      }}
-    }}
+  function loadSel() {
+    try {
+      const raw = localStorage.getItem(KEY);
+      return raw ? JSON.parse(raw) : {};
+    } catch (e) {
+      return {};
+    }
+  }
 
-    function saveSel(x) {{
-      try {{
-        localStorage.setItem(KEY, JSON.stringify(x));
-      }} catch (e) {{}}
-    }}
+  function saveSel(x) {
+    try {
+      localStorage.setItem(KEY, JSON.stringify(x));
+    } catch (e) {}
+  }
 
-    function setupCheckboxes() {{
-      const meta = document.querySelector("meta[name='report-date']");
-      if (!meta) return;
-      const date = meta.content || "";
-      const data = loadSel();
-      const todays = data[date] || [];
+  function setupCheckboxes() {
+    const meta = document.querySelector("meta[name='report-date']");
+    if (!meta) return;
+    const date = meta.content || "";
+    const data = loadSel();
+    const todays = data[date] || [];
 
-      document.querySelectorAll(".weekly-checkbox").forEach(cb => {{
-        const id = cb.dataset.id;
-        if (!id) return;
+    document.querySelectorAll(".weekly-checkbox").forEach(cb => {
+      const id = cb.dataset.id;
+      if (!id) return;
 
-        if (todays.some(a => a.id === id)) {{
-          cb.checked = true;
-        }}
+      if (todays.some(a => a.id === id)) {
+        cb.checked = true;
+      }
 
-        cb.addEventListener("change", () => {{
-          const entry = {{
-            id: cb.dataset.id,
-            title: cb.dataset.title,
-            url: cb.dataset.url,
-            source: cb.dataset.source
-          }};
-          const arr = data[date] || [];
-          const i = arr.findIndex(a => a.id === entry.id);
+      cb.addEventListener("change", () => {
+        const entry = {
+          id: cb.dataset.id,
+          title: cb.dataset.title,
+          url: cb.dataset.url,
+          source: cb.dataset.source
+        };
+        const arr = data[date] || [];
+        const i = arr.findIndex(a => a.id === entry.id);
 
-          if (cb.checked && i === -1) arr.push(entry);
-          if (!cb.checked && i !== -1) arr.splice(i, 1);
+        if (cb.checked && i === -1) arr.push(entry);
+        if (!cb.checked && i !== -1) arr.splice(i, 1);
 
-          data[date] = arr;
-          saveSel(data);
-        }});
+        data[date] = arr;
+        saveSel(data);
       });
-    }}
+    });
+  }
 
-    function openWeekly() {{
-      const data = loadSel();
-      const dates = Object.keys(data).sort().reverse();
-      const win = window.open("", "_blank");
-      if (!win) {{
-        alert("Popup blocked – allow popups to see the weekly view.");
-        return;
-      }}
+  function openWeekly() {
+    const data = loadSel();
+    const dates = Object.keys(data).sort().reverse();
+    const win = window.open("", "_blank");
+    if (!win) {
+      alert("Popup blocked – allow popups to see the weekly view.");
+      return;
+    }
 
-      let html = "<!DOCTYPE html><html><head><meta charset='utf-8'><title>MaxBits · Weekly Selection</title></head>";
-      html += "<body style='font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Arial,sans-serif;font-size:14px;color:#111;background:#fafafa;margin:0;padding:24px;'>";
-      html += "<div style='max-width:900px;margin:0 auto;background:#fff;padding:24px 32px;border-radius:8px;box-shadow:0 0 12px rgba(0,0,0,0.04);'>";
-      html += "<h1 style='margin:0 0 8px 0;font-size:22px;'>MaxBits · Weekly Selection (local)</h1>";
-      html += "<p style='margin:0 0 16px 0;color:#555;font-size:13px;'>Questa pagina è generata solo dal tuo browser (localStorage), non viene salvata sul server.</p>";
+    let html = "<!DOCTYPE html><html><head><meta charset='utf-8'><title>MaxBits · Weekly Selection</title></head>";
+    html += "<body style='font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Arial,sans-serif;font-size:14px;color:#111;background:#fafafa;margin:0;padding:24px;'>";
+    html += "<div style='max-width:900px;margin:0 auto;background:#fff;padding:24px 32px;border-radius:8px;box-shadow:0 0 12px rgba(0,0,0,0.04);'>";
+    html += "<h1 style='margin:0 0 8px 0;font-size:22px;'>MaxBits · Weekly Selection (local)</h1>";
+    html += "<p style='margin:0 0 16px 0;color:#555;font-size:13px;'>Questa pagina è generata solo dal tuo browser (localStorage), non viene salvata sul server.</p>";
 
-      if (!dates.length) {{
-        html += "<p>No weekly selections saved yet.</p>";
-      }} else {{
-        dates.forEach(d => {{
-          const items = data[d] || [];
-          if (!items.length) return;
-          html += "<section style='margin-top:16px;'><h2 style=\"font-size:18px;margin:0 0 6px 0;\">Day " + d + "</h2><ul style='margin:4px 0 0 18px;font-size:14px;'>";
-          items.forEach(it => {{
-            const t = it.title || "";
-            const u = it.url || "#";
-            const s = it.source || "";
-            html += "<li style='margin-bottom:4px;'><a href='" + u + "' target='_blank' rel='noopener' style='color:#0052cc;'>" +
-                    t + "</a><span style='color:#777;font-size:12px;margin-left:4px;'>(" + s + ")</span></li>";
-          }});
-          html += "</ul></section>";
-        }});
-      }}
+    if (!dates.length) {
+      html += "<p>No weekly selections saved yet.</p>";
+    } else {
+      dates.forEach(d => {
+        const items = data[d] || [];
+        if (!items.length) return;
+        html += "<section style='margin-top:16px;'><h2 style=\"font-size:18px;margin:0 0 6px 0;\">Day " + d + "</h2><ul style='margin:4px 0 0 18px;font-size:14px;'>";
+        items.forEach(it => {
+          const t = it.title || "";
+          const u = it.url || "#";
+          const s = it.source || "";
+          html += "<li style='margin-bottom:4px;'><a href='" + u + "' target='_blank' rel='noopener' style='color:#0052cc;'>" +
+                  t + "</a><span style='color:#777;font-size:12px;margin-left:4px;'>(" + s + ")</span></li>";
+        });
+        html += "</ul></section>";
+      });
+    }
 
-      html += "</div></body></html>";
-      win.document.open();
-      win.document.write(html);
-      win.document.close();
-    }}
+    html += "</div></body></html>";
+    win.document.open();
+    win.document.write(html);
+    win.document.close();
+  }
 
-    function initWeeklyBtn() {{
-      const btn = document.getElementById("open-weekly-btn");
-      if (btn) btn.addEventListener("click", openWeekly);
-    }}
+  function initWeeklyBtn() {
+    const btn = document.getElementById("open-weekly-btn");
+    if (btn) btn.addEventListener("click", openWeekly);
+  }
 
-    function initHistory() {{
-      const hist = window.MAXBITS_HISTORY || [];
-      const ul = document.getElementById("history-list");
-      if (!ul || !hist.length) return;
-      ul.innerHTML = hist.slice(0, 7).map(it =>
-        "<li><strong>" + it.date + "</strong> – " +
-        "<a href='" + it.html + "' target='_blank' rel='noopener'>HTML</a> · " +
-        "<a href='" + it.pdf + "' target='_blank' rel='noopener'>PDF</a></li>"
-      ).join("");
-    }}
+  function initHistory() {
+    const hist = window.MAXBITS_HISTORY || [];
+    const ul = document.getElementById("history-list");
+    if (!ul || !hist.length) return;
 
-    document.addEventListener("DOMContentLoaded", () => {{
-      setupCheckboxes();
-      initWeeklyBtn();
-      initHistory();
-    }});
-  }})();
-  </script>
+    ul.innerHTML = hist.slice(0, 7).map(it =>
+      "<li><strong>" + it.date + "</strong> – " +
+      "<a href='" + it.html + "' target='_blank' rel='noopener'>HTML</a> · " +
+      "<a href='" + it.pdf + "' target='_blank' rel='noopener'>PDF</a></li>"
+    ).join("");
+  }
+
+  document.addEventListener("DOMContentLoaded", () => {
+    setupCheckboxes();
+    initWeeklyBtn();
+    initHistory();
+  });
+})();
+</script>
 </body>
 </html>
 """
+
+    return head_open + style_block + body_content + script_block
