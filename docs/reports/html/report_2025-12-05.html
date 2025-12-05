@@ -10,203 +10,151 @@
     body {
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
       font-size: 14px;
+      line-height: 1.5;
       color: #111;
-      background: #f5f5f7;
+      background: #fafafa;
       margin: 0;
       padding: 24px;
     }
-    .page {
+    .mb-container {
       max-width: 900px;
       margin: 0 auto;
-      background: #ffffff;
-      padding: 24px 32px 32px;
+      background: #fff;
+      padding: 24px 32px;
       border-radius: 8px;
-      box-shadow: 0 0 12px rgba(0, 0, 0, 0.05);
+      box-shadow: 0 0 12px rgba(0,0,0,0.05);
     }
+    .mb-header { margin-bottom: 24px; }
+    .mb-title { margin: 0; font-size: 26px; }
+    .mb-subtitle { margin: 4px 0 0 0; color: #444; font-size: 13px; }
+    .mb-date { margin: 4px 0 0 0; color: #555; font-size: 13px; }
 
-    .title {
-      margin: 0;
-      font-size: 26px;
-      letter-spacing: 0.02em;
-    }
-    .subtitle {
-      margin: 2px 0 0 0;
-      font-size: 13px;
-      color: #666;
-    }
-    .dateline {
-      margin: 4px 0 0 0;
-      font-size: 13px;
-      color: #555;
-    }
-
-    h2 {
-      font-size: 20px;
-      margin: 0 0 10px 0;
-    }
-    h3 {
-      font-size: 16px;
-      margin: 0 0 6px 0;
-    }
-
-    .mb-24 { margin-bottom: 24px; }
-
-    .weekly-bar {
-      margin-top: 12px;
+    .mb-weekly-bar {
+      margin-top: 10px;
       display: flex;
       flex-wrap: wrap;
       gap: 8px;
       align-items: center;
     }
-    .btn-primary {
+    .mb-btn-primary {
       background: #0052cc;
       color: #fff;
       border: none;
-      padding: 7px 14px;
+      padding: 8px 14px;
       border-radius: 6px;
-      font-size: 13px;
       cursor: pointer;
+      font-size: 13px;
     }
-    .btn-primary:hover {
-      background: #003f9e;
-    }
-    .weekly-hint {
-      font-size: 12px;
-      color: #777;
-    }
+    .mb-btn-primary:hover { background: #003f9e; }
+    .mb-weekly-help { font-size: 12px; color: #777; }
 
-    .history-box {
+    .mb-history-box {
       margin-top: 14px;
       padding: 10px 12px;
       border-radius: 6px;
-      background: #f3f4f6;
+      background: #f5f5f5;
     }
-    .history-list {
+    .mb-history-title { font-size: 13px; }
+    .mb-history-list {
       margin: 6px 0 0 16px;
       padding: 0;
-      list-style: disc;
       font-size: 12px;
-      color: #333;
     }
+    .mb-history-list li { margin-bottom: 2px; }
 
-    .deep-dive {
+    .mb-section-title { margin: 0 0 12px 0; font-size: 22px; }
+
+    .mb-article {
       margin-bottom: 24px;
       padding-bottom: 16px;
       border-bottom: 1px solid #eee;
       page-break-inside: avoid;
     }
-    .deep-title {
-      margin: 0 0 4px 0;
-      font-size: 19px;
-    }
-    .deep-meta {
-      margin: 0;
-      font-size: 12px;
-      color: #777;
-    }
-    .deep-list {
+    .mb-article-title { margin: 0 0 4px 0; font-size: 20px; }
+    .mb-article-link { color: #0052cc; text-decoration: none; }
+    .mb-article-link:hover { text-decoration: underline; }
+    .mb-article-meta { margin: 0; color: #777; font-size: 13px; }
+
+    .mb-bullets {
       margin: 10px 0 0 20px;
       padding: 0;
       font-size: 14px;
+      list-style: disc;
     }
-    .deep-list li {
-      margin-bottom: 4px;
-    }
-    .weekly-label {
-      margin-top: 8px;
+    .mb-bullets li { margin-bottom: 4px; }
+
+    .mb-weekly-label {
+      margin-top: 10px;
       display: inline-flex;
       gap: 6px;
-      align-items: center;
-      font-size: 12px;
+      font-size: 13px;
       color: #333;
     }
-    .weekly-label.small {
-      font-size: 11px;
-    }
 
-    .watch-section {
-      margin-top: 18px;
-      page-break-inside: avoid;
-    }
-    .watch-title {
-      margin: 0 0 4px 0;
-      font-size: 15px;
-    }
-    .watch-list {
-      margin: 2px 0 0 18px;
+    .mb-watch-section { margin-top: 18px; page-break-inside: avoid; }
+    .mb-watch-title { margin: 0 0 6px 0; font-size: 16px; }
+    .mb-watch-list {
+      margin: 0 0 0 18px;
       padding: 0;
       list-style: disc;
       font-size: 14px;
     }
-    .watch-item {
-      margin-bottom: 4px;
-    }
-    .watch-source {
-      font-size: 12px;
-      color: #777;
-      margin-left: 4px;
-    }
+    .mb-watch-item { margin-bottom: 4px; }
+    .mb-watch-link { color: #0052cc; text-decoration: none; }
+    .mb-watch-link:hover { text-decoration: underline; }
+    .mb-watch-source { color: #777; font-size: 12px; margin-left: 2px; }
+    .mb-watch-weekly { margin-left: 8px; font-size: 12px; color: #333; }
 
-    .link-article {
-      color: #0052cc;
-      text-decoration: none;
-    }
-    .link-article:hover {
-      text-decoration: underline;
-    }
-
-    @page {
-      margin: 16mm 14mm;
-    }
+    a { word-wrap: break-word; }
+    @page { margin: 15mm; }
   </style>
 </head>
-
 <body>
-  <div class="page">
-    
-<header class="mb-24">
-  <h1 class="title">MaxBits · Daily Tech Watch</h1>
-  <p class="subtitle">High-quality technology news from around the world.</p>
-  <p class="dateline">Daily brief · 2025-12-05</p>
+  <div class="mb-container">
 
-  <div class="weekly-bar">
-    <button id="open-weekly-btn" class="btn-primary">
+    
+<header class="mb-header">
+  <h1 class="mb-title">MaxBits · Daily Tech Watch</h1>
+  <p class="mb-subtitle">High-quality technology news from around the world.</p>
+  <p class="mb-date">Daily brief · 2025-12-05</p>
+
+  <div class="mb-weekly-bar">
+    <button id="open-weekly-btn" class="mb-btn-primary">
       Open Weekly view (local)
     </button>
-    <span class="weekly-hint">
-      Weekly = articles you select with “Add to Weekly”, stored only in your browser.
+    <span class="mb-weekly-help">
+      Weekly = articoli selezionati con “Add to Weekly”, salvati solo nel tuo browser.
     </span>
   </div>
 
-  <section id="history-box" class="history-box">
-    <strong>Last 7 daily reports</strong>
-    <ul id="history-list" class="history-list">
-      <!-- Filled by JS (window.MAXBITS_HISTORY) -->
+  <section id="history-box" class="mb-history-box">
+    <strong class="mb-history-title">Last 7 daily reports</strong>
+    <ul id="history-list" class="mb-history-list">
     </ul>
   </section>
 </header>
 
 
-    <section style="margin-top: 28px;">
-      <h2>3 deep-dives you should really read</h2>
+    <section style="margin-top: 30px;">
+      <h2 class="mb-section-title">3 deep-dives you should really read</h2>
       
-<article class="deep-dive">
-  <h2 class="deep-title">
-    <a href="https://www.fierce-network.com/cloud/could-ai-agents-be-secret-making-telco-apis-work" class="link-article">&lt;a href=&quot;https://www.fierce-network.com/cloud/could-ai-agents-be-secret-making-telco-apis-work&quot; hreflang=&quot;en&quot;&gt;Network APIs could find new life with help from AI agents&lt;/a&gt;</a>
+<article class="mb-article">
+  <h2 class="mb-article-title">
+    <a href="https://www.fierce-network.com/cloud/could-ai-agents-be-secret-making-telco-apis-work" class="mb-article-link">&lt;a href=&quot;https://www.fierce-network.com/cloud/could-ai-agents-be-secret-making-telco-apis-work&quot; hreflang=&quot;en&quot;&gt;Network APIs could find new life with help from AI agents&lt;/a&gt;</a>
   </h2>
-  <p class="deep-meta">
+  <p class="mb-article-meta">
     Fierce Telecom · Topic: <strong>AI/Cloud/Quantum</strong>
   </p>
 
-  <ul class="deep-list">
-    <li><strong>What it is:</strong> AWS is exploring how AI agents and Network Language Models can reinvigorate telco APIs, enabling more dynamic and intelligent network functionalities for service providers.</li>
-    <li><strong>Who:</strong> Jan Hofmeyr, AWS telecom chief, is driving the strategic initiative to integrate advanced AI with telecommunications network capabilities and operations.</li>
-    <li><strong>What it does:</strong> This approach aims to unlock new revenue streams and improve operational efficiency by making network programmability more accessible and intuitive for developers and enterprises.</li>
-    <li><strong>Why it matters:</strong> It addresses the long-standing challenge of monetizing network assets by simplifying complex API interactions and creating new services via AI-driven automation and intelligence.</li>
-    <li><strong>Strategic view:</strong> AWS&#x27;s move signals a strategic intent to deepen its telco footprint, potentially extending into RAN hardware, and become a foundational AI platform for global network innovation.</li>
+  <ul class="mb-bullets">
+    <li><strong>What it is:</strong> AI agents and Network Language Models are being explored as crucial enablers for next-generation network API functionality and wider adoption.</li>
+    <li><strong>Who:</strong> AWS telecom chief Jan Hofmeyr is driving the vision for AI-enhanced network APIs and considering AWS&#x27;s strategic expansion into RAN hardware, akin to Nvidia.</li>
+    <li><strong>What it does:</strong> This initiative aims to enhance network APIs&#x27; usability and automation through AI agents and Network Language Models, potentially expanding AWS&#x27;s infrastructure footprint.</li>
+    <li><strong>Why it matters:</strong> This development could significantly simplify network programmability and monetization for telcos, while positioning AWS as a deeper infrastructure and AI player in the sector.</li>
+    <li><strong>Strategic view:</strong> C-level executives should assess how AI-enabled network APIs will reshape service delivery and revenue models, critically evaluating AWS&#x27;s deepening integration across the telco value chain.</li>
   </ul>
 
-  <label class="weekly-label">
+  <label class="mb-weekly-label">
     <input type="checkbox"
            class="weekly-checkbox"
            data-id="deep|Fierce Telecom|&lt;a href=&quot;https://www.fierce-network.com/cloud/could-ai-agents-be-secret-making-telco-apis-work&quot; hreflang=&quot;en&quot;&gt;Network APIs could find new life with help from AI agents&lt;/a&gt;"
@@ -218,23 +166,23 @@
 </article>
 
 
-<article class="deep-dive">
-  <h2 class="deep-title">
-    <a href="https://www.fierce-network.com/broadband/geo-satellite-operator-telesat-sees-writing-wall-gets-leo" class="link-article">&lt;a href=&quot;https://www.fierce-network.com/broadband/geo-satellite-operator-telesat-sees-writing-wall-gets-leo&quot; hreflang=&quot;en&quot;&gt;GEO satellite operator Telesat sees writing on the wall, moves into LEO&lt;/a&gt;</a>
+<article class="mb-article">
+  <h2 class="mb-article-title">
+    <a href="https://www.fierce-network.com/broadband/geo-satellite-operator-telesat-sees-writing-wall-gets-leo" class="mb-article-link">&lt;a href=&quot;https://www.fierce-network.com/broadband/geo-satellite-operator-telesat-sees-writing-wall-gets-leo&quot; hreflang=&quot;en&quot;&gt;GEO satellite operator Telesat sees writing on the wall, moves into LEO&lt;/a&gt;</a>
   </h2>
-  <p class="deep-meta">
+  <p class="mb-article-meta">
     Fierce Telecom · Topic: <strong>AI/Cloud/Quantum</strong>
   </p>
 
-  <ul class="deep-list">
-    <li><strong>What it is:</strong> A long-established geostationary (GEO) satellite operator is making a strategic pivot to the Low Earth Orbit (LEO) satellite market.</li>
-    <li><strong>Who:</strong> Telesat, a traditional GEO satellite operator, is the company making this significant strategic shift in its core business model.</li>
-    <li><strong>What it does:</strong> Telesat is actively developing its Lightspeed LEO satellite constellation to ensure its future competitiveness in the evolving space-based connectivity market.</li>
-    <li><strong>Why it matters:</strong> This move signifies a clear acknowledgment by a legacy player that the GEO satellite market&#x27;s long-term viability is under threat from LEO innovation.</li>
-    <li><strong>Strategic view:</strong> This pivot highlights the imperative for established telecom and satellite companies to rapidly adapt their strategies or risk market obsolescence.</li>
+  <ul class="mb-bullets">
+    <li><strong>What it is:</strong> Telesat, a legacy geostationary satellite operator, is proactively shifting its core business strategy and investments towards building a new low Earth orbit (LEO) satellite constellation.</li>
+    <li><strong>Who:</strong> Telesat, a traditional satellite operator, is the key entity making this strategic transition to adapt to future market demands and technological advancements in space communications.</li>
+    <li><strong>What it does:</strong> This strategic pivot allows Telesat to future-proof its business model, mitigate the decline of GEO services, and tap into the growing market for high-speed, low-latency broadband connectivity.</li>
+    <li><strong>Why it matters:</strong> It matters because this move ensures Telesat&#x27;s competitive survival and positions the company to capture new revenue streams in the rapidly evolving global satellite communications market.</li>
+    <li><strong>Strategic view:</strong> This industry move highlights the imperative for established Telco, Media, and Tech players to embrace disruptive technologies to avoid obsolescence and maintain market relevance amidst rapid innovation.</li>
   </ul>
 
-  <label class="weekly-label">
+  <label class="mb-weekly-label">
     <input type="checkbox"
            class="weekly-checkbox"
            data-id="deep|Fierce Telecom|&lt;a href=&quot;https://www.fierce-network.com/broadband/geo-satellite-operator-telesat-sees-writing-wall-gets-leo&quot; hreflang=&quot;en&quot;&gt;GEO satellite operator Telesat sees writing on the wall, moves into LEO&lt;/a&gt;"
@@ -246,23 +194,23 @@
 </article>
 
 
-<article class="deep-dive">
-  <h2 class="deep-title">
-    <a href="https://www.fierce-network.com/sponsored/how-hybrid-converged-gateways-are-redefining-broadband-reliability" class="link-article">&lt;a href=&quot;https://www.fierce-network.com/sponsored/how-hybrid-converged-gateways-are-redefining-broadband-reliability&quot; hreflang=&quot;en&quot;&gt;How Hybrid (Converged) Gateways Are Redefining Broadband Reliability&lt;/a&gt;</a>
+<article class="mb-article">
+  <h2 class="mb-article-title">
+    <a href="https://www.fierce-network.com/sponsored/how-hybrid-converged-gateways-are-redefining-broadband-reliability" class="mb-article-link">&lt;a href=&quot;https://www.fierce-network.com/sponsored/how-hybrid-converged-gateways-are-redefining-broadband-reliability&quot; hreflang=&quot;en&quot;&gt;How Hybrid (Converged) Gateways Are Redefining Broadband Reliability&lt;/a&gt;</a>
   </h2>
-  <p class="deep-meta">
+  <p class="mb-article-meta">
     Fierce Telecom · Topic: <strong>AI/Cloud/Quantum</strong>
   </p>
 
-  <ul class="deep-list">
-    <li><strong>What it is:</strong> Hybrid (Converged) Gateways are advanced broadband devices that integrate multiple connectivity technologies to ensure uninterrupted internet access.</li>
-    <li><strong>Who:</strong> Homes and small businesses, increasingly reliant on stable internet for critical daily activities, are the direct beneficiaries of enhanced broadband reliability.</li>
-    <li><strong>What it does:</strong> These gateways mitigate service disruptions by seamlessly switching between diverse network infrastructures, thereby maintaining consistent high-speed internet connectivity during outages.</li>
-    <li><strong>Why it matters:</strong> It matters because dependable internet access is now foundational for work, education, and entertainment, making service continuity essential for modern consumer and business operations.</li>
-    <li><strong>Strategic view:</strong> Telco operators can leverage hybrid gateways to significantly reduce churn, enhance customer satisfaction, and differentiate their service offerings through superior network resilience and uptime.</li>
+  <ul class="mb-bullets">
+    <li><strong>What it is:</strong> Hybrid (converged) gateways are integrated customer premise equipment designed to maintain broadband connectivity even during primary network outages by leveraging alternative access technologies.</li>
+    <li><strong>Who:</strong> Telco operators deploy these gateways for residential customers and small businesses, ensuring uninterrupted internet access for essential daily activities and operations.</li>
+    <li><strong>What it does:</strong> These gateways automatically switch to alternative network access methods during primary fiber or cable disruptions, ensuring persistent high-speed internet for critical digital services.</li>
+    <li><strong>Why it matters:</strong> This technology is crucial for preventing service interruptions from natural disasters or network failures, thereby safeguarding user productivity and maintaining essential digital access.</li>
+    <li><strong>Strategic view:</strong> Deploying these resilient gateways offers telcos a critical competitive edge, enhancing customer loyalty and trust by guaranteeing reliable connectivity crucial for modern digital lifestyles and business continuity.</li>
   </ul>
 
-  <label class="weekly-label">
+  <label class="mb-weekly-label">
     <input type="checkbox"
            class="weekly-checkbox"
            data-id="deep|Fierce Telecom|&lt;a href=&quot;https://www.fierce-network.com/sponsored/how-hybrid-converged-gateways-are-redefining-broadband-reliability&quot; hreflang=&quot;en&quot;&gt;How Hybrid (Converged) Gateways Are Redefining Broadband Reliability&lt;/a&gt;"
@@ -275,17 +223,21 @@
 
     </section>
 
-    <section style="margin-top: 28px;">
-      <h2>Curated watchlist · 3–5 links per topic</h2>
+    <section style="margin-top: 30px;">
+      <h2 style="margin:0 0 12px 0; font-size:20px;">
+        Curated watchlist · 3–5 links per topic
+      </h2>
       
-<section class="watch-section">
-  <h3 class="watch-title">TV / Streaming</h3>
-  <ul class="watch-list">
+<section class="mb-watch-section">
+  <h3 class="mb-watch-title">TV / Streaming</h3>
+  <ul class="mb-watch-list">
     
-<li class="watch-item">
-  <a href="https://www.broadbandtvnews.com/2025/12/05/hispasat-and-nos-renew-multi-year-dth-deal-for-full-portugal-coverage/" class="link-article">Hispasat and NOS renew multi-year DTH deal for full Portugal coverage</a>
-  <span class="watch-source">(Broadband TV News)</span>
-  <label class="weekly-label small">
+<li class="mb-watch-item">
+  <span class="mb-watch-link-wrap">
+    <a href="https://www.broadbandtvnews.com/2025/12/05/hispasat-and-nos-renew-multi-year-dth-deal-for-full-portugal-coverage/" class="mb-watch-link">Hispasat and NOS renew multi-year DTH deal for full Portugal coverage</a>
+    <span class="mb-watch-source">(Broadband TV News)</span>
+  </span>
+  <label class="mb-watch-weekly">
     <input type="checkbox"
            class="weekly-checkbox"
            data-id="wl|TV/Streaming|Broadband TV News|Hispasat and NOS renew multi-year DTH deal for full Portugal coverage"
@@ -300,28 +252,16 @@
 </section>
 
 
-<section class="watch-section">
-  <h3 class="watch-title">AI / Cloud / Quantum</h3>
-  <ul class="watch-list">
+<section class="mb-watch-section">
+  <h3 class="mb-watch-title">AI / Cloud / Quantum</h3>
+  <ul class="mb-watch-list">
     
-<li class="watch-item">
-  <a href="https://www.fierce-network.com/sponsored/telecoms-connect-future-agentic-ai" class="link-article">&lt;a href=&quot;https://www.fierce-network.com/sponsored/telecoms-connect-future-agentic-ai&quot; hreflang=&quot;en&quot;&gt;Telecoms Connect the Future with Agentic AI&lt;/a&gt;</a>
-  <span class="watch-source">(Fierce Telecom)</span>
-  <label class="weekly-label small">
-    <input type="checkbox"
-           class="weekly-checkbox"
-           data-id="wl|AI/Cloud/Quantum|Fierce Telecom|&lt;a href=&quot;https://www.fierce-network.com/sponsored/telecoms-connect-future-agentic-ai&quot; hreflang=&quot;en&quot;&gt;Telecoms Connect the Future with Agentic AI&lt;/a&gt;"
-           data-title="&lt;a href=&quot;https://www.fierce-network.com/sponsored/telecoms-connect-future-agentic-ai&quot; hreflang=&quot;en&quot;&gt;Telecoms Connect the Future with Agentic AI&lt;/a&gt;"
-           data-url="https://www.fierce-network.com/sponsored/telecoms-connect-future-agentic-ai"
-           data-source="Fierce Telecom">
-    Add to Weekly
-  </label>
-</li>
-
-<li class="watch-item">
-  <a href="https://www.fierce-network.com/cloud/cisco-service-provider-market-recovering-nicely" class="link-article">&lt;a href=&quot;https://www.fierce-network.com/cloud/cisco-service-provider-market-recovering-nicely&quot; hreflang=&quot;en&quot;&gt;Cisco: Service provider market is &#x27;recovering nicely&#x27;&lt;/a&gt;</a>
-  <span class="watch-source">(Fierce Telecom)</span>
-  <label class="weekly-label small">
+<li class="mb-watch-item">
+  <span class="mb-watch-link-wrap">
+    <a href="https://www.fierce-network.com/cloud/cisco-service-provider-market-recovering-nicely" class="mb-watch-link">&lt;a href=&quot;https://www.fierce-network.com/cloud/cisco-service-provider-market-recovering-nicely&quot; hreflang=&quot;en&quot;&gt;Cisco: Service provider market is &#x27;recovering nicely&#x27;&lt;/a&gt;</a>
+    <span class="mb-watch-source">(Fierce Telecom)</span>
+  </span>
+  <label class="mb-watch-weekly">
     <input type="checkbox"
            class="weekly-checkbox"
            data-id="wl|AI/Cloud/Quantum|Fierce Telecom|&lt;a href=&quot;https://www.fierce-network.com/cloud/cisco-service-provider-market-recovering-nicely&quot; hreflang=&quot;en&quot;&gt;Cisco: Service provider market is &#x27;recovering nicely&#x27;&lt;/a&gt;"
@@ -332,10 +272,12 @@
   </label>
 </li>
 
-<li class="watch-item">
-  <a href="https://www.fierce-network.com/cloud/heres-what-we-think-aws-big-reinvent-news" class="link-article">&lt;a href=&quot;https://www.fierce-network.com/cloud/heres-what-we-think-aws-big-reinvent-news&quot; hreflang=&quot;en&quot;&gt;AWS steals telcos&#x27; thunder with debut of AWS AI Factory&lt;/a&gt;</a>
-  <span class="watch-source">(Fierce Telecom)</span>
-  <label class="weekly-label small">
+<li class="mb-watch-item">
+  <span class="mb-watch-link-wrap">
+    <a href="https://www.fierce-network.com/cloud/heres-what-we-think-aws-big-reinvent-news" class="mb-watch-link">&lt;a href=&quot;https://www.fierce-network.com/cloud/heres-what-we-think-aws-big-reinvent-news&quot; hreflang=&quot;en&quot;&gt;AWS steals telcos&#x27; thunder with debut of AWS AI Factory&lt;/a&gt;</a>
+    <span class="mb-watch-source">(Fierce Telecom)</span>
+  </span>
+  <label class="mb-watch-weekly">
     <input type="checkbox"
            class="weekly-checkbox"
            data-id="wl|AI/Cloud/Quantum|Fierce Telecom|&lt;a href=&quot;https://www.fierce-network.com/cloud/heres-what-we-think-aws-big-reinvent-news&quot; hreflang=&quot;en&quot;&gt;AWS steals telcos&#x27; thunder with debut of AWS AI Factory&lt;/a&gt;"
@@ -346,29 +288,49 @@
   </label>
 </li>
 
-<li class="watch-item">
-  <a href="https://www.fierce-network.com/cloud/ice-batteries-could-heat-data-center-cooling" class="link-article">&lt;a href=&quot;https://www.fierce-network.com/cloud/ice-batteries-could-heat-data-center-cooling&quot; hreflang=&quot;en&quot;&gt;&#x27;Ice batteries&#x27; could heat up data center cooling&lt;/a&gt;</a>
-  <span class="watch-source">(Fierce Telecom)</span>
-  <label class="weekly-label small">
+<li class="mb-watch-item">
+  <span class="mb-watch-link-wrap">
+    <a href="https://www.fierce-network.com/cloud/ice-batteries-could-heat-data-center-cooling" class="mb-watch-link">&lt;a href=&quot;https://www.fierce-network.com/cloud/ice-batteries-could-heat-data-center-cooling&quot; hreflang=&quot;en&quot;&gt;Start-up Nostromo and its &#x27;ice batteries&#x27; could heat up data center cooling&lt;/a&gt;</a>
+    <span class="mb-watch-source">(Fierce Telecom)</span>
+  </span>
+  <label class="mb-watch-weekly">
     <input type="checkbox"
            class="weekly-checkbox"
-           data-id="wl|AI/Cloud/Quantum|Fierce Telecom|&lt;a href=&quot;https://www.fierce-network.com/cloud/ice-batteries-could-heat-data-center-cooling&quot; hreflang=&quot;en&quot;&gt;&#x27;Ice batteries&#x27; could heat up data center cooling&lt;/a&gt;"
-           data-title="&lt;a href=&quot;https://www.fierce-network.com/cloud/ice-batteries-could-heat-data-center-cooling&quot; hreflang=&quot;en&quot;&gt;&#x27;Ice batteries&#x27; could heat up data center cooling&lt;/a&gt;"
+           data-id="wl|AI/Cloud/Quantum|Fierce Telecom|&lt;a href=&quot;https://www.fierce-network.com/cloud/ice-batteries-could-heat-data-center-cooling&quot; hreflang=&quot;en&quot;&gt;Start-up Nostromo and its &#x27;ice batteries&#x27; could heat up data center cooling&lt;/a&gt;"
+           data-title="&lt;a href=&quot;https://www.fierce-network.com/cloud/ice-batteries-could-heat-data-center-cooling&quot; hreflang=&quot;en&quot;&gt;Start-up Nostromo and its &#x27;ice batteries&#x27; could heat up data center cooling&lt;/a&gt;"
            data-url="https://www.fierce-network.com/cloud/ice-batteries-could-heat-data-center-cooling"
            data-source="Fierce Telecom">
     Add to Weekly
   </label>
 </li>
 
-<li class="watch-item">
-  <a href="https://www.fierce-network.com/broadband/ai-forcing-multi-cloud-reckoning" class="link-article">&lt;a href=&quot;https://www.fierce-network.com/broadband/ai-forcing-multi-cloud-reckoning&quot; hreflang=&quot;en&quot;&gt;AI is forcing a multi-cloud reckoning&lt;/a&gt;</a>
-  <span class="watch-source">(Fierce Telecom)</span>
-  <label class="weekly-label small">
+<li class="mb-watch-item">
+  <span class="mb-watch-link-wrap">
+    <a href="https://www.fierce-network.com/broadband/ai-forcing-multi-cloud-reckoning" class="mb-watch-link">&lt;a href=&quot;https://www.fierce-network.com/broadband/ai-forcing-multi-cloud-reckoning&quot; hreflang=&quot;en&quot;&gt;AI is forcing a multi-cloud reckoning&lt;/a&gt;</a>
+    <span class="mb-watch-source">(Fierce Telecom)</span>
+  </span>
+  <label class="mb-watch-weekly">
     <input type="checkbox"
            class="weekly-checkbox"
            data-id="wl|AI/Cloud/Quantum|Fierce Telecom|&lt;a href=&quot;https://www.fierce-network.com/broadband/ai-forcing-multi-cloud-reckoning&quot; hreflang=&quot;en&quot;&gt;AI is forcing a multi-cloud reckoning&lt;/a&gt;"
            data-title="&lt;a href=&quot;https://www.fierce-network.com/broadband/ai-forcing-multi-cloud-reckoning&quot; hreflang=&quot;en&quot;&gt;AI is forcing a multi-cloud reckoning&lt;/a&gt;"
            data-url="https://www.fierce-network.com/broadband/ai-forcing-multi-cloud-reckoning"
+           data-source="Fierce Telecom">
+    Add to Weekly
+  </label>
+</li>
+
+<li class="mb-watch-item">
+  <span class="mb-watch-link-wrap">
+    <a href="https://www.fierce-network.com/sponsored/verizon-builds-trust-ai-through-data-and-governance" class="mb-watch-link">&lt;a href=&quot;https://www.fierce-network.com/sponsored/verizon-builds-trust-ai-through-data-and-governance&quot; hreflang=&quot;en&quot;&gt;Verizon Builds Trust in AI Through Data and Governance&lt;/a&gt;</a>
+    <span class="mb-watch-source">(Fierce Telecom)</span>
+  </span>
+  <label class="mb-watch-weekly">
+    <input type="checkbox"
+           class="weekly-checkbox"
+           data-id="wl|AI/Cloud/Quantum|Fierce Telecom|&lt;a href=&quot;https://www.fierce-network.com/sponsored/verizon-builds-trust-ai-through-data-and-governance&quot; hreflang=&quot;en&quot;&gt;Verizon Builds Trust in AI Through Data and Governance&lt;/a&gt;"
+           data-title="&lt;a href=&quot;https://www.fierce-network.com/sponsored/verizon-builds-trust-ai-through-data-and-governance&quot; hreflang=&quot;en&quot;&gt;Verizon Builds Trust in AI Through Data and Governance&lt;/a&gt;"
+           data-url="https://www.fierce-network.com/sponsored/verizon-builds-trust-ai-through-data-and-governance"
            data-source="Fierce Telecom">
     Add to Weekly
   </label>
@@ -380,130 +342,121 @@
     </section>
   </div>
 
-  <script>
-  (function() {
-    const KEY = "maxbits_weekly_selections_v1";
+<script>
+(function() {
+  const KEY = "maxbits_weekly_selections_v1";
 
-    function loadSelections() {
-      try {
-        const raw = localStorage.getItem(KEY);
-        return raw ? JSON.parse(raw) : {};
-      } catch (e) {
-        console.warn("[Weekly] Cannot parse selections:", e);
-        return {};
+  function loadSel() {
+    try {
+      const raw = localStorage.getItem(KEY);
+      return raw ? JSON.parse(raw) : {};
+    } catch (e) {
+      return {};
+    }
+  }
+
+  function saveSel(x) {
+    try {
+      localStorage.setItem(KEY, JSON.stringify(x));
+    } catch (e) {}
+  }
+
+  function setupCheckboxes() {
+    const meta = document.querySelector("meta[name='report-date']");
+    if (!meta) return;
+    const date = meta.content || "";
+    const data = loadSel();
+    const todays = data[date] || [];
+
+    document.querySelectorAll(".weekly-checkbox").forEach(cb => {
+      const id = cb.dataset.id;
+      if (!id) return;
+
+      if (todays.some(a => a.id === id)) {
+        cb.checked = true;
       }
+
+      cb.addEventListener("change", () => {
+        const entry = {
+          id: cb.dataset.id,
+          title: cb.dataset.title,
+          url: cb.dataset.url,
+          source: cb.dataset.source
+        };
+        const arr = data[date] || [];
+        const i = arr.findIndex(a => a.id === entry.id);
+
+        if (cb.checked && i === -1) arr.push(entry);
+        if (!cb.checked && i !== -1) arr.splice(i, 1);
+
+        data[date] = arr;
+        saveSel(data);
+      });
+    });
+  }
+
+  function openWeekly() {
+    const data = loadSel();
+    const dates = Object.keys(data).sort().reverse();
+    const win = window.open("", "_blank");
+    if (!win) {
+      alert("Popup blocked – allow popups to see the weekly view.");
+      return;
     }
 
-    function saveSelections(data) {
-      try {
-        localStorage.setItem(KEY, JSON.stringify(data));
-      } catch (e) {
-        console.warn("[Weekly] Cannot save selections:", e);
-      }
-    }
+    let html = "<!DOCTYPE html><html><head><meta charset='utf-8'><title>MaxBits · Weekly Selection</title></head>";
+    html += "<body style='font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Arial,sans-serif;font-size:14px;color:#111;background:#fafafa;margin:0;padding:24px;'>";
+    html += "<div style='max-width:900px;margin:0 auto;background:#fff;padding:24px 32px;border-radius:8px;box-shadow:0 0 12px rgba(0,0,0,0.04);'>";
+    html += "<h1 style='margin:0 0 8px 0;font-size:22px;'>MaxBits · Weekly Selection (local)</h1>";
+    html += "<p style='margin:0 0 16px 0;color:#555;font-size:13px;'>Questa pagina è generata solo dal tuo browser (localStorage), non viene salvata sul server.</p>";
 
-    function setupCheckboxes() {
-      const meta = document.querySelector("meta[name='report-date']");
-      if (!meta) return;
-      const dateStr = meta.content;
-      const data = loadSelections();
-      const todayList = data[dateStr] || [];
-
-      document.querySelectorAll(".weekly-checkbox").forEach(cb => {
-        const id = cb.dataset.id;
-        if (!id) return;
-
-        if (todayList.some(x => x.id === id)) {
-          cb.checked = true;
-        }
-
-        cb.addEventListener("change", () => {
-          const entry = {
-            id: cb.dataset.id,
-            title: cb.dataset.title,
-            url: cb.dataset.url,
-            source: cb.dataset.source
-          };
-
-          const list = data[dateStr] || [];
-          const idx = list.findIndex(x => x.id === entry.id);
-
-          if (cb.checked) {
-            if (idx === -1) list.push(entry);
-          } else {
-            if (idx !== -1) list.splice(idx, 1);
-          }
-
-          data[dateStr] = list;
-          saveSelections(data);
+    if (!dates.length) {
+      html += "<p>No weekly selections saved yet.</p>";
+    } else {
+      dates.forEach(d => {
+        const items = data[d] || [];
+        if (!items.length) return;
+        html += "<section style='margin-top:16px;'><h2 style="font-size:18px;margin:0 0 6px 0;">Day " + d + "</h2><ul style='margin:4px 0 0 18px;font-size:14px;'>";
+        items.forEach(it => {
+          const t = it.title || "";
+          const u = it.url || "#";
+          const s = it.source || "";
+          html += "<li style='margin-bottom:4px;'><a href='" + u + "' target='_blank' rel='noopener' style='color:#0052cc;'>" +
+                  t + "</a><span style='color:#777;font-size:12px;margin-left:4px;'>(" + s + ")</span></li>";
         });
+        html += "</ul></section>";
       });
     }
 
-    function openWeeklyView() {
-      const data = loadSelections();
-      const dates = Object.keys(data).sort().reverse();
-      const win = window.open("", "_blank");
-      if (!win) {
-        alert("Popup blocked. Allow pop-ups for this site to see the weekly view.");
-        return;
-      }
+    html += "</div></body></html>";
+    win.document.open();
+    win.document.write(html);
+    win.document.close();
+  }
 
-      let html = "<!DOCTYPE html><html><head><meta charset='utf-8'><title>MaxBits · Weekly Selection</title>";
-      html += "<style>body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;font-size:14px;background:#f5f5f7;margin:0;padding:24px;}";
-      html += ".page{max-width:900px;margin:0 auto;background:#fff;padding:24px 32px;border-radius:8px;box-shadow:0 0 12px rgba(0,0,0,0.05);}";
-      html += "h1{font-size:22px;margin:0 0 10px 0;} h2{font-size:16px;margin:18px 0 6px 0;} ul{margin:4px 0 0 18px;}</style></head><body>";
-      html += "<div class='page'><h1>MaxBits · Weekly Selection (local)</h1>";
-      html += "<p style='color:#555;font-size:13px;'>This page is generated locally from your selections. It is not stored on the server.</p>";
+  function initWeeklyBtn() {
+    const btn = document.getElementById("open-weekly-btn");
+    if (btn) btn.addEventListener("click", openWeekly);
+  }
 
-      if (!dates.length) {
-        html += "<p>No weekly selections yet.</p>";
-      } else {
-        dates.forEach(d => {
-          const items = data[d] || [];
-          if (!items.length) return;
-          html += "<h2>Day " + d + "</h2><ul>";
-          items.forEach(it => {
-            const t = it.title || "";
-            const u = it.url || "#";
-            const s = it.source || "";
-            html += "<li><a href='" + u + "' target='_blank' rel='noopener'>" + t + "</a> ";
-            html += "<span style='color:#777;font-size:12px;'>(" + s + ")</span></li>";
-          });
-          html += "</ul>";
-        });
-      }
+  function initHistory() {
+    const hist = window.MAXBITS_HISTORY || [];
+    const ul = document.getElementById("history-list");
+    if (!ul || !hist.length) return;
 
-      html += "</div></body></html>";
-      win.document.open();
-      win.document.write(html);
-      win.document.close();
-    }
+    ul.innerHTML = hist.slice(0, 7).map(it =>
+      "<li><strong>" + it.date + "</strong> – " +
+      "<a href='" + it.html + "' target='_blank' rel='noopener'>HTML</a> · " +
+      "<a href='" + it.pdf + "' target='_blank' rel='noopener'>PDF</a></li>"
+    ).join("");
+  }
 
-    function initWeeklyButton() {
-      const btn = document.getElementById("open-weekly-btn");
-      if (!btn) return;
-      btn.addEventListener("click", openWeeklyView);
-    }
-
-    function initHistoryBox() {
-      const history = window.MAXBITS_HISTORY || [];
-      const ul = document.getElementById("history-list");
-      if (!ul || !history.length) return;
-
-      ul.innerHTML = history.slice(0, 7).map(item => (
-        "<li><strong>" + item.date + "</strong> – " +
-        "<a href='" + item.html + "' target='_blank' rel='noopener'>HTML</a> · " +
-        "<a href='" + item.pdf + "' target='_blank' rel='noopener'>PDF</a></li>"
-      )).join("");
-    }
-
-    document.addEventListener("DOMContentLoaded", () => {
-      setupCheckboxes();
-      initWeeklyButton();
-      initHistoryBox();
-    });
-  })();
-  </script>
+  document.addEventListener("DOMContentLoaded", () => {
+    setupCheckboxes();
+    initWeeklyBtn();
+    initHistory();
+  });
+})();
+</script>
 </body>
 </html>
