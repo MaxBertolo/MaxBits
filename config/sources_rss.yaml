@@ -14,6 +14,8 @@ feeds:
     url: https://www.wired.com/feed/category/business/latest/rss
   - name: "The Information (Tech)"
     url: "https://www.theinformation.com/subscriber_feed"
+  - name: "McKinsey MGI – Tech & Markets of the Future"
+    url: "https://www.mckinsey.com/mgi/our-research/technology-and-markets-of-the-future"
 
 
   # --- TELECOM / NETWORK / 5G / FIBER ---
