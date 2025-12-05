@@ -27,7 +27,7 @@ def _strip_html(raw: str) -> str:
 def _clean_title(raw: str) -> str:
     """
     Pulisce il titolo mantenendo il contenuto,
-    ma rimuovendo caratteri “sporchi” (Fierce Telecom, ecc.).
+    ma rimuove caratteri “sporchi” o invisibili.
     """
     if not raw:
         return ""
@@ -88,7 +88,7 @@ def _parse_date(entry) -> datetime:
 
 def collect_from_rss(feeds: List[Dict]) -> List[RawArticle]:
     """
-    feeds: lista di dict dal config/sources_rss.yaml
+    feeds: lista di dict da config/sources_rss.yaml
       - name
       - url
       - topic
@@ -125,7 +125,6 @@ def collect_from_rss(feeds: List[Dict]) -> List[RawArticle]:
             raw_summary = entry.get("summary", "") or ""
             raw_content = ""
 
-            # se il feed ha contenuti più ricchi
             if "content" in entry and entry.content:
                 raw_content = entry.content[0].get("value", "") or ""
 
@@ -133,21 +132,25 @@ def collect_from_rss(feeds: List[Dict]) -> List[RawArticle]:
 
             clean_title = _clean_title(raw_title)
             clean_content = _clean_content(final_content)
-            link = entry.get("link", "")
+            link = entry.get("link", "") or ""
 
-            # QUI: niente topic nel costruttore, per evitare l'errore
+            # ---- ID OBBLIGATORIO PER RawArticle ----
+            # se non c'è link uso una stringa sintetica ma stabile
+            article_id = link or f"{name}:{clean_title}:{pub_date.isoformat()}"
+
             art = RawArticle(
+                id=article_id,
                 title=clean_title,
                 url=link,
                 source=name,
                 content=clean_content,
                 published_at=pub_date,  # UTC aware
             )
-            # ma lo salviamo comunque come attributo per il resto del codice
+
+            # salviamo il topic come attributo aggiuntivo (se possibile)
             try:
                 setattr(art, "topic", topic)
             except Exception:
-                # se RawArticle è una namedtuple/immutabile, ignoriamo il topic
                 pass
 
             articles.append(art)
