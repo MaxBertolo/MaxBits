@@ -81,49 +81,53 @@ def _article_topic(article) -> str:
     Decide the topic for a RawArticle.
 
     Priority:
-      1) If rss_collector has already set an exact topic in WATCHLIST_TOPICS_ORDER → use it.
-      2) Otherwise infer from source / existing topic string using keyword rules.
+      1) If article.topic is already an exact WATCHLIST_TOPICS_ORDER value → use it.
+      2) Otherwise infer from source / topic string using explicit source mapping + keywords.
       3) Fallback: 'AI/Cloud/Quantum'.
     """
     raw_topic = getattr(article, "topic", "") or ""
     if raw_topic in WATCHLIST_TOPICS_ORDER:
         return raw_topic
 
-    base = (raw_topic or getattr(article, "source", "") or "").lower()
+    source = (getattr(article, "source", "") or "").lower()
+    base = (raw_topic or source).lower()
 
-    # TV & streaming
+    # --- explicit mappings for important sources ---
+    if "gigaom" in source:
+        return "Telco/5G"
+
+    if "technologymagazine" in source or "technology magazine" in source:
+        return "AI/Cloud/Quantum"
+
+    if "venturebeat" in source:
+        return "AI/Cloud/Quantum"
+
+    if "corrierecomunicazioni" in source or "corcom" in source:
+        return "CorCom/Digital"
+
+    # --- topic by keywords in source/topic string ---
     if any(k in base for k in ("tv", "stream", "ott", "vod", "video on demand")):
         return "TV/Streaming"
 
-    # Telco / 5G
-    if any(k in base for k in ("5g", "6g", "telco", "mobile", "network", "carrier", "operator")):
+    if any(k in base for k in ("5g", "6g", "telco", "carrier", "network", "mobile", "operator")):
         return "Telco/5G"
 
-    # Media / platforms / social / advertising
     if any(k in base for k in ("media", "platform", "social", "adtech", "advertising", "creator")):
         return "Media/Platforms"
 
-    # Robotics / automation
     if any(k in base for k in ("robot", "robotics", "automation", "cobot")):
         return "Robotics/Automation"
 
-    # Broadcast / linear video
-    if any(k in base for k in ("broadcast", "linear tv", "dvb", "dtt")):
+    if any(k in base for k in ("broadcast", "linear", "dvb", "dtt")):
         return "Broadcast/Video"
 
-    # Satellite / Satcom
     if any(k in base for k in ("satcom", "satellite", "geo", "leo", "meo")):
         return "Satellite/Satcom"
 
-    # Space infrastructure (launch, rockets, etc.)
     if any(k in base for k in ("space", "orbital", "launch", "rocket", "spacex")):
         return "Space/Infra"
 
-    # Corriere Comunicazioni / CorCom (se mai aggiunto di nuovo come feed)
-    if "corrierecomunicazioni" in base or "corcom" in base:
-        return "CorCom/Digital"
-
-    # Default
+    # default bucket
     return "AI/Cloud/Quantum"
 
 
@@ -183,7 +187,7 @@ def build_watchlist(
         watchlist[topic].append(item)
         seen_titles_per_topic[topic].add(norm_title)
 
-    # Small log per topic
+    # log per-topic sizes
     for t in WATCHLIST_TOPICS_ORDER:
         print(f"[WATCHLIST] {t}: {len(watchlist[t])} items")
 
@@ -206,6 +210,7 @@ def build_deep_dives_payload(
     for art, summ in zip(deep_dive_articles, summaries):
         title = (getattr(art, "title", "") or "").strip() or "Untitled"
         topic = _article_topic(art)
+        published_at = getattr(art, "published_at", None)
 
         entry = {
             "id": f"deep|{art.source}|{title}",
@@ -213,14 +218,12 @@ def build_deep_dives_payload(
             "url": getattr(art, "url", "") or "",
             "source": getattr(art, "source", "") or "",
             "topic": topic,
-            "published_at": getattr(art, "published_at", None).isoformat()
-            if getattr(art, "published_at", None) is not None
-            else "",
-            "what_it_is": summ.get("what_it_is", "").strip(),
-            "who": summ.get("who", "").strip(),
-            "what_it_does": summ.get("what_it_does", "").strip(),
-            "why_it_matters": summ.get("why_it_matters", "").strip(),
-            "strategic_view": summ.get("strategic_view", "").strip(),
+            "published_at": published_at.isoformat() if published_at else "",
+            "what_it_is": (summ.get("what_it_is", "") or "").strip(),
+            "who": (summ.get("who", "") or "").strip(),
+            "what_it_does": (summ.get("what_it_does", "") or "").strip(),
+            "why_it_matters": (summ.get("why_it_matters", "") or "").strip(),
+            "strategic_view": (summ.get("strategic_view", "") or "").strip(),
         }
         payload.append(entry)
 
@@ -233,7 +236,7 @@ def build_deep_dives_payload(
 # -------------------------
 
 def main():
-    # Some debug info for GitHub Actions
+    # Debug info for GitHub Actions
     cwd = Path.cwd()
     print("[DEBUG] CWD:", cwd)
     try:
