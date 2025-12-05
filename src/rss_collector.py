@@ -42,14 +42,13 @@ def _clean_title(raw: str) -> str:
         "\u200d",  # zero-width joiner
         "\u2028",  # line separator
         "\u2029",  # paragraph separator
-        "\ufffe",  # special
+        "\ufffe",
     ]
     for ch in bad_chars:
         text = text.replace(ch, "")
 
     # normalizza spazi e newline → una riga sola
     text = " ".join(text.split())
-
     return text.strip()
 
 
@@ -71,7 +70,6 @@ def _parse_date(entry) -> datetime:
             continue
         try:
             dt = dateparser.parse(val)
-            # normalizza: sempre UTC aware
             if dt.tzinfo is not None:
                 dt = dt.astimezone(timezone.utc)
             else:
@@ -129,24 +127,29 @@ def collect_from_rss(feeds: List[Dict]) -> List[RawArticle]:
 
             # se il feed ha contenuti più ricchi
             if "content" in entry and entry.content:
-                # normalmente una lista con dict {"value": "...", "type": "..."}
                 raw_content = entry.content[0].get("value", "") or ""
 
             final_content = raw_content or raw_summary
 
-            clean_title = _clean_title(raw_title)      # <-- FIX titolo
+            clean_title = _clean_title(raw_title)
             clean_content = _clean_content(final_content)
-
             link = entry.get("link", "")
 
+            # QUI: niente topic nel costruttore, per evitare l'errore
             art = RawArticle(
                 title=clean_title,
                 url=link,
                 source=name,
                 content=clean_content,
-                published_at=pub_date,   # UTC aware
-                topic=topic,
+                published_at=pub_date,  # UTC aware
             )
+            # ma lo salviamo comunque come attributo per il resto del codice
+            try:
+                setattr(art, "topic", topic)
+            except Exception:
+                # se RawArticle è una namedtuple/immutabile, ignoriamo il topic
+                pass
+
             articles.append(art)
 
     print(f"[RSS] Total collected (after cleaning titles/content): {len(articles)}")
@@ -218,7 +221,7 @@ def rank_articles(articles: List[RawArticle]) -> List[RawArticle]:
         text = (article.content or "").lower() + " " + (article.title or "").lower()
         for k in keywords:
             if k in text:
-                score_val += 6  # piccolo boost per keyword
+                score_val += 6
 
         return score_val
 
