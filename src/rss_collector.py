@@ -2,9 +2,8 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from datetime import datetime, timedelta, timezone
 from typing import List, Dict
-from datetime import datetime, timedelta
 
 import feedparser
 from bs4 import BeautifulSoup
@@ -63,16 +62,26 @@ def _clean_content(raw: str) -> str:
 
 
 def _parse_date(entry) -> datetime:
-    # prova published, poi updated, altrimenti ora
+    """
+    Ritorna un datetime *aware* in UTC.
+    """
     for field in ("published", "updated"):
         val = entry.get(field)
         if not val:
             continue
         try:
-            return dateparser.parse(val)
+            dt = dateparser.parse(val)
+            # normalizza: sempre UTC aware
+            if dt.tzinfo is not None:
+                dt = dt.astimezone(timezone.utc)
+            else:
+                dt = dt.replace(tzinfo=timezone.utc)
+            return dt
         except Exception:
             continue
-    return datetime.utcnow()
+
+    # fallback: adesso in UTC, aware
+    return datetime.now(timezone.utc)
 
 
 # -------------------------------------------------
@@ -88,8 +97,10 @@ def collect_from_rss(feeds: List[Dict]) -> List[RawArticle]:
       - enabled
     """
     articles: List[RawArticle] = []
-    now = datetime.utcnow()
-    cutoff = now - timedelta(days=2)  # prendiamo solo ultime 48h per sicurezza
+
+    # cutoff aware in UTC (ultime 48h)
+    now = datetime.now(timezone.utc)
+    cutoff = now - timedelta(days=2)
 
     for feed_cfg in feeds:
         if not feed_cfg.get("enabled", True):
@@ -106,11 +117,9 @@ def collect_from_rss(feeds: List[Dict]) -> List[RawArticle]:
         parsed = feedparser.parse(url)
 
         for entry in parsed.entries:
-            try:
-                pub_date = _parse_date(entry)
-            except Exception:
-                pub_date = now
+            pub_date = _parse_date(entry)
 
+            # confrontiamo aware vs aware → OK
             if pub_date < cutoff:
                 continue
 
@@ -125,7 +134,7 @@ def collect_from_rss(feeds: List[Dict]) -> List[RawArticle]:
 
             final_content = raw_content or raw_summary
 
-            clean_title = _clean_title(raw_title)      # <-- FIX FIERCE QUI
+            clean_title = _clean_title(raw_title)      # <-- FIX titolo
             clean_content = _clean_content(final_content)
 
             link = entry.get("link", "")
@@ -135,7 +144,7 @@ def collect_from_rss(feeds: List[Dict]) -> List[RawArticle]:
                 url=link,
                 source=name,
                 content=clean_content,
-                published_at=pub_date,
+                published_at=pub_date,   # UTC aware
                 topic=topic,
             )
             articles.append(art)
@@ -172,7 +181,6 @@ def rank_articles(articles: List[RawArticle]) -> List[RawArticle]:
         "McKinsey",
     ]
 
-    # estendo con i temi che ti interessano di più
     keywords = [
         # AI / Cloud / Edge / Agentic
         "ai", "gen ai", "artificial intelligence",
@@ -185,34 +193,34 @@ def rank_articles(articles: List[RawArticle]) -> List[RawArticle]:
         # Crypto / Web3
         "crypto", "bitcoin", "btc", "ethereum", "ether", "eth", "defi", "web3",
 
-        # Satellite / LEO / Starlink / Amazon LEO project Kuiper
+        # Satellite / LEO / Starlink / Kuiper
         "satellite", "satcom", "leo", "starlink", "oneweb", "kuiper", "amazon leo",
 
-        # Data / infra
+        # Data / infra / robotics
         "data center", "datacenter", "infrastructure", "hyperscaler",
         "robot", "robotics", "automation",
     ]
 
     def score(article: RawArticle) -> int:
-        score = 0
+        score_val = 0
 
         # 1) Fonte autorevole
         src_lower = (article.source or "").lower()
         for s in authoritative_sources:
             if s.lower() in src_lower:
-                score += 50
+                score_val += 50
                 break
 
-        # 2) Lunghezza contenuto
-        score += min(len(article.content or "") // 250, 50)
+        # 2) Lunghezza contenuto (max +50)
+        score_val += min(len(article.content or "") // 250, 50)
 
         # 3) Parole chiave
         text = (article.content or "").lower() + " " + (article.title or "").lower()
         for k in keywords:
             if k in text:
-                score += 6  # leggero boost per ogni keyword rilevante
+                score_val += 6  # piccolo boost per keyword
 
-        return score
+        return score_val
 
     ranked = sorted(articles, key=score, reverse=True)
     return ranked
