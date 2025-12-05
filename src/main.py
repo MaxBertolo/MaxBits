@@ -39,7 +39,6 @@ def load_rss_sources() -> list:
         data = yaml.safe_load(f)
     return data.get("feeds", [])
 
-
 WATCHLIST_TOPICS_ORDER = [
     "TV/Streaming",
     "Telco/5G",
@@ -49,6 +48,7 @@ WATCHLIST_TOPICS_ORDER = [
     "Robotics/Automation",
     "Broadcast/Video",
     "Satellite/Satcom",
+    "CorCom/Digital"
 ]
 
 
