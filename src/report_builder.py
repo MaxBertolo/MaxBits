@@ -1,10 +1,4 @@
 # src/report_builder.py
-#
-# HTML report builder for MaxBits Daily:
-# - 3 deep-dives with structured fields
-# - curated watchlist by topic
-# - local "Weekly" selection via checkboxes + localStorage
-# - history box (last 7 daily reports, filled via window.MAXBITS_HISTORY)
 
 from __future__ import annotations
 from html import escape
@@ -49,7 +43,7 @@ def _render_deep_dives(deep_dives: List[Dict]) -> str:
     """
     deep_dives: lista di dict con chiavi:
       - id
-      - title (copiata 1:1 dal feed, ma normalizzata per togliere newlines)
+      - title  (COPIATO 1:1 da RawArticle.title, solo escape HTML)
       - url, source, topic
       - what_it_is, who, what_it_does, why_it_matters, strategic_view
     """
@@ -61,10 +55,9 @@ def _render_deep_dives(deep_dives: List[Dict]) -> str:
     for idx, item in enumerate(deep_dives):
         art_id = escape(item.get("id") or f"deep_{idx+1}")
 
-        # titolo: manteniamo il testo ma rimuoviamo newlines / doppi spazi
+        # 👉 NESSUNA “pulizia intelligente”: solo escape HTML
         raw_title = item.get("title", "") or ""
-        clean_title = " ".join(str(raw_title).split())
-        title = escape(clean_title)
+        title = escape(raw_title)
 
         url = item.get("url") or "#"
         source = escape(item.get("source", ""))
@@ -122,8 +115,7 @@ def _render_watchlist_section(title: str, items: List[Dict]) -> str:
         aid = escape(art.get("id") or f"wl_{title}_{i}")
 
         raw_title = art.get("title", "") or ""
-        clean_title = " ".join(str(raw_title).split())
-        t = escape(clean_title)
+        t = escape(raw_title)   # anche qui: zero manipolazioni, solo escape
 
         u = art.get("url") or "#"
         s = escape(art.get("source", ""))
@@ -200,7 +192,6 @@ def build_html_report(*, deep_dives, watchlist, date_str: str) -> str:
   <title>MaxBits · Daily Tech Watch · {escape(date_str)}</title>
 
   <style>
-    /* Base */
     body {{
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
       font-size: 14px;
@@ -218,7 +209,6 @@ def build_html_report(*, deep_dives, watchlist, date_str: str) -> str:
       box-shadow: 0 0 12px rgba(0, 0, 0, 0.05);
     }}
 
-    /* Typography */
     .title {{
       margin: 0;
       font-size: 26px;
@@ -234,6 +224,7 @@ def build_html_report(*, deep_dives, watchlist, date_str: str) -> str:
       font-size: 13px;
       color: #555;
     }}
+
     h2 {{
       font-size: 20px;
       margin: 0 0 10px 0;
@@ -245,7 +236,6 @@ def build_html_report(*, deep_dives, watchlist, date_str: str) -> str:
 
     .mb-24 {{ margin-bottom: 24px; }}
 
-    /* Weekly bar */
     .weekly-bar {{
       margin-top: 12px;
       display: flex;
@@ -270,7 +260,6 @@ def build_html_report(*, deep_dives, watchlist, date_str: str) -> str:
       color: #777;
     }}
 
-    /* History box */
     .history-box {{
       margin-top: 14px;
       padding: 10px 12px;
@@ -285,7 +274,6 @@ def build_html_report(*, deep_dives, watchlist, date_str: str) -> str:
       color: #333;
     }}
 
-    /* Deep dives */
     .deep-dive {{
       margin-bottom: 24px;
       padding-bottom: 16px;
@@ -321,7 +309,6 @@ def build_html_report(*, deep_dives, watchlist, date_str: str) -> str:
       font-size: 11px;
     }}
 
-    /* Watchlist */
     .watch-section {{
       margin-top: 18px;
       page-break-inside: avoid;
@@ -345,7 +332,6 @@ def build_html_report(*, deep_dives, watchlist, date_str: str) -> str:
       margin-left: 4px;
     }}
 
-    /* Links */
     .link-article {{
       color: #0052cc;
       text-decoration: none;
@@ -354,7 +340,6 @@ def build_html_report(*, deep_dives, watchlist, date_str: str) -> str:
       text-decoration: underline;
     }}
 
-    /* PDF support */
     @page {{
       margin: 16mm 14mm;
     }}
