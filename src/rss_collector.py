@@ -26,6 +26,9 @@ def collect_from_rss(feeds_config) -> List[RawArticle]:
     """
     Legge tutti i feed RSS indicati in feeds_config (lista di dict con name, url)
     e restituisce una lista di RawArticle (NON puliti, NON deduplicati).
+
+    Qualsiasi errore di rete su un singolo feed viene loggato e ignorato,
+    così il workflow non fallisce per un RemoteDisconnected o simili.
     """
     articles: List[RawArticle] = []
 
@@ -34,25 +37,48 @@ def collect_from_rss(feeds_config) -> List[RawArticle]:
         url = feed_cfg["url"]
 
         print(f"[RSS] Fetching feed: {name} – {url}")
-        parsed = feedparser.parse(url)
 
-        for entry in parsed.entries:
-            published_at = parse_datetime(entry)
-            content = (
-                entry.get("summary", "")
-                or entry.get("description", "")
-                or ""
-            )
+        # ---- fetch robusto del feed ----
+        try:
+            parsed = feedparser.parse(url)
+        except Exception as e:
+            print(f"[RSS][ERROR] {name}: failed to fetch/parse feed ({repr(e)}). Skipping this feed.")
+            continue
 
-            art = RawArticle(
-                id=entry.get("id", entry.get("link", "")),
-                title=(entry.get("title") or "").strip(),
-                url=entry.get("link", ""),
-                source=name,
-                published_at=published_at,
-                content=content,
-            )
-            articles.append(art)
+        # Anche quando feedparser non lancia eccezione può mettere bozo=True
+        if getattr(parsed, "bozo", False):
+            err = getattr(parsed, "bozo_exception", None)
+            print(f"[RSS][WARN] {name}: bozo feed ({repr(err)}). Continuing with whatever entries are available.")
+
+        # ---- parsing delle entry, con guard-rail ----
+        try:
+            entries = parsed.entries or []
+        except Exception as e:
+            print(f"[RSS][ERROR] {name}: cannot read entries ({repr(e)}). Skipping this feed.")
+            continue
+
+        for entry in entries:
+            try:
+                published_at = parse_datetime(entry)
+                content = (
+                    entry.get("summary", "")
+                    or entry.get("description", "")
+                    or ""
+                )
+
+                art = RawArticle(
+                    id=entry.get("id", entry.get("link", "")),
+                    title=(entry.get("title") or "").strip(),
+                    url=entry.get("link", ""),
+                    source=name,
+                    published_at=published_at,
+                    content=content,
+                )
+                articles.append(art)
+            except Exception as e:
+                # Problema su una singola entry: la saltiamo, ma continuiamo
+                print(f"[RSS][WARN] {name}: skipping one entry due to error ({repr(e)}).")
+                continue
 
     print(f"[RSS] Total raw articles collected: {len(articles)}")
     return articles
@@ -68,7 +94,6 @@ def rank_articles(articles: List[RawArticle]) -> List[RawArticle]:
       3) Presenza di parole chiave tecnologiche (ai, cloud, 5G, space, crypto, ecc.)
     """
 
-    # NIENTE Fierce Telecom qui
     authoritative_sources = [
         "TechCrunch",
         "The Verge",
@@ -87,13 +112,12 @@ def rank_articles(articles: List[RawArticle]) -> List[RawArticle]:
         "Corriere Comunicazioni",
     ]
 
-    # parole chiave potenziate (inclusi crypto, LEO, Starlink, edge cloud, agenti, ecc.)
     keywords = [
         "ai", "artificial intelligence", "machine learning", "deep learning",
         "gen ai", "generative ai", "llm", "agentic", "autonomous agent",
         "5g", "6g", "fiber", "fibre", "backhaul", "telco", "network",
         "cloud", "edge", "edge cloud", "data center", "datacenter",
-        "satellite", "space", "orbit", "orbital", "leo", "mEO", "geo",
+        "satellite", "space", "orbit", "orbital", "leo", "meo", "geo",
         "starlink", "kuiper",
         "robot", "robotics", "automation",
         "broadcast", "streaming", "ott", "video processing",
@@ -104,16 +128,13 @@ def rank_articles(articles: List[RawArticle]) -> List[RawArticle]:
     def score(article: RawArticle) -> int:
         score = 0
 
-        # 1) Fonte autorevole
         for s in authoritative_sources:
             if s.lower() in article.source.lower():
                 score += 50
                 break
 
-        # 2) Lunghezza del contenuto (max +50)
         score += min(len(article.content) // 200, 50)
 
-        # 3) Parole chiave
         text = (article.content or "").lower()
         score += sum(5 for k in keywords if k in text)
 
