@@ -21,8 +21,8 @@ feeds:
   # --- TELECOM / NETWORK / 5G / FIBER ---
   - name: Light Reading – Telecom
     url: https://www.lightreading.com/rss_simple.asp?f_id=52
-  - name: Fierce Telecom
-    url: https://www.fiercetelecom.com/rss/xml
+  - name: "Corriere Comunicazioni"
+    url: "https://www.corrierecomunicazioni.it/feed/"
   - name: Telecoms.com
     url: https://telecoms.com/feed/
   - name: Capacity Media – Telecom
