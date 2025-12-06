@@ -99,13 +99,62 @@ def _build_history_list(reports: List[Dict]) -> str:
     return "\n".join(items_html)
 
 
+def _format_date_dd_mm_yyyy(date_str: str) -> str:
+    """
+    Converte 'YYYY-MM-DD' in 'dd-mm.yyyy', es: 2025-12-05 -> 05-12.2025
+    """
+    try:
+        y, m, d = date_str.split("-")
+        return f"{d}-{m}.{y}"
+    except Exception:
+        return date_str
+
+
 def _build_latest_embed(reports: List[Dict]) -> str:
+    """
+    Mostra:
+      - iframe con il report più recente
+      - sotto, link ai PDF (o HTML se manca il PDF) dei 6 giorni precedenti
+        con etichetta 'Report – gg-mm.yyyy'
+    """
     if not reports:
         return "<p>No latest report to display.</p>"
 
     latest = reports[0]
     date = latest["date"]
     html_rel = f"reports/html/{latest['html_file'].name}"
+
+    # 6 giorni precedenti
+    previous = reports[1:7]
+    if previous:
+        prev_items: List[str] = []
+        for r in previous:
+            d = r["date"]
+            label = _format_date_dd_mm_yyyy(d)
+
+            if r["pdf_file"] is not None:
+                link_rel = f"reports/pdf/{r['pdf_file'].name}"
+            else:
+                # se non c'è il PDF, link all'HTML
+                link_rel = f"reports/html/{r['html_file'].name}"
+
+            prev_items.append(
+                f"<li><a href=\"{link_rel}\" target=\"_blank\" rel=\"noopener\">"
+                f"Report – {label}</a></li>"
+            )
+
+        previous_html = f"""
+<div style="margin-top:16px;">
+  <h3 style="margin:0 0 6px 0; font-size:14px; color:#444;">
+    Previous 6 daily reports (PDF)
+  </h3>
+  <ul style="margin:4px 0 0 18px; padding:0; font-size:13px; color:#333;">
+    {''.join(prev_items)}
+  </ul>
+</div>
+"""
+    else:
+        previous_html = ""
 
     return f"""
 <h2 style="margin:16px 0 8px 0; font-size:18px;">Latest report · {date}</h2>
@@ -120,6 +169,7 @@ def _build_latest_embed(reports: List[Dict]) -> str:
     box-shadow: 0 0 8px rgba(0,0,0,0.04);
   ">
 </iframe>
+{previous_html}
 """
 
 
