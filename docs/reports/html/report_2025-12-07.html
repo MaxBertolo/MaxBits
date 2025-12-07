@@ -54,11 +54,11 @@
   </p>
 
   <ul style="margin:10px 0 0 20px; padding:0; font-size:14px;">
-    <li><strong>What it is:</strong> AI coding agents are advanced tools leveraging large language models to assist engineers in generating and modifying software code.</li>
-    <li><strong>Who:</strong> Software development teams and technology leaders in enterprise environments are attempting to integrate these agents into their complex production workflows.</li>
-    <li><strong>What it does:</strong> These agents currently struggle with large codebases, lack operational context, exhibit repetitive errors, and often fail to adhere to enterprise security and coding standards.</li>
-    <li><strong>Why it matters:</strong> Their current limitations lead to increased developer oversight, necessitate manual debugging, introduce tech debt, and pose significant security and operational risks for businesses.</li>
-    <li><strong>Strategic view:</strong> C-levels must approach AI coding agent adoption cautiously, focusing on supervised integration for specific tasks while investing in robust validation and human oversight to mitigate risks.</li>
+    <li><strong>What it is:</strong> This article critically assesses the current state of AI coding agents, concluding they are not yet production-ready for complex, enterprise-level software development due to significant practical limitations.</li>
+    <li><strong>Who:</strong> Software engineers and development teams within large enterprises are the primary audience, facing practical challenges when attempting to deploy modern AI coding agents.</li>
+    <li><strong>What it does:</strong> It highlights how AI coding agents struggle with large codebases, lack environmental context, repeatedly hallucinate, and fail to implement enterprise-grade security and coding best practices.</li>
+    <li><strong>Why it matters:</strong> The noted deficiencies mean AI coding agents cannot independently deliver reliable, scalable, or secure code, thus requiring extensive human oversight and debugging, impacting development efficiency and trust.</li>
+    <li><strong>Strategic view:</strong> C-level executives should temper expectations for fully autonomous AI code generation, prioritizing strategic investments in human-AI collaboration tools and robust validation processes over rapid, unverified agent deployment.</li>
   </ul>
 
   <label style="margin-top:10px; display:inline-flex; gap:6px; font-size:13px; color:#333;">
@@ -161,6 +161,11 @@
   </section>
 
 </div>
+
+<script>
+  // History payload injected from backend (last 7 daily reports)
+  window.MAXBITS_HISTORY = [{"date": "2025-12-07", "html": "report_2025-12-07.html", "pdf": "../pdf/report_2025-12-07.pdf"}];
+</script>
 
 <script>
 (function() {
@@ -276,11 +281,14 @@
       return;
     }
 
-    ul.innerHTML = hist.slice(0,7).map(it =>
-      "<li><strong>" + it.date + "</strong> – " +
-      "<a href='" + it.html + "' target='_blank' rel='noopener'>HTML</a> · " +
-      "<a href='" + it.pdf + "' target='_blank' rel='noopener'>PDF</a></li>"
-    ).join("");
+    ul.innerHTML = hist.map(it => {
+      const pdfPart = it.pdf
+        ? " · <a href='" + it.pdf + "' target='_blank' rel='noopener'>PDF</a>"
+        : "";
+      return "<li><strong>" + it.date + "</strong> – " +
+             "<a href='" + it.html + "' target='_blank' rel='noopener'>HTML</a>" +
+             pdfPart + "</li>";
+    }).join("");
   }
 
   document.addEventListener("DOMContentLoaded", () => {
