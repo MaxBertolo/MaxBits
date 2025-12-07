@@ -5,15 +5,20 @@ from __future__ import annotations
 from typing import List, Dict
 import re
 from datetime import datetime
+from pathlib import Path
+
+import yaml
 
 from .models import RawArticle
 
 
 # -------------------------------------------------------
-# CONFIG: CEO + KEYWORDS
+# CONFIG: LOAD CEO LIST FROM YAML (WITH DEFAULTS)
 # -------------------------------------------------------
 
-CEOS = [
+BASE_DIR = Path(__file__).resolve().parent.parent
+
+DEFAULT_CEOS = [
     {"name": "Tim Cook",       "company": "Apple"},
     {"name": "Satya Nadella",  "company": "Microsoft"},
     {"name": "Sundar Pichai",  "company": "Alphabet / Google"},
@@ -23,6 +28,56 @@ CEOS = [
     {"name": "Larry Fink",     "company": "BlackRock"},
     {"name": "Jensen Huang",   "company": "NVIDIA"},
 ]
+
+
+def load_ceo_config() -> List[Dict[str, str]]:
+    """
+    Carica la lista CEO da config/ceo_pov.yaml.
+    Formato atteso:
+
+    ceos:
+      - name: "Tim Cook"
+        company: "Apple"
+      ...
+
+    Se il file manca, è malformato o vuoto → usa DEFAULT_CEOS.
+    """
+    cfg_path = BASE_DIR / "config" / "ceo_pov.yaml"
+    if not cfg_path.exists():
+        print(f"[CEO_POV] Config file not found: {cfg_path} – using DEFAULT_CEOS.")
+        return DEFAULT_CEOS
+
+    try:
+        with cfg_path.open("r", encoding="utf-8") as f:
+            data = yaml.safe_load(f) or {}
+    except Exception as e:
+        print(f"[CEO_POV] Error reading {cfg_path}: {repr(e)} – using DEFAULT_CEOS.")
+        return DEFAULT_CEOS
+
+    ceos = data.get("ceos") or []
+    cleaned: List[Dict[str, str]] = []
+    for entry in ceos:
+        if not isinstance(entry, dict):
+            continue
+        name = (entry.get("name") or "").strip()
+        company = (entry.get("company") or "").strip()
+        if not name:
+            continue
+        if not company:
+            company = "Unknown"
+        cleaned.append({"name": name, "company": company})
+
+    if not cleaned:
+        print(f"[CEO_POV] No valid ceos in {cfg_path} – using DEFAULT_CEOS.")
+        return DEFAULT_CEOS
+
+    print(f"[CEO_POV] Loaded {len(cleaned)} CEOs from {cfg_path}.")
+    return cleaned
+
+
+# -------------------------------------------------------
+# KEYWORDS & REGEX
+# -------------------------------------------------------
 
 AI_KEYWORDS = [
     "ai",
@@ -54,7 +109,6 @@ SPACE_KEYWORDS = [
     "rocket",
     "spacecraft",
 ]
-
 
 # Frasi tra virgolette “...” o "..."
 QUOTE_RE = re.compile(r"[\"“](.{20,280}?)[\"”]", re.IGNORECASE | re.DOTALL)
@@ -120,6 +174,8 @@ def collect_ceo_pov(
     if not articles:
         return results
 
+    ceos = load_ceo_config()
+
     for art in articles:
         if len(results) >= max_items:
             break
@@ -128,7 +184,7 @@ def collect_ceo_pov(
         full_text = f"{art.title or ''} {art.content or ''}"
         full_norm = _norm(full_text)
 
-        for ceo in CEOS:
+        for ceo in ceos:
             ceo_name = ceo["name"]
             ceo_company = ceo["company"]
 
