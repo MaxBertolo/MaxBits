@@ -12,6 +12,9 @@ from .pdf_export import html_to_pdf
 from .email_sender import send_report_email
 from .telegram_sender import send_telegram_pdf
 
+from .ceo_pov_collector import collect_ceo_pov
+from .patent_collector import collect_patent_publications
+
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -208,7 +211,6 @@ def main():
             "[WARN] No recent articles after cleaning. "
             "Falling back to top raw articles (ignoring recency window)."
         )
-        # Usiamo comunque i primi max_articles_for_cleaning articoli grezzi
         cleaned = raw_articles[:max_articles_for_cleaning]
         print(f"[WARN] Fallback: using {len(cleaned)} raw articles as cleaned set.")
 
@@ -250,21 +252,49 @@ def main():
         summaries=deep_dives_summaries,
     )
 
-    # 7) Salva JSON deep-dives
+    # 7) CEO POV + PATENT WATCH
+    print("Collecting CEO POV items...")
+    ceo_pov_items = collect_ceo_pov(
+        articles=ranked,   # usiamo gli articoli già rankati
+        max_items=5,
+    )
+    print(f"[CEO_POV] Collected {len(ceo_pov_items)} items.")
+
+    print("Collecting Patent publications (EU/US)...")
+    date_str = today_str()
+    patents_items = collect_patent_publications(
+        today_date_str=date_str,   # il collector usa 'yesterday'
+        max_items=20,
+    )
+    print(f"[PATENTS] Collected {len(patents_items)} items.")
+
+    # 8) Salva JSON (deep-dives + CEO POV + PATENTS)
     json_dir = Path("reports/json")
     json_dir.mkdir(parents=True, exist_ok=True)
-    date_str = today_str()
-    json_path = json_dir / f"deep_dives_{date_str}.json"
-    with open(json_path, "w", encoding="utf-8") as jf:
-        json.dump(deep_dives_payload, jf, ensure_ascii=False, indent=2)
-    print(f"[DEBUG] Saved deep-dives JSON to: {json_path}")
 
-    # 8) HTML
+    deep_json_path = json_dir / f"deep_dives_{date_str}.json"
+    with open(deep_json_path, "w", encoding="utf-8") as jf:
+        json.dump(deep_dives_payload, jf, ensure_ascii=False, indent=2)
+    print(f"[DEBUG] Saved deep-dives JSON to: {deep_json_path}")
+
+    ceo_json_path = json_dir / f"ceo_pov_{date_str}.json"
+    with open(ceo_json_path, "w", encoding="utf-8") as jf:
+        json.dump(ceo_pov_items, jf, ensure_ascii=False, indent=2)
+    print(f"[DEBUG] Saved CEO POV JSON to: {ceo_json_path}")
+
+    patents_json_path = json_dir / f"patents_{date_str}.json"
+    with open(patents_json_path, "w", encoding="utf-8") as jf:
+        json.dump(patents_items, jf, ensure_ascii=False, indent=2)
+    print(f"[DEBUG] Saved patents JSON to: {patents_json_path}")
+
+    # 9) HTML
     print("Building HTML report...")
     html = build_html_report(
         deep_dives=deep_dives_payload,
         watchlist=watchlist_grouped,
         date_str=date_str,
+        ceo_pov=ceo_pov_items,
+        patents=patents_items,
     )
 
     html_dir.mkdir(parents=True, exist_ok=True)
@@ -283,7 +313,7 @@ def main():
     print("Done. HTML report:", html_path)
     print("Done. PDF report:", pdf_path)
 
-    # 9) Email
+    # 10) Email
     print("Sending report via email...")
     try:
         send_report_email(
@@ -296,7 +326,7 @@ def main():
         print("[EMAIL] Unhandled error while sending email:", repr(e))
         print("[EMAIL] Continuing anyway – report generation completed.")
 
-    # 10) Telegram (PDF al bot)
+    # 11) Telegram (PDF al bot)
     print("Sending report PDF to Telegram...")
     try:
         send_telegram_pdf(
