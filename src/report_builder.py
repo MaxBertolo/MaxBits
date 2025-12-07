@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from html import escape
 from typing import List, Dict
+import json
 
 
 # -------------------------------------------------------
@@ -321,12 +322,14 @@ def build_html_report(
     date_str: str,
     ceo_pov: list | None = None,
     patents: list | None = None,
+    history: list | None = None,
 ) -> str:
     header = _render_header(date_str)
     deep_html = _render_deep_dives(deep_dives)
     wl_html = _render_watchlist(watchlist)
     ceo_html = _render_ceo_pov(ceo_pov or [])
     patents_html = _render_patents(patents or [])
+    history_js = json.dumps(history or [], ensure_ascii=False)
 
     return f"""<!DOCTYPE html>
 <html lang="en">
@@ -360,6 +363,11 @@ def build_html_report(
   </section>
 
 </div>
+
+<script>
+  // History payload injected from backend (last 7 daily reports)
+  window.MAXBITS_HISTORY = {history_js};
+</script>
 
 <script>
 (function() {{
@@ -475,11 +483,14 @@ def build_html_report(
       return;
     }}
 
-    ul.innerHTML = hist.slice(0,7).map(it =>
-      "<li><strong>" + it.date + "</strong> – " +
-      "<a href='" + it.html + "' target='_blank' rel='noopener'>HTML</a> · " +
-      "<a href='" + it.pdf + "' target='_blank' rel='noopener'>PDF</a></li>"
-    ).join("");
+    ul.innerHTML = hist.map(it => {{
+      const pdfPart = it.pdf
+        ? " · <a href='" + it.pdf + "' target='_blank' rel='noopener'>PDF</a>"
+        : "";
+      return "<li><strong>" + it.date + "</strong> – " +
+             "<a href='" + it.html + "' target='_blank' rel='noopener'>HTML</a>" +
+             pdfPart + "</li>";
+    }}).join("");
   }}
 
   document.addEventListener("DOMContentLoaded", () => {{
