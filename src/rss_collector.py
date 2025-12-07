@@ -8,6 +8,7 @@ from typing import List
 import feedparser
 
 from .models import RawArticle
+from .ceo_pov_collector import load_ceo_config
 
 
 def parse_datetime(entry) -> datetime:
@@ -84,6 +85,11 @@ def collect_from_rss(feeds_config) -> List[RawArticle]:
     return articles
 
 
+# Precarichiamo i CEO per dare un piccolo boost agli articoli che li citano
+_CEO_CFG = load_ceo_config()
+_CEO_NAMES_LOWER = [c["name"].lower() for c in _CEO_CFG]
+
+
 def rank_articles(articles: List[RawArticle]) -> List[RawArticle]:
     """
     Seleziona e ordina le 15 migliori notizie.
@@ -92,6 +98,7 @@ def rank_articles(articles: List[RawArticle]) -> List[RawArticle]:
       1) Fonti più autorevoli (peso alto)
       2) Lunghezza del contenuto (articoli più ricchi)
       3) Presenza di parole chiave tecnologiche (ai, cloud, 5G, space, crypto, ecc.)
+      4) MICRO-BOOST agli articoli che citano uno dei CEO in config/ceo_pov.yaml
     """
 
     authoritative_sources = [
@@ -126,19 +133,29 @@ def rank_articles(articles: List[RawArticle]) -> List[RawArticle]:
     ]
 
     def score(article: RawArticle) -> int:
-        score = 0
+        score_val = 0
 
+        # 1) Fonte autorevole
         for s in authoritative_sources:
             if s.lower() in article.source.lower():
-                score += 50
+                score_val += 50
                 break
 
-        score += min(len(article.content) // 200, 50)
+        # 2) Lunghezza contenuto
+        score_val += min(len(article.content) // 200, 50)
 
+        # 3) Keyword tecnologiche
         text = (article.content or "").lower()
-        score += sum(5 for k in keywords if k in text)
+        score_val += sum(5 for k in keywords if k in text)
 
-        return score
+        # 4) Micro-boost CEO
+        title_text = (article.title or "").lower()
+        full_text = f"{title_text} {text}"
+        if any(ceo_name in full_text for ceo_name in _CEO_NAMES_LOWER):
+            # Boost moderato: vogliamo che emergano, ma senza distruggere il ranking base
+            score_val += 25
+
+        return score_val
 
     ranked = sorted(articles, key=score, reverse=True)
     top = ranked[:15]
