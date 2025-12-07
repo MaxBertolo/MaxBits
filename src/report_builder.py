@@ -192,13 +192,141 @@ def _render_watchlist(watchlist: Dict[str, List[Dict]]) -> str:
 
 
 # -------------------------------------------------------
+# CEO POV SECTION
+# -------------------------------------------------------
+
+def _render_ceo_pov(ceo_items: List[Dict]) -> str:
+    if not ceo_items:
+        return """
+<section style="margin-top:30px;">
+  <h2 style="margin:0 0 8px 0; font-size:20px;">CEO POV – AI & Space Economy</h2>
+  <p style="margin:0; font-size:13px; color:#777;">
+    No relevant CEO quotes detected today.
+  </p>
+</section>
+"""
+
+    cards = []
+    for item in ceo_items:
+        ceo = escape(item.get("ceo", ""))
+        company = escape(item.get("company", ""))
+        topic = escape(item.get("topic", ""))
+        quote = escape(item.get("quote", ""))
+        source = escape(item.get("source", ""))
+        url = item.get("source_url") or "#"
+        ctx = escape(item.get("context", "") or "")
+        published_at = escape(item.get("published_at", "") or "")
+        tags = item.get("tags") or []
+        tags_str = ", ".join(escape(t) for t in tags)
+
+        cards.append(f"""
+<article style="margin-bottom:16px; padding:10px 12px; border-radius:6px; border:1px solid #eee; background:#fafafa;">
+  <p style="margin:0 0 4px 0; font-size:13px; color:#555;">
+    <strong>{ceo}</strong> · {company} · <span style="color:#006644;">{topic}</span>
+  </p>
+  <p style="margin:4px 0; font-size:14px; line-height:1.4;">
+    “{quote}”
+  </p>
+  <p style="margin:4px 0 0 0; font-size:12px; color:#777;">
+    {ctx if ctx else ""} {("· " + published_at) if published_at else ""}
+    {("· Tags: " + tags_str) if tags_str else ""}
+  </p>
+  <p style="margin:4px 0 0 0; font-size:12px; color:#555;">
+    Source: <a href="{url}" target="_blank" rel="noopener" style="color:#0052CC;">{source}</a>
+  </p>
+</article>
+""")
+
+    return f"""
+<section style="margin-top:30px;">
+  <h2 style="margin:0 0 8px 0; font-size:20px;">CEO POV – AI & Space Economy</h2>
+  {''.join(cards)}
+</section>
+"""
+
+
+# -------------------------------------------------------
+# PATENT WATCH SECTION
+# -------------------------------------------------------
+
+def _render_patents(patents: List[Dict]) -> str:
+    if not patents:
+        return """
+<section style="margin-top:30px;">
+  <h2 style="margin:0 0 8px 0; font-size:20px;">Patent Watch – Compute / Video / Data / Cloud (EU/US)</h2>
+  <p style="margin:0; font-size:13px; color:#777;">
+    No relevant patent publications detected for this day (or collector not yet configured).
+  </p>
+</section>
+"""
+
+    rows = []
+    for p in patents:
+        office = escape(p.get("office", ""))
+        pub_num = escape(p.get("publication_number", ""))
+        title = escape(p.get("title", ""))
+        url = p.get("source_url") or "#"
+        applicant_list = p.get("applicants") or []
+        applicant = ", ".join(escape(a) for a in applicant_list) if applicant_list else ""
+        if not applicant:
+            applicant = escape(p.get("assignee", "") or "")
+        tags = ", ".join(escape(t) for t in p.get("tags", []))
+        pub_date = escape(p.get("publication_date", "") or "")
+
+        rows.append(f"""
+<tr>
+  <td style="padding:4px 6px; border-top:1px solid #eee; white-space:nowrap; font-size:12px;">{office}</td>
+  <td style="padding:4px 6px; border-top:1px solid #eee; white-space:nowrap; font-size:12px;">{pub_num}</td>
+  <td style="padding:4px 6px; border-top:1px solid #eee; font-size:13px;">
+    <a href="{url}" target="_blank" rel="noopener" style="color:#0052CC; text-decoration:none;">{title}</a>
+  </td>
+  <td style="padding:4px 6px; border-top:1px solid #eee; font-size:12px;">{applicant}</td>
+  <td style="padding:4px 6px; border-top:1px solid #eee; font-size:12px;">{tags}</td>
+  <td style="padding:4px 6px; border-top:1px solid #eee; white-space:nowrap; font-size:12px;">{pub_date}</td>
+</tr>
+""")
+
+    return f"""
+<section style="margin-top:30px;">
+  <h2 style="margin:0 0 8px 0; font-size:20px;">Patent Watch – Compute / Video / Data / Cloud (EU/US)</h2>
+  <div style="overflow-x:auto;">
+    <table style="border-collapse:collapse; width:100%; font-size:13px;">
+      <thead>
+        <tr style="background:#f5f5f5;">
+          <th style="text-align:left; padding:4px 6px; font-size:12px;">Office</th>
+          <th style="text-align:left; padding:4px 6px; font-size:12px;">Publication</th>
+          <th style="text-align:left; padding:4px 6px; font-size:12px;">Title</th>
+          <th style="text-align:left; padding:4px 6px; font-size:12px;">Applicant / Assignee</th>
+          <th style="text-align:left; padding:4px 6px; font-size:12px;">Tags</th>
+          <th style="text-align:left; padding:4px 6px; font-size:12px;">Pub. date</th>
+        </tr>
+      </thead>
+      <tbody>
+        {''.join(rows)}
+      </tbody>
+    </table>
+  </div>
+</section>
+"""
+
+
+# -------------------------------------------------------
 # HTML GENERATION
 # -------------------------------------------------------
 
-def build_html_report(*, deep_dives, watchlist, date_str: str) -> str:
+def build_html_report(
+    *,
+    deep_dives,
+    watchlist,
+    date_str: str,
+    ceo_pov: list | None = None,
+    patents: list | None = None,
+) -> str:
     header = _render_header(date_str)
     deep_html = _render_deep_dives(deep_dives)
     wl_html = _render_watchlist(watchlist)
+    ceo_html = _render_ceo_pov(ceo_pov or [])
+    patents_html = _render_patents(patents or [])
 
     return f"""<!DOCTYPE html>
 <html lang="en">
@@ -221,6 +349,10 @@ def build_html_report(*, deep_dives, watchlist, date_str: str) -> str:
     <h2 style="margin:0 0 12px 0; font-size:22px;">3 deep-dives you should really read</h2>
     {deep_html}
   </section>
+
+  {ceo_html}
+
+  {patents_html}
 
   <section style="margin-top:30px;">
     <h2 style="margin:0 0 12px 0; font-size:20px;">Curated watchlist · 3–5 links per topic</h2>
