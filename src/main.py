@@ -1,5 +1,5 @@
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Dict, List
 import json
 import yaml
@@ -166,6 +166,66 @@ def build_deep_dives_payload(
     return payload
 
 
+# -------------------------
+#   HISTORY FOR FRONTEND
+# -------------------------
+
+def build_history_payload(
+    date_str: str,
+    html_dir: Path,
+    pdf_dir: Path,
+    file_prefix: str,
+    max_reports: int = 7,
+) -> List[Dict]:
+    """
+    Costruisce lista degli ultimi report (oggi + fino a 6 giorni prima)
+    che il front-end usa per riempire il box "Last 7 daily reports".
+
+    I path sono RELATIVI alla cartella HTML dei report, quindi:
+      - html: es. "report_2025-12-07.html"
+      - pdf:  es. "../pdf/report_2025-12-07.pdf"
+    """
+    history: List[Dict] = []
+
+    base_date = datetime.strptime(date_str, "%Y-%m-%d").date()
+
+    # Cerchiamo indietro fino a 30 giorni, ma ci fermiamo dopo max_reports trovati.
+    for i in range(0, 30):
+        day = base_date - timedelta(days=i)
+        d_str = day.strftime("%Y-%m-%d")
+
+        html_name = f"{file_prefix}{d_str}.html"
+        pdf_name = f"{file_prefix}{d_str}.pdf"
+
+        html_path = html_dir / html_name
+        pdf_path = pdf_dir / pdf_name
+
+        # Per il giorno corrente (i == 0) includiamo comunque,
+        # anche se il file non esiste ancora nel momento della chiamata.
+        if i == 0:
+            html_rel = html_name
+            pdf_rel = f"../pdf/{pdf_name}"
+        else:
+            # Per i giorni passati, includiamo solo se l'HTML esiste
+            if not html_path.exists():
+                continue
+            html_rel = html_name
+            pdf_rel = f"../pdf/{pdf_name}" if pdf_path.exists() else None
+
+        history.append(
+            {
+                "date": d_str,
+                "html": html_rel,
+                "pdf": pdf_rel,
+            }
+        )
+
+        if len(history) >= max_reports:
+            break
+
+    return history
+
+
 # -----------
 #   MAIN
 # -----------
@@ -287,7 +347,18 @@ def main():
         json.dump(patents_items, jf, ensure_ascii=False, indent=2)
     print(f"[DEBUG] Saved patents JSON to: {patents_json_path}")
 
-    # 9) HTML
+    # 9) Costruisci payload storico per il box "Last 7 daily reports"
+    html_dir.mkdir(parents=True, exist_ok=True)
+    pdf_dir.mkdir(parents=True, exist_ok=True)
+    history_payload = build_history_payload(
+        date_str=date_str,
+        html_dir=html_dir,
+        pdf_dir=pdf_dir,
+        file_prefix=file_prefix,
+        max_reports=7,
+    )
+
+    # 10) HTML
     print("Building HTML report...")
     html = build_html_report(
         deep_dives=deep_dives_payload,
@@ -295,10 +366,8 @@ def main():
         date_str=date_str,
         ceo_pov=ceo_pov_items,
         patents=patents_items,
+        history=history_payload,
     )
-
-    html_dir.mkdir(parents=True, exist_ok=True)
-    pdf_dir.mkdir(parents=True, exist_ok=True)
 
     html_path = html_dir / f"{file_prefix}{date_str}.html"
     pdf_path = pdf_dir / f"{file_prefix}{date_str}.pdf"
@@ -313,7 +382,7 @@ def main():
     print("Done. HTML report:", html_path)
     print("Done. PDF report:", pdf_path)
 
-    # 10) Email
+    # 11) Email
     print("Sending report via email...")
     try:
         send_report_email(
@@ -326,7 +395,7 @@ def main():
         print("[EMAIL] Unhandled error while sending email:", repr(e))
         print("[EMAIL] Continuing anyway – report generation completed.")
 
-    # 11) Telegram (PDF al bot)
+    # 12) Telegram (PDF al bot)
     print("Sending report PDF to Telegram...")
     try:
         send_telegram_pdf(
