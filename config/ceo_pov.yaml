@@ -1,0 +1,26 @@
+# config/ceo_pov.yaml
+
+ceos:
+  - name: "Tim Cook"
+    company: "Apple"
+
+  - name: "Satya Nadella"
+    company: "Microsoft"
+
+  - name: "Sundar Pichai"
+    company: "Alphabet / Google"
+
+  - name: "Mark Zuckerberg"
+    company: "Meta"
+
+  - name: "Elon Musk"
+    company: "Tesla / SpaceX"
+
+  - name: "Jeff Bezos"
+    company: "Amazon / Blue Origin"
+
+  - name: "Larry Fink"
+    company: "BlackRock"
+
+  - name: "Jensen Huang"
+    company: "NVIDIA"
