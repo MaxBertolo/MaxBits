@@ -182,8 +182,8 @@ def build_history_payload(
     che il front-end usa per riempire il box "Last 7 daily reports".
 
     I path sono RELATIVI alla cartella HTML dei report, quindi:
-      - html: es. "report_2025-12-07.html"
-      - pdf:  es. "../pdf/report_2025-12-07.pdf"
+      - html: es. "report_2025-12-08.html"
+      - pdf:  es. "../pdf/report_2025-12-08.pdf"
     """
     history: List[Dict] = []
 
@@ -200,13 +200,12 @@ def build_history_payload(
         html_path = html_dir / html_name
         pdf_path = pdf_dir / pdf_name
 
-        # Per il giorno corrente (i == 0) includiamo comunque,
-        # anche se il file non esiste ancora nel momento della chiamata.
         if i == 0:
+            # giorno corrente: lo includiamo comunque
             html_rel = html_name
             pdf_rel = f"../pdf/{pdf_name}"
         else:
-            # Per i giorni passati, includiamo solo se l'HTML esiste
+            # per i giorni passati includiamo solo se esiste l'HTML
             if not html_path.exists():
                 continue
             html_rel = html_name
@@ -315,7 +314,7 @@ def main():
     # 7) CEO POV + PATENT WATCH
     print("Collecting CEO POV items...")
     ceo_pov_items = collect_ceo_pov(
-        articles=ranked,   # usiamo gli articoli già rankati
+        articles=ranked,
         max_items=5,
     )
     print(f"[CEO_POV] Collected {len(ceo_pov_items)} items.")
@@ -323,7 +322,7 @@ def main():
     print("Collecting Patent publications (EU/US)...")
     date_str = today_str()
     patents_items = collect_patent_publications(
-        today_date_str=date_str,   # il collector usa 'yesterday'
+        today_date_str=date_str,
         max_items=20,
     )
     print(f"[PATENTS] Collected {len(patents_items)} items.")
