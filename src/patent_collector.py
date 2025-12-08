@@ -1,353 +1,312 @@
-# src/patent_collector.py
-
 from __future__ import annotations
 
-from typing import List, Dict
 from datetime import datetime, timedelta
+from typing import List, Dict, Any
+import logging
 import os
-import base64
-import json
 
 import requests
-from xml.etree import ElementTree as ET
 
 
-def _yesterday_from_str(today_date_str: str) -> str:
+logger = logging.getLogger(__name__)
+
+# -------------------------------
+#  TOPIC KEYWORDS (Compute/Video/Data/Cloud)
+# -------------------------------
+
+TOPIC_KEYWORDS = [
+    # compute / infra
+    "compute", "computing", "processor", "cpu", "gpu", "accelerator", "asic",
+    "neural network accelerator", "tensor core", "inference engine",
+    "data center", "datacenter", "edge computing", "cloud computing",
+    "distributed computing", "virtualization", "kubernetes",
+
+    # video
+    "video", "codec", "encoding", "decoding", "transcoding",
+    "streaming", "adaptive bitrate", "abr", "h.264", "avc", "h.265",
+    "hevc", "vvc", "av1", "vp9", "vrt", "immersive video",
+
+    # data
+    "data storage", "database", "datastore", "data pipeline",
+    "data processing", "analytics", "big data", "olap", "oltp",
+
+    # cloud
+    "cloud service", "cloud platform", "saas", "paas", "iaas",
+    "object storage", "block storage", "cloud-native", "serverless",
+
+    # ai tie-in (spesso compute/cloud related)
+    "machine learning", "deep learning", "neural network",
+    "llm", "large language model", "transformer", "inference",
+]
+
+# -------------------------------
+#  APPLICANT / ASSIGNEE WATCHLIST
+# -------------------------------
+
+WATCHLIST_APPLICANTS = [
+    "v-nova",
+    "vnova",
+    "nvidia",
+    "apple",
+    "microsoft",
+    "tesla",
+    "x corp",
+    "x corp.",
+    "twitter",          # per vecchio naming
+    "spacex",
+    "space x",
+    "oneweb",
+    "one web",
+    "google",
+    "alphabet",
+    "youtube",
+    "meta",
+    "facebook",
+    "the thinking machine lab",
+    "openai",
+    "mistral ai",
+    "mistral",
+    "samsung",
+    "LG"
+    "Sony"
+    "Amdocs"
+    "Netflix"
+    "Comcast"
+    "Cujo"
+    "Leonardo"
+    "British Telecom"
+]
+
+
+def _norm(s: str) -> str:
+    if not s:
+        return ""
+    return " ".join(s.lower().split())
+
+
+def _matches_topic_keywords(text: str) -> bool:
+    if not text:
+        return False
+    t = text.lower()
+    return any(k in t for k in TOPIC_KEYWORDS)
+
+
+def _matches_watchlist_applicant(pat: Dict[str, Any]) -> bool:
     """
-    today_date_str: "YYYY-MM-DD" (report date, Europe/Rome)
-    ritorna "YYYY-MM-DD" del giorno precedente (per la pubblicazione brevetti).
+    Ritorna True se uno degli applicants / assignee contiene
+    un nome in WATCHLIST_APPLICANTS (case-insensitive, substring).
     """
-    d = datetime.strptime(today_date_str, "%Y-%m-%d").date()
-    y = d - timedelta(days=1)
-    return y.isoformat()
+    names: List[str] = []
+
+    applicants = pat.get("applicants") or []
+    if isinstance(applicants, str):
+        names.append(applicants)
+    else:
+        names.extend(str(a) for a in applicants if a)
+
+    assignee = pat.get("assignee")
+    if assignee:
+        names.append(str(assignee))
+
+    if not names:
+        return False
+
+    norm_watch = [ _norm(w) for w in WATCHLIST_APPLICANTS ]
+
+    for raw in names:
+        n = _norm(raw)
+        if not n:
+            continue
+        for w in norm_watch:
+            if w and w in n:
+                return True
+    return False
 
 
-def _tag_patent(title: str, abstract: str, cpc: List[str]) -> List[str]:
-    text = f"{title} {abstract}".lower()
-    tags: List[str] = []
+# -------------------------------
+#  FETCHERS (EPO / USPTO) – ESEMPI
+# -------------------------------
 
-    if any(code.startswith(("G06F", "G06N", "G11")) for code in cpc) or \
-       any(k in text for k in ["compute", "processor", "gpu", "accelerator", "cpu"]):
-        tags.append("compute")
-
-    if any(code.startswith(("G06Q", "H04L")) for code in cpc) or \
-       any(k in text for k in ["data", "database", "analytics", "storage"]):
-        tags.append("data")
-
-    if any(code.startswith(("H04N", "H04S")) for code in cpc) or \
-       any(k in text for k in ["video", "codec", "encoding", "transcoding", "streaming"]):
-        tags.append("video")
-
-    if any(k in text for k in ["cloud", "saas", "paas", "iaas", "data center", "datacenter"]):
-        tags.append("cloud")
-
-    # dedup
-    return sorted(set(tags))
-
-
-def _normalize_cpc(codes: List[str]) -> List[str]:
-    out = []
-    for c in codes or []:
-        c = c.strip().upper()
-        if c and c not in out:
-            out.append(c)
-    return out
-
-
-# ---------------------------------------------------------------------------
-#   EPO OPS HELPERS
-# ---------------------------------------------------------------------------
-
-def _get_epo_access_token() -> str | None:
+def _fetch_epo_patents(publication_date: str, max_items: int = 50) -> List[Dict]:
     """
-    Ottiene un access token EPO OPS via OAuth2 client_credentials.
+    Placeholder per fetch da EPO (Open Patent Services).
 
-    Richiede:
-      - EPO_OPS_KEY
-      - EPO_OPS_SECRET
-
-    Ritorna il token (string) o None se non configurato o errore.
+    publication_date: stringa 'YYYY-MM-DD' (giorno di pubblicazione).
+    Ritorna una lista di dict con chiavi standardizzate:
+      - office: "EPO"
+      - publication_number
+      - title
+      - abstract
+      - publication_date
+      - applicants: List[str]
+      - assignee: str (opzionale)
+      - source_url
+      - tags: List[str]
     """
-    key = os.getenv("EPO_OPS_KEY", "").strip()
-    secret = os.getenv("EPO_OPS_SECRET", "").strip()
-    if not key or not secret:
-        print("[PATENTS][EPO] EPO_OPS_KEY / EPO_OPS_SECRET not set – skipping EPO.")
-        return None
+    logger.info("[PATENTS][EPO] Fetching patents for date=%s", publication_date)
 
-    token_url = "https://ops.epo.org/3.2/auth/accesstoken"
-    auth_bytes = f"{key}:{secret}".encode("utf-8")
-    auth_header = "Basic " + base64.b64encode(auth_bytes).decode("ascii")
+    # QUI devi integrare la tua logica reale verso OPS / EPO.
+    # Per ora mettiamo uno stub vuoto.
+    results: List[Dict] = []
 
-    headers = {
-        "Authorization": auth_header,
-        "Content-Type": "application/x-www-form-urlencoded",
-    }
-    data = {"grant_type": "client_credentials"}
+    # Esempio di record (da usare per test locale):
+    # results.append(
+    #     {
+    #         "office": "EPO",
+    #         "publication_number": "EP1234567A1",
+    #         "title": "Cloud-native video encoding system",
+    #         "abstract": "A system for distributed cloud-native video encoding...",
+    #         "publication_date": publication_date,
+    #         "applicants": ["v-Nova International Ltd."],
+    #         "assignee": "",
+    #         "source_url": "https://register.epo.org/application?number=EP1234567",
+    #         "tags": [],
+    #     }
+    # )
 
-    try:
-        resp = requests.post(token_url, headers=headers, data=data, timeout=10)
-        if resp.status_code != 200:
-            print(f"[PATENTS][EPO] Token request failed: {resp.status_code} {resp.text[:200]}")
-            return None
-        payload = resp.json()
-        token = payload.get("access_token")
-        if not token:
-            print("[PATENTS][EPO] Token missing in response.")
-            return None
-        return token
-    except Exception as e:
-        print("[PATENTS][EPO] Exception while requesting token:", repr(e))
-        return None
+    return results[:max_items]
 
 
-def _fetch_epo_patents(publication_date: str) -> List[Dict]:
+def _fetch_uspto_patents(publication_date: str, max_items: int = 50) -> List[Dict]:
     """
-    Richiama OPS 'published-data/search' (biblio) per trovare brevetti EP
-    pubblicati in una certa data con CPC nell'area compute/video/data/cloud.
+    Placeholder per fetch da USPTO (es. Patent Public Search / PatentsView / API interne).
 
-    Per semplificare, limitiamo la ricerca a un range piccolo e al primo batch.
+    publication_date: stringa 'YYYY-MM-DD'.
+    Ritorna la stessa struttura di _fetch_epo_patents.
     """
-    token = _get_epo_access_token()
-    if not token:
-        return []
+    logger.info("[PATENTS][USPTO] Fetching patents for date=%s", publication_date)
 
-    # Esempio CQL:
-    #  pd=2025.12.06 and (cpc=G06F or cpc=G06N or cpc=G06Q or cpc=H04N or cpc=H04L)
-    d = datetime.strptime(publication_date, "%Y-%m-%d")
-    pd_str = d.strftime("%Y.%m.%d")
-    cql = f"pd={pd_str} and (cpc=G06F or cpc=G06N or cpc=G06Q or cpc=H04N or cpc=H04L)"
+    # Anche qui: integra la tua logica reale verso l'API USPTO che preferisci.
+    results: List[Dict] = []
 
-    url = "https://ops.epo.org/3.2/rest-services/published-data/search/biblio"
-    headers = {
-        "Authorization": f"Bearer {token}",
-        "Accept": "application/xml",
-        "X-OPS-Range": "1-50",  # primi 50 documenti della query
-    }
-    params = {"q": cql}
+    # Esempio fittizio:
+    # results.append(
+    #     {
+    #         "office": "USPTO",
+    #         "publication_number": "US2025XXXXXXA1",
+    #         "title": "GPU-accelerated cloud inference platform",
+    #         "abstract": "Techniques for deploying GPU-accelerated inference workloads in a cloud environment...",
+    #         "publication_date": publication_date,
+    #         "applicants": ["NVIDIA Corporation"],
+    #         "assignee": "NVIDIA Corporation",
+    #         "source_url": "https://patents.google.com/patent/US2025XXXXXXA1/en",
+    #         "tags": [],
+    #     }
+    # )
 
-    try:
-        resp = requests.get(url, headers=headers, params=params, timeout=15)
-        if resp.status_code != 200:
-            print(f"[PATENTS][EPO] Search failed: {resp.status_code} {resp.text[:200]}")
-            return []
-
-        xml_root = ET.fromstring(resp.text)
-        ns = {
-            "ops": "http://ops.epo.org",
-            "exchange-doc": "http://www.epo.org/exchange",
-            "dc": "http://purl.org/dc/elements/1.1/",
-        }
-
-        results: List[Dict] = []
-
-        # Struttura semplificata: cerchiamo 'exchange-doc:exchange-document'
-        for doc in xml_root.findall(".//exchange-doc:exchange-document", ns):
-            pub_ref = doc.find(".//exchange-doc:publication-reference", ns)
-            pub_number = ""
-            if pub_ref is not None:
-                doc_id = pub_ref.find(".//exchange-doc:doc-number", ns)
-                kind = pub_ref.find(".//exchange-doc:kind", ns)
-                if doc_id is not None:
-                    pub_number = doc_id.text or ""
-                    if kind is not None and kind.text:
-                        pub_number = f"{pub_number} {kind.text}"
-
-            title_el = doc.find(".//exchange-doc:invention-title", ns)
-            title = title_el.text if title_el is not None else ""
-
-            abs_el = doc.find(".//exchange-doc:abstract/exchange-doc:p", ns)
-            abstract = abs_el.text if abs_el is not None else ""
-
-            applicants: List[str] = []
-            for app in doc.findall(".//exchange-doc:applicants/exchange-doc:applicant", ns):
-                name_el = app.find(".//exchange-doc:applicant-name", ns)
-                if name_el is not None and name_el.text:
-                    applicants.append(name_el.text)
-
-            cpc_codes: List[str] = []
-            for c in doc.findall(".//exchange-doc:classification-cpc", ns):
-                sec = c.find(".//exchange-doc:section", ns)
-                cla = c.find(".//exchange-doc:class", ns)
-                sub = c.find(".//exchange-doc:subclass", ns)
-                main = c.find(".//exchange-doc:main-group", ns)
-                subg = c.find(".//exchange-doc:subgroup", ns)
-                parts = [x.text for x in (sec, cla, sub, main, subg) if x is not None and x.text]
-                if parts:
-                    cpc_codes.append("".join(parts))
-
-            results.append(
-                {
-                    "office": "EPO",
-                    "publication_number": pub_number.strip(),
-                    "title": title or "",
-                    "abstract": abstract or "",
-                    "applicants": applicants,
-                    "cpc_main": cpc_codes,
-                    "publication_date": publication_date,
-                    "source_url": "",  # opzionale: potresti costruire link Espacenet qui
-                    "family_id": None,
-                }
-            )
-
-        return results
-
-    except Exception as e:
-        print("[PATENTS][EPO] Exception while fetching patents:", repr(e))
-        return []
+    return results[:max_items]
 
 
-# ---------------------------------------------------------------------------
-#   USPTO IBD API
-# ---------------------------------------------------------------------------
+# -------------------------------
+#  COLLECTOR PRINCIPALE
+# -------------------------------
 
-def _fetch_uspto_patents(publication_date: str) -> List[Dict]:
+def _enrich_tags(pat: Dict[str, Any]) -> None:
     """
-    Usa USPTO Bulk Search & Download API (IBD API) per cercare
-    tutte le application/grant con data di pubblicazione == publication_date.
-
-    Endpoint:
-      https://developer.uspto.gov/ibd-api/v1/patent/application
-
-    La risposta è in JSON con struttura:
-      { "response": { "docs": [ ... ] } }
-
-    Per semplicità:
-      - non filtriamo per CPC a livello di query
-      - ci affidiamo al tagging successivo su titolo/abstract
+    - Aggiunge tag 'topic-compute-video-data-cloud' se matcha le keyword.
+    - Aggiunge tag 'watchlist-applicant' se appartiene alla watchlist.
     """
-    base_url = "https://developer.uspto.gov/ibd-api/v1/patent/application"
-    params = {
-        "publicationFromDate": publication_date,
-        "publicationToDate": publication_date,
-        "rows": 100,
-        "start": 0,
-    }
+    tags = list(pat.get("tags") or [])
+    text = " ".join(
+        [
+            pat.get("title") or "",
+            pat.get("abstract") or "",
+        ]
+    )
+    if _matches_topic_keywords(text):
+        tags.append("topic-compute-video-data-cloud")
 
-    try:
-        resp = requests.get(base_url, params=params, timeout=15)
-        if resp.status_code != 200:
-            print(f"[PATENTS][USPTO] Search failed: {resp.status_code} {resp.text[:200]}")
-            return []
+    if _matches_watchlist_applicant(pat):
+        tags.append("watchlist-applicant")
 
-        # La risposta è JSON: {"response": {"numFound":..., "docs":[...]}}
-        payload = resp.json()
-        response = payload.get("response", {})
-        docs = response.get("docs", [])
-        results: List[Dict] = []
+    # de-duplicate
+    dedup = []
+    for t in tags:
+        if t and t not in dedup:
+            dedup.append(t)
+    pat["tags"] = dedup
 
-        for d in docs:
-            title = d.get("title", "")
-            abstract = d.get("abstract", "")
-            # classificazioni: dipende dal dataset, non sempre c'è CPC
-            # proviamo a leggere qualche campo tipico, altrimenti lista vuota
-            cpc_fields = []
-            for k in ("cpcSubgroup", "cpc_subgroup", "cpc", "cpcClassification"):
-                v = d.get(k)
-                if isinstance(v, list):
-                    cpc_fields.extend(v)
-                elif isinstance(v, str):
-                    cpc_fields.append(v)
-
-            applicants = []
-            for k in ("assignee", "applicant"):
-                v = d.get(k)
-                if isinstance(v, list):
-                    applicants.extend(v)
-                elif isinstance(v, str):
-                    applicants.append(v)
-
-            pub_number = d.get("documentId") or d.get("patentNumber") or ""
-
-            results.append(
-                {
-                    "office": "USPTO",
-                    "publication_number": pub_number,
-                    "title": title or "",
-                    "abstract": abstract or "",
-                    "applicants": applicants,
-                    "assignee": d.get("assignee", ""),
-                    "cpc_main": cpc_fields,
-                    "publication_date": publication_date,
-                    # un link base all'invenzione (non perfetto ma utile)
-                    "source_url": "",  # puoi costruire link a patentcenter se vuoi
-                    "family_id": None,
-                }
-            )
-
-        return results
-
-    except Exception as e:
-        print("[PATENTS][USPTO] Exception while fetching patents:", repr(e))
-        return []
-
-
-# ---------------------------------------------------------------------------
-#   ENTRY POINT USATO DA main.py
-# ---------------------------------------------------------------------------
 
 def collect_patent_publications(
     today_date_str: str,
     max_items: int = 20,
 ) -> List[Dict]:
     """
-    - Calcola 'yesterday' a partire da today_date_str (report date).
-    - Chiede a EPO + USPTO i brevetti pubblicati ieri.
-    - Applica tagging per compute/video/data/cloud.
-    - Deduplica e limita il numero finale.
+    Raccoglie i brevetti pubblicati nel **giorno precedente** (EPO + USPTO)
+    e filtra su:
+
+      1. Topic = Compute / Video / Data / Cloud (keywords)
+      2. OPPURE applicant/assignee in WATCHLIST_APPLICANTS
+
+    In output torna una lista di dict pronti per il `report_builder`,
+    già etichettati con tag:
+      - "topic-compute-video-data-cloud"
+      - "watchlist-applicant" (se applicable)
     """
-    target_date = _yesterday_from_str(today_date_str)
-    print(f"[PATENTS] Collecting patents for previous day: {target_date}")
+    try:
+        today = datetime.strptime(today_date_str, "%Y-%m-%d").date()
+    except ValueError:
+        # fallback: se la stringa non è valida, usiamo la data di oggi del sistema
+        today = datetime.utcnow().date()
 
-    epo_raw = _fetch_epo_patents(target_date)
-    us_raw = _fetch_uspto_patents(target_date)
+    prev_day = today - timedelta(days=1)
+    prev_str = prev_day.strftime("%Y-%m-%d")
 
-    all_raw = []
-    for row in epo_raw:
-        row = dict(row)
-        row.setdefault("office", "EPO")
-        all_raw.append(row)
+    logger.info("[PATENTS] Collecting publications for previous day: %s", prev_str)
 
-    for row in us_raw:
-        row = dict(row)
-        row.setdefault("office", "USPTO")
-        all_raw.append(row)
+    epo = _fetch_epo_patents(prev_str, max_items=max_items * 2)
+    us = _fetch_uspto_patents(prev_str, max_items=max_items * 2)
 
-    # Normalizza CPC e tagging
-    normalized: List[Dict] = []
-    seen_keys = set()
+    all_raw: List[Dict] = epo + us
+    logger.info("[PATENTS] Raw collected: EPO=%d, US=%d", len(epo), len(us))
 
-    for p in all_raw:
-        office = p.get("office", "")
-        pub = p.get("publication_number", "")
-        key = (office.upper(), pub.replace(" ", "").upper())
-        if not pub or key in seen_keys:
-            continue
-        seen_keys.add(key)
+    filtered: List[Dict] = []
 
-        title = p.get("title", "") or ""
-        abstract = p.get("abstract", "") or ""
-        cpc = _normalize_cpc(p.get("cpc_main", []))
-        tags = _tag_patent(title, abstract, cpc)
+    for pat in all_raw:
+        # Enrich tags based on title/abstract + watchlist
+        _enrich_tags(pat)
 
-        if not tags:
-            # se non rientra in compute/video/data/cloud, lo scartiamo
-            continue
-
-        normalized.append(
-            {
-                "office": office,
-                "publication_number": pub,
-                "title": title,
-                "abstract": abstract,
-                "applicants": p.get("applicants", []),
-                "assignee": p.get("assignee", ""),
-                "cpc_main": cpc,
-                "tags": tags,
-                "publication_date": p.get("publication_date", target_date),
-                "source_url": p.get("source_url", ""),
-                "family_id": p.get("family_id"),
-            }
+        text = " ".join(
+            [
+                pat.get("title") or "",
+                pat.get("abstract") or "",
+            ]
         )
 
-    # per ora semplice: tronca ai primi N
-    return normalized[:max_items]
+        topic_match = _matches_topic_keywords(text)
+        watchlist_match = _matches_watchlist_applicant(pat)
+
+        # FILTRO PRINCIPALE:
+        # - tieni se è on-topic
+        #   OPPURE
+        # - appartiene alla watchlist dei big player che ti interessano.
+        if not (topic_match or watchlist_match):
+            continue
+
+        # Normalizza campi minimi richiesti dal report_builder
+        pat.setdefault("office", "UNKNOWN")
+        pat.setdefault("publication_number", "")
+        pat.setdefault("title", "")
+        pat.setdefault("publication_date", prev_str)
+        pat.setdefault("applicants", [])
+        pat.setdefault("assignee", "")
+        pat.setdefault("source_url", "")
+
+        filtered.append(pat)
+
+    # Ordiniamo: prima per data (disc), poi per office, poi per pub number
+    def _sort_key(p: Dict[str, Any]):
+        d_str = p.get("publication_date") or prev_str
+        try:
+            d = datetime.strptime(d_str, "%Y-%m-%d").date()
+        except Exception:
+            d = prev_day
+        return (d, p.get("office", ""), p.get("publication_number", ""))
+
+    filtered_sorted = sorted(filtered, key=_sort_key, reverse=True)
+
+    if len(filtered_sorted) > max_items:
+        filtered_sorted = filtered_sorted[:max_items]
+
+    logger.info("[PATENTS] Filtered relevant publications: %d", len(filtered_sorted))
+    return filtered_sorted
