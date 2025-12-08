@@ -360,6 +360,11 @@ def build_html_report(
     {wl_html}
   </section>
 
+  <!-- Inline container for Weekly view (no popups, works in Telegram mini-app) -->
+  <section id="weekly-inline"
+           style="margin-top:30px; display:none; padding-top:16px; border-top:1px dashed #ddd;">
+  </section>
+
 </div>
 
 <script>
@@ -420,32 +425,25 @@ def build_html_report(
     }});
   }}
 
-  function openWeekly() {{
+  function renderWeeklyInline() {{
     const data = loadSel();
     const dates = Object.keys(data).sort().reverse();
-    const win = window.open("", "_blank");
-    if (!win) {{
-      alert("Popup blocked: allow popups for this site to see the weekly view.");
-      return;
-    }}
+    const container = document.getElementById("weekly-inline");
+    if (!container) return;
 
-    let html = "<!DOCTYPE html><html><head><meta charset='utf-8' />" +
-               "<title>MaxBits · Weekly Selection (local)</title></head>" +
-               "<body style=\\"font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;" +
-               "background:#fafafa; margin:0; padding:24px; color:#111;\\">" +
-               "<div style=\\"max-width:900px; margin:0 auto; background:white; padding:24px 32px;" +
-               "border-radius:8px; box-shadow:0 0 12px rgba(0,0,0,0.05);\\">" +
-               "<h1>MaxBits · Weekly Selection (local)</h1>" +
-               "<p style='color:#555;font-size:14px;'>This page is generated locally from your browser selections. It is NOT stored on the server.</p>";
+    container.style.display = "block";
+
+    let html = "<h2 style='margin:0 0 8px 0; font-size:20px;'>MaxBits · Weekly Selection (local)</h2>" +
+               "<p style='margin:4px 0 12px 0; font-size:13px; color:#555;'>This view is generated locally from your browser selections. Nothing is stored on the server.</p>";
 
     if (!dates.length) {{
-      html += "<p>No weekly selections saved yet.</p>";
+      html += "<p style='font-size:14px; color:#777;'>No weekly selections saved yet. Use the checkboxes next to articles to add them.</p>";
     }} else {{
       dates.forEach(d => {{
         const items = data[d] || [];
         if (!items.length) return;
-        html += "<section style='margin-top:18px;'>" +
-                "<h2 style='font-size:18px; margin:0 0 6px 0;'>Day " + d + "</h2>" +
+        html += "<section style='margin-top:12px;'>" +
+                "<h3 style='font-size:16px; margin:0 0 4px 0;'>Day " + d + "</h3>" +
                 "<ul style='margin:4px 0 0 18px; font-size:14px;'>";
         items.forEach(it => {{
           const t = it.title || "";
@@ -460,16 +458,14 @@ def build_html_report(
       }});
     }}
 
-    html += "</div></body></html>";
-    win.document.open();
-    win.document.write(html);
-    win.document.close();
+    container.innerHTML = html;
+    container.scrollIntoView({{ behavior: "smooth", block: "start" }});
   }}
 
   function initWeeklyBtn() {{
     const btn = document.getElementById("open-weekly-btn");
     if (!btn) return;
-    btn.addEventListener("click", openWeekly);
+    btn.addEventListener("click", renderWeeklyInline);
   }}
 
   function initHistory() {{
@@ -502,3 +498,4 @@ def build_html_report(
 </body>
 </html>
 """
+""
