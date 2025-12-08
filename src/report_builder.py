@@ -1,5 +1,3 @@
-# src/report_builder.py
-
 from __future__ import annotations
 
 from html import escape
