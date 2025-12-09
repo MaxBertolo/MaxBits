@@ -1,0 +1,47 @@
+market_snapshot:
+  updated_at: "2025-12-09 20:00 CET"   # testo libero, lo stampo così com’è
+  items:
+    - name: "Google"
+      symbol: "GOOGL"
+      price: 142.35
+      change_percent: 1.23
+
+    - name: "Tesla"
+      symbol: "TSLA"
+      price: 245.10
+      change_percent: -0.85
+
+    - name: "Apple"
+      symbol: "AAPL"
+      price: 195.42
+      change_percent: 0.35
+
+    - name: "NVIDIA"
+      symbol: "NVDA"
+      price: 470.10
+      change_percent: 2.10
+
+    - name: "Meta"
+      symbol: "META"
+      price: 338.55
+      change_percent: -0.40
+
+    - name: "Microsoft"
+      symbol: "MSFT"
+      price: 412.20
+      change_percent: 0.90
+
+    - name: "Amazon"
+      symbol: "AMZN"
+      price: 156.78
+      change_percent: -0.15
+
+    - name: "Bitcoin"
+      symbol: "BTC"
+      price: 9725.50
+      change_percent: 3.25
+
+    - name: "Ethereum"
+      symbol: "ETH"
+      price: 1875.20
+      change_percent: -1.10
