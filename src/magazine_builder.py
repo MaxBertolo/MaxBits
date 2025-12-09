@@ -5,6 +5,9 @@ import re
 import shutil
 from typing import List, Dict
 
+from datetime import datetime, timedelta
+import yaml
+
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -17,6 +20,10 @@ DOCS_DIR = BASE_DIR / "docs"
 HTML_DST_DIR = DOCS_DIR / "reports" / "html"
 PDF_DST_DIR = DOCS_DIR / "reports" / "pdf"
 
+
+# -------------------------------------------------------------------
+#  REPORT DAILY (HTML/PDF)
+# -------------------------------------------------------------------
 
 def _find_reports() -> List[Dict]:
     """
@@ -135,12 +142,129 @@ def _build_previous_reports_list(reports_for_docs: List[Dict]) -> str:
     return "\n".join(items)
 
 
+# -------------------------------------------------------------------
+#  EXTRA REPORTS (YAML + 30 giorni)
+# -------------------------------------------------------------------
+
+def _load_extra_reports() -> List[Dict]:
+    """
+    Legge config/extra_reports.yaml e restituisce solo i report
+    con data negli ultimi 30 giorni.
+
+    YAML atteso:
+      extra_reports:
+        - title: "..."
+          url: "https://..."
+          date: "YYYY-MM-DD"
+    """
+    cfg_path = BASE_DIR / "config" / "extra_reports.yaml"
+    if not cfg_path.exists():
+        print(f"[MAG] No extra_reports.yaml at {cfg_path}")
+        return []
+
+    try:
+        data = yaml.safe_load(cfg_path.read_text(encoding="utf-8")) or {}
+    except Exception as e:
+        print(f"[MAG] Cannot parse extra_reports.yaml: {e!r}")
+        return []
+
+    raw_list = data.get("extra_reports", []) or []
+    if not isinstance(raw_list, list):
+        print("[MAG] extra_reports.yaml: 'extra_reports' must be a list")
+        return []
+
+    today = datetime.utcnow().date()
+    cutoff = today - timedelta(days=30)
+
+    out: List[Dict] = []
+    for item in raw_list:
+        if not isinstance(item, dict):
+            continue
+        title = str(item.get("title") or "").strip()
+        url = str(item.get("url") or "").strip()
+        date_str = str(item.get("date") or "").strip()
+
+        if not (title and url and date_str):
+            continue
+
+        try:
+            d = datetime.strptime(date_str, "%Y-%m-%d").date()
+        except Exception:
+            continue
+
+        if d < cutoff or d > today:
+            # fuori finestra 30 giorni o nel futuro
+            continue
+
+        age_days = (today - d).days
+        days_left = max(0, 30 - age_days)
+
+        out.append(
+            {
+                "title": title,
+                "url": url,
+                "date": date_str,
+                "days_left": days_left,
+            }
+        )
+
+    out.sort(key=lambda x: x["date"], reverse=True)
+    print(f"[MAG] Loaded {len(out)} extra reports (<= 30 days)")
+    return out
+
+
+def _build_extra_reports_sidebar_html(extra_reports: List[Dict]) -> str:
+    """
+    Costruisce la mini-UI per la sezione "Extra reports (30 days)":
+    - mostra titolo (clickable)
+    - data
+    - pill "in X days" o "last day"
+    """
+    if not extra_reports:
+        return '<p style="font-size:12px; color:#6b7280;">No extra reports (last 30 days).</p>'
+
+    items: List[str] = []
+
+    for rep in extra_reports:
+        title = rep["title"]
+        url = rep["url"]
+        date_str = rep["date"]
+        days_left = rep.get("days_left", 0)
+
+        if days_left <= 0:
+            pill = "expires today"
+            pill_class = "expiring"
+        elif days_left == 1:
+            pill = "1 day left"
+            pill_class = "expiring"
+        else:
+            pill = f"{days_left} days left"
+            pill_class = "ok"
+
+        item_html = f"""
+        <li class="extra-report-item">
+          <a href="{url}" target="_blank" rel="noopener" class="extra-report-link">{title}</a>
+          <div class="extra-report-meta">
+            <span class="extra-report-date">{date_str}</span>
+            <span class="extra-report-pill extra-report-pill-{pill_class}">{pill}</span>
+          </div>
+        </li>
+        """
+        items.append(item_html)
+
+    return "\n".join(items)
+
+
+# -------------------------------------------------------------------
+#  INDEX.HTML TEMPLATE
+# -------------------------------------------------------------------
+
 def _build_index_content(reports_for_docs: List[Dict]) -> str:
     """
     Genera docs/index.html con:
       - header con logo immagine + toggle light/dark
       - main hero (gradient, stile moderno) con iframe ultimo report
-      - sidebar con clock, previous 6 reports, market snapshot
+      - sidebar con clock, previous 6 reports, market snapshot, extra reports
     """
     if not reports_for_docs:
         print("[MAG] No reports found, generating minimal placeholder index.")
@@ -186,7 +310,10 @@ def _build_index_content(reports_for_docs: List[Dict]) -> str:
     latest_html_rel = f"reports/html/{latest['html_file'].name}"
     previous_list_html = _build_previous_reports_list(reports_for_docs)
 
-    # Template HTML con logo immagine, hero moderno, theme toggle, sidebar
+    extra_reports = _load_extra_reports()
+    extra_reports_html = _build_extra_reports_sidebar_html(extra_reports)
+
+    # Template HTML con logo, theme toggle, sidebar estesa
     template = """<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -532,6 +659,74 @@ def _build_index_content(reports_for_docs: List[Dict]) -> str:
       margin: 0 4px;
     }
 
+    /* Extra reports */
+    .extra-report-list {
+      list-style: none;
+      padding-left: 0;
+      margin: 8px 0 0 0;
+    }
+
+    .extra-report-item {
+      margin-bottom: 8px;
+    }
+
+    .extra-report-link {
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--accent-dark);
+      text-decoration: none;
+    }
+
+    .extra-report-link:hover {
+      text-decoration: underline;
+    }
+
+    body[data-theme="dark"] .extra-report-link {
+      color: #60a5fa;
+    }
+
+    .extra-report-meta {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      gap: 6px;
+      margin-top: 2px;
+      font-size: 10px;
+      color: var(--text-muted);
+    }
+
+    .extra-report-pill {
+      padding: 1px 6px;
+      border-radius: 999px;
+      border: 1px solid #e5e7eb;
+      font-size: 10px;
+      white-space: nowrap;
+    }
+
+    .extra-report-pill-ok {
+      background: rgba(22, 163, 74, 0.08);
+      border-color: rgba(22, 163, 74, 0.35);
+      color: #166534;
+    }
+
+    .extra-report-pill-expiring {
+      background: rgba(234, 179, 8, 0.1);
+      border-color: rgba(234, 179, 8, 0.45);
+      color: #92400e;
+    }
+
+    body[data-theme="dark"] .extra-report-pill-ok {
+      background: rgba(34,197,94,0.15);
+      border-color: rgba(34,197,94,0.6);
+      color: #bbf7d0;
+    }
+
+    body[data-theme="dark"] .extra-report-pill-expiring {
+      background: rgba(250,204,21,0.1);
+      border-color: rgba(250,204,21,0.6);
+      color: #facc15;
+    }
+
     /* Market snapshot */
     .market-list {
       list-style: none;
@@ -665,6 +860,14 @@ __PREVIOUS_LIST__
           </ul>
         </section>
 
+        <!-- EXTRA REPORTS -->
+        <section class="side-card">
+          <h2 class="side-title">Extra reports (30 days)</h2>
+          <ul class="extra-report-list">
+__EXTRA_REPORTS__
+          </ul>
+        </section>
+
         <!-- MARKET SNAPSHOT -->
         <section class="side-card">
           <h2 class="side-title">Market snapshot*</h2>
@@ -742,7 +945,7 @@ __PREVIOUS_LIST__
     </div>
 
     <footer>
-      MaxBits is generated automatically from curated RSS sources, CEO statements and patent feeds.
+      MaxBits is generated automatically from curated RSS sources, CEO statements, patents and external reports.
       Reports are published as static HTML &amp; PDF via GitHub Pages.
     </footer>
   </div>
@@ -808,7 +1011,7 @@ __PREVIOUS_LIST__
     setInterval(updateClock, 1000);
     updateClock();
 
-    // Market data (best effort – potrebbe avere limiti CORS)
+    // Market data (best effort – può dare problemi CORS)
     async function loadMarketData() {
       const items = document.querySelectorAll('#market-list .market-item');
       if (!items.length) return;
@@ -879,6 +1082,7 @@ __PREVIOUS_LIST__
         .replace("__LATEST_DATE__", latest_date)
         .replace("__LATEST_HTML__", latest_html_rel)
         .replace("__PREVIOUS_LIST__", previous_list_html)
+        .replace("__EXTRA_REPORTS__", extra_reports_html)
     )
 
 
@@ -887,7 +1091,7 @@ def build_magazine(max_reports: int = 7) -> None:
     Entry point:
       - legge i report sorgente
       - copia gli ultimi N in docs/reports
-      - genera docs/index.html con layout moderno + sidebar + theme toggle
+      - genera docs/index.html con layout moderno + sidebar + extra reports
     """
     raw_reports = _find_reports()
     DOCS_DIR.mkdir(parents=True, exist_ok=True)
