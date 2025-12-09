@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="260" height="60" viewBox="0 0 260 60" xmlns="http://www.w3.org/2000/svg">
+  <rect width="260" height="60" fill="white"/>
+  <text x="10" y="40"
+        font-family="SF Pro Text, -apple-system, system-ui, Segoe UI, Arial, sans-serif"
+        font-size="32"
+        font-weight="700"
+        fill="#000000">Max</text>
+  <text x="90" y="40"
+        font-family="SF Pro Text, -apple-system, system-ui, Segoe UI, Arial, sans-serif"
+        font-size="32"
+        font-weight="700"
+        fill="#25A7FF">Bits</text>
+</svg>
