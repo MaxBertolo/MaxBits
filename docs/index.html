@@ -343,6 +343,74 @@
       margin: 0 4px;
     }
 
+    /* Extra reports */
+    .extra-report-list {
+      list-style: none;
+      padding-left: 0;
+      margin: 8px 0 0 0;
+    }
+
+    .extra-report-item {
+      margin-bottom: 8px;
+    }
+
+    .extra-report-link {
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--accent-dark);
+      text-decoration: none;
+    }
+
+    .extra-report-link:hover {
+      text-decoration: underline;
+    }
+
+    body[data-theme="dark"] .extra-report-link {
+      color: #60a5fa;
+    }
+
+    .extra-report-meta {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      gap: 6px;
+      margin-top: 2px;
+      font-size: 10px;
+      color: var(--text-muted);
+    }
+
+    .extra-report-pill {
+      padding: 1px 6px;
+      border-radius: 999px;
+      border: 1px solid #e5e7eb;
+      font-size: 10px;
+      white-space: nowrap;
+    }
+
+    .extra-report-pill-ok {
+      background: rgba(22, 163, 74, 0.08);
+      border-color: rgba(22, 163, 74, 0.35);
+      color: #166534;
+    }
+
+    .extra-report-pill-expiring {
+      background: rgba(234, 179, 8, 0.1);
+      border-color: rgba(234, 179, 8, 0.45);
+      color: #92400e;
+    }
+
+    body[data-theme="dark"] .extra-report-pill-ok {
+      background: rgba(34,197,94,0.15);
+      border-color: rgba(34,197,94,0.6);
+      color: #bbf7d0;
+    }
+
+    body[data-theme="dark"] .extra-report-pill-expiring {
+      background: rgba(250,204,21,0.1);
+      border-color: rgba(250,204,21,0.6);
+      color: #facc15;
+    }
+
     /* Market snapshot */
     .market-list {
       list-style: none;
@@ -476,6 +544,31 @@
           </ul>
         </section>
 
+        <!-- EXTRA REPORTS -->
+        <section class="side-card">
+          <h2 class="side-title">Extra reports (30 days)</h2>
+          <ul class="extra-report-list">
+
+        <li class="extra-report-item">
+          <a href="https://example.com/stanford_ai_report_2025.pdf" target="_blank" rel="noopener" class="extra-report-link">2025 AI Horizon Report – Stanford</a>
+          <div class="extra-report-meta">
+            <span class="extra-report-date">2025-12-08</span>
+            <span class="extra-report-pill extra-report-pill-ok">29 days left</span>
+          </div>
+        </li>
+        
+
+        <li class="extra-report-item">
+          <a href="https://example.com/spacex_starlink_architecture.pdf" target="_blank" rel="noopener" class="extra-report-link">SpaceX Next-Gen Starlink Architecture</a>
+          <div class="extra-report-meta">
+            <span class="extra-report-date">2025-12-03</span>
+            <span class="extra-report-pill extra-report-pill-ok">24 days left</span>
+          </div>
+        </li>
+        
+          </ul>
+        </section>
+
         <!-- MARKET SNAPSHOT -->
         <section class="side-card">
           <h2 class="side-title">Market snapshot*</h2>
@@ -553,7 +646,7 @@
     </div>
 
     <footer>
-      MaxBits is generated automatically from curated RSS sources, CEO statements and patent feeds.
+      MaxBits is generated automatically from curated RSS sources, CEO statements, patents and external reports.
       Reports are published as static HTML &amp; PDF via GitHub Pages.
     </footer>
   </div>
@@ -619,7 +712,7 @@
     setInterval(updateClock, 1000);
     updateClock();
 
-    // Market data (best effort – potrebbe avere limiti CORS)
+    // Market data (best effort – può dare problemi CORS)
     async function loadMarketData() {
       const items = document.querySelectorAll('#market-list .market-item');
       if (!items.length) return;
