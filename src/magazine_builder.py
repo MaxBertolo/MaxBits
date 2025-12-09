@@ -193,7 +193,6 @@ def _load_extra_reports() -> List[Dict]:
             continue
 
         if d < cutoff or d > today:
-            # fuori finestra 30 giorni o nel futuro
             continue
 
         age_days = (today - d).days
@@ -215,10 +214,7 @@ def _load_extra_reports() -> List[Dict]:
 
 def _build_extra_reports_sidebar_html(extra_reports: List[Dict]) -> str:
     """
-    Costruisce la mini-UI per la sezione "Extra reports (30 days)":
-    - mostra titolo (clickable)
-    - data
-    - pill "in X days" o "last day"
+    Costruisce la mini-UI per la sezione "Extra reports (30 days)".
     """
     if not extra_reports:
         return '<p style="font-size:12px; color:#6b7280;">No extra reports (last 30 days).</p>'
@@ -256,15 +252,16 @@ def _build_extra_reports_sidebar_html(extra_reports: List[Dict]) -> str:
 
 
 # -------------------------------------------------------------------
-#  INDEX.HTML TEMPLATE
+#  INDEX.HTML TEMPLATE (con login JS)
 # -------------------------------------------------------------------
 
 def _build_index_content(reports_for_docs: List[Dict]) -> str:
     """
     Genera docs/index.html con:
+      - overlay di login (password JS)
       - header con logo immagine + toggle light/dark
-      - main hero (gradient, stile moderno) con iframe ultimo report
-      - sidebar con clock, previous 6 reports, market snapshot, extra reports
+      - main hero con iframe ultimo report
+      - sidebar con clock, previous 6 reports, extra reports, market snapshot
     """
     if not reports_for_docs:
         print("[MAG] No reports found, generating minimal placeholder index.")
@@ -313,7 +310,6 @@ def _build_index_content(reports_for_docs: List[Dict]) -> str:
     extra_reports = _load_extra_reports()
     extra_reports_html = _build_extra_reports_sidebar_html(extra_reports)
 
-    # Template HTML con logo, theme toggle, sidebar estesa
     template = """<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -524,7 +520,6 @@ def _build_index_content(reports_for_docs: List[Dict]) -> str:
       border: none;
     }
 
-    /* Sidebar */
     .sidebar {
       display: flex;
       flex-direction: column;
@@ -551,7 +546,6 @@ def _build_index_content(reports_for_docs: List[Dict]) -> str:
       color: var(--text-muted);
     }
 
-    /* Clock */
     .clock-container {
       display: flex;
       flex-direction: column;
@@ -623,7 +617,6 @@ def _build_index_content(reports_for_docs: List[Dict]) -> str:
       color: var(--text-muted);
     }
 
-    /* Previous reports */
     .side-report-list {
       list-style: none;
       padding-left: 0;
@@ -659,7 +652,6 @@ def _build_index_content(reports_for_docs: List[Dict]) -> str:
       margin: 0 4px;
     }
 
-    /* Extra reports */
     .extra-report-list {
       list-style: none;
       padding-left: 0;
@@ -727,7 +719,6 @@ def _build_index_content(reports_for_docs: List[Dict]) -> str:
       color: #facc15;
     }
 
-    /* Market snapshot */
     .market-list {
       list-style: none;
       padding-left: 0;
@@ -792,163 +783,281 @@ def _build_index_content(reports_for_docs: List[Dict]) -> str:
         grid-template-columns: minmax(0, 1fr);
       }
     }
+
+    /* LOGIN OVERLAY */
+    #login-screen {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: radial-gradient(circle at top, #0b1120, #020617);
+      z-index: 9999;
+    }
+
+    #login-card {
+      background: #020617;
+      border-radius: 16px;
+      padding: 24px 22px 20px;
+      width: 320px;
+      box-shadow: 0 20px 50px rgba(0,0,0,0.7);
+      color: #e5e7eb;
+      text-align: left;
+      border: 1px solid #1f2937;
+    }
+
+    #login-card h1 {
+      margin: 0 0 8px 0;
+      font-size: 20px;
+    }
+
+    #login-card p {
+      margin: 0 0 16px 0;
+      font-size: 13px;
+      color: #9ca3af;
+    }
+
+    #login-card label {
+      display: block;
+      font-size: 12px;
+      margin-bottom: 4px;
+      color: #cbd5f5;
+    }
+
+    #login-password {
+      width: 100%;
+      padding: 8px 10px;
+      border-radius: 8px;
+      border: 1px solid #4b5563;
+      background: #020617;
+      color: #e5e7eb;
+      font-size: 13px;
+      margin-bottom: 10px;
+    }
+
+    #login-btn {
+      width: 100%;
+      padding: 8px 10px;
+      border: none;
+      border-radius: 999px;
+      background: #25A7FF;
+      color: #0b1120;
+      font-weight: 600;
+      font-size: 13px;
+      cursor: pointer;
+    }
+
+    #login-error {
+      margin-top: 8px;
+      font-size: 12px;
+      color: #fca5a5;
+      min-height: 16px;
+    }
+
+    #protected-root {
+      display: none;
+    }
   </style>
 </head>
 
 <body>
-  <div class="page">
 
-    <header>
-      <div class="brand">
-        <div class="brand-logo">
-          <img src="assets/maxbits-logo.png" alt="MaxBits logo">
-        </div>
-        <div class="brand-text">
-          <p class="brand-title">Daily Tech Intelligence</p>
-          <p class="brand-subtitle">Telco · Media · AI · Cloud · Space · Patents</p>
-        </div>
-      </div>
-
-      <div style="display:flex; align-items:center; gap:10px;">
-        <div class="tagline">Daily briefing</div>
-        <div class="theme-toggle" id="theme-toggle">
-          <div class="theme-thumb"></div>
-        </div>
-      </div>
-    </header>
-
-    <div class="layout">
-      <!-- MAIN COLUMN -->
-      <main class="main-card">
-        <div class="main-header">
-          <div>
-            <h1 class="main-title">Latest report · __LATEST_DATE__</h1>
-            <p class="main-meta">
-              Curated news + deep-dives designed for busy tech leaders. Updated every morning.
-            </p>
-          </div>
-          <span class="badge-today">Today’s edition</span>
-        </div>
-
-        <div class="iframe-wrapper">
-          <iframe src="__LATEST_HTML__" loading="lazy"></iframe>
-        </div>
-      </main>
-
-      <!-- SIDEBAR -->
-      <aside class="sidebar">
-
-        <!-- CLOCK -->
-        <section class="side-card">
-          <h2 class="side-title">Local time</h2>
-          <div class="clock-container">
-            <div class="clock" id="analog-clock">
-              <div class="hand hour" id="clock-hour"></div>
-              <div class="hand minute" id="clock-minute"></div>
-              <div class="hand second" id="clock-second"></div>
-              <div class="clock-center"></div>
-            </div>
-            <p class="clock-label" id="clock-label-text"></p>
-          </div>
-        </section>
-
-        <!-- PREVIOUS REPORTS -->
-        <section class="side-card">
-          <h2 class="side-title">Previous 6 reports</h2>
-          <ul class="side-report-list">
-__PREVIOUS_LIST__
-          </ul>
-        </section>
-
-        <!-- EXTRA REPORTS -->
-        <section class="side-card">
-          <h2 class="side-title">Extra reports (30 days)</h2>
-          <ul class="extra-report-list">
-__EXTRA_REPORTS__
-          </ul>
-        </section>
-
-        <!-- MARKET SNAPSHOT -->
-        <section class="side-card">
-          <h2 class="side-title">Market snapshot*</h2>
-          <ul class="market-list" id="market-list">
-            <li class="market-item" data-symbol="GOOGL">
-              <div class="market-left">Google<span class="market-symbol">GOOGL</span></div>
-              <div>
-                <span class="market-price">—</span>
-                <span class="market-change">…</span>
-              </div>
-            </li>
-            <li class="market-item" data-symbol="TSLA">
-              <div class="market-left">Tesla<span class="market-symbol">TSLA</span></div>
-              <div>
-                <span class="market-price">—</span>
-                <span class="market-change">…</span>
-              </div>
-            </li>
-            <li class="market-item" data-symbol="AAPL">
-              <div class="market-left">Apple<span class="market-symbol">AAPL</span></div>
-              <div>
-                <span class="market-price">—</span>
-                <span class="market-change">…</span>
-              </div>
-            </li>
-            <li class="market-item" data-symbol="NVDA">
-              <div class="market-left">NVIDIA<span class="market-symbol">NVDA</span></div>
-              <div>
-                <span class="market-price">—</span>
-                <span class="market-change">…</span>
-              </div>
-            </li>
-            <li class="market-item" data-symbol="META">
-              <div class="market-left">Meta<span class="market-symbol">META</span></div>
-              <div>
-                <span class="market-price">—</span>
-                <span class="market-change">…</span>
-              </div>
-            </li>
-            <li class="market-item" data-symbol="MSFT">
-              <div class="market-left">Microsoft<span class="market-symbol">MSFT</span></div>
-              <div>
-                <span class="market-price">—</span>
-                <span class="market-change">…</span>
-              </div>
-            </li>
-            <li class="market-item" data-symbol="AMZN">
-              <div class="market-left">Amazon<span class="market-symbol">AMZN</span></div>
-              <div>
-                <span class="market-price">—</span>
-                <span class="market-change">…</span>
-              </div>
-            </li>
-            <li class="market-item" data-symbol="BTC-USD">
-              <div class="market-left">Bitcoin<span class="market-symbol">BTC</span></div>
-              <div>
-                <span class="market-price">—</span>
-                <span class="market-change">…</span>
-              </div>
-            </li>
-            <li class="market-item" data-symbol="ETH-USD">
-              <div class="market-left">Ethereum<span class="market-symbol">ETH</span></div>
-              <div>
-                <span class="market-price">—</span>
-                <span class="market-change">…</span>
-              </div>
-            </li>
-          </ul>
-          <p style="margin:6px 0 0; font-size:10px; color:#9ca3af;">
-            *Prices loaded client-side from a public API. Values are indicative only.
-          </p>
-        </section>
-
-      </aside>
+  <!-- LOGIN OVERLAY -->
+  <div id="login-screen">
+    <div id="login-card">
+      <h1>MaxBits</h1>
+      <p>Private daily tech report. Enter access password to continue.</p>
+      <label for="login-password">Access password</label>
+      <input type="password" id="login-password" placeholder="Password" />
+      <button id="login-btn">Enter</button>
+      <div id="login-error"></div>
     </div>
-
-    <footer>
-      MaxBits is generated automatically from curated RSS sources, CEO statements, patents and external reports.
-      Reports are published as static HTML &amp; PDF via GitHub Pages.
-    </footer>
   </div>
+
+  <!-- PROTECTED CONTENT -->
+  <div id="protected-root">
+    <div class="page">
+
+      <header>
+        <div class="brand">
+          <div class="brand-logo">
+            <img src="assets/maxbits-logo.png" alt="MaxBits logo">
+          </div>
+          <div class="brand-text">
+            <p class="brand-title">Daily Tech Intelligence</p>
+            <p class="brand-subtitle">Telco · Media · AI · Cloud · Space · Patents</p>
+          </div>
+        </div>
+
+        <div style="display:flex; align-items:center; gap:10px;">
+          <div class="tagline">Daily briefing</div>
+          <div class="theme-toggle" id="theme-toggle">
+            <div class="theme-thumb"></div>
+          </div>
+        </div>
+      </header>
+
+      <div class="layout">
+        <!-- MAIN COLUMN -->
+        <main class="main-card">
+          <div class="main-header">
+            <div>
+              <h1 class="main-title">Latest report · __LATEST_DATE__</h1>
+              <p class="main-meta">
+                Curated news + deep-dives designed for busy tech leaders. Updated every morning.
+              </p>
+            </div>
+            <span class="badge-today">Today’s edition</span>
+          </div>
+
+          <div class="iframe-wrapper">
+            <iframe src="__LATEST_HTML__" loading="lazy"></iframe>
+          </div>
+        </main>
+
+        <!-- SIDEBAR -->
+        <aside class="sidebar">
+
+          <!-- CLOCK -->
+          <section class="side-card">
+            <h2 class="side-title">Local time</h2>
+            <div class="clock-container">
+              <div class="clock" id="analog-clock">
+                <div class="hand hour" id="clock-hour"></div>
+                <div class="hand minute" id="clock-minute"></div>
+                <div class="hand second" id="clock-second"></div>
+                <div class="clock-center"></div>
+              </div>
+              <p class="clock-label" id="clock-label-text"></p>
+            </div>
+          </section>
+
+          <!-- PREVIOUS REPORTS -->
+          <section class="side-card">
+            <h2 class="side-title">Previous 6 reports</h2>
+            <ul class="side-report-list">
+__PREVIOUS_LIST__
+            </ul>
+          </section>
+
+          <!-- EXTRA REPORTS -->
+          <section class="side-card">
+            <h2 class="side-title">Extra reports (30 days)</h2>
+            <ul class="extra-report-list">
+__EXTRA_REPORTS__
+            </ul>
+          </section>
+
+          <!-- MARKET SNAPSHOT -->
+          <section class="side-card">
+            <h2 class="side-title">Market snapshot*</h2>
+            <ul class="market-list" id="market-list">
+              <li class="market-item" data-symbol="GOOGL">
+                <div class="market-left">Google<span class="market-symbol">GOOGL</span></div>
+                <div>
+                  <span class="market-price">—</span>
+                  <span class="market-change">…</span>
+                </div>
+              </li>
+              <li class="market-item" data-symbol="TSLA">
+                <div class="market-left">Tesla<span class="market-symbol">TSLA</span></div>
+                <div>
+                  <span class="market-price">—</span>
+                  <span class="market-change">…</span>
+                </div>
+              </li>
+              <li class="market-item" data-symbol="AAPL">
+                <div class="market-left">Apple<span class="market-symbol">AAPL</span></div>
+                <div>
+                  <span class="market-price">—</span>
+                  <span class="market-change">…</span>
+                </div>
+              </li>
+              <li class="market-item" data-symbol="NVDA">
+                <div class="market-left">NVIDIA<span class="market-symbol">NVDA</span></div>
+                <div>
+                  <span class="market-price">—</span>
+                  <span class="market-change">…</span>
+                </div>
+              </li>
+              <li class="market-item" data-symbol="META">
+                <div class="market-left">Meta<span class="market-symbol">META</span></div>
+                <div>
+                  <span class="market-price">—</span>
+                  <span class="market-change">…</span>
+                </div>
+              </li>
+              <li class="market-item" data-symbol="MSFT">
+                <div class="market-left">Microsoft<span class="market-symbol">MSFT</span></div>
+                <div>
+                  <span class="market-price">—</span>
+                  <span class="market-change">…</span>
+                </div>
+              </li>
+              <li class="market-item" data-symbol="AMZN">
+                <div class="market-left">Amazon<span class="market-symbol">AMZN</span></div>
+                <div>
+                  <span class="market-price">—</span>
+                  <span class="market-change">…</span>
+                </div>
+              </li>
+              <li class="market-item" data-symbol="BTC-USD">
+                <div class="market-left">Bitcoin<span class="market-symbol">BTC</span></div>
+                <div>
+                  <span class="market-price">—</span>
+                  <span class="market-change">…</span>
+                </div>
+              </li>
+              <li class="market-item" data-symbol="ETH-USD">
+                <div class="market-left">Ethereum<span class="market-symbol">ETH</span></div>
+                <div>
+                  <span class="market-price">—</span>
+                  <span class="market-change">…</span>
+                </div>
+              </li>
+            </ul>
+            <p style="margin:6px 0 0; font-size:10px; color:#9ca3af;">
+              *Prices loaded client-side from a public API. Values are indicative only.
+            </p>
+          </section>
+
+        </aside>
+      </div>
+
+      <footer>
+        MaxBits is generated automatically from curated RSS sources, CEO statements, patents and external reports.
+        Reports are published as static HTML &amp; PDF via GitHub Pages.
+      </footer>
+
+    </div>
+  </div>
+
+  <script>
+    // LOGIN OVERLAY (password lato client, non sicurezza "vera")
+    (function() {
+      const PASSWORD = "MaxBites1972!";
+      const loginScreen = document.getElementById("login-screen");
+      const root = document.getElementById("protected-root");
+      const input = document.getElementById("login-password");
+      const btn = document.getElementById("login-btn");
+      const errorBox = document.getElementById("login-error");
+
+      function unlock() {
+        const val = (input.value || "").trim();
+        if (val === PASSWORD) {
+          loginScreen.style.display = "none";
+          root.style.display = "block";
+        } else {
+          errorBox.textContent = "Wrong password. Please try again.";
+        }
+      }
+
+      btn.addEventListener("click", unlock);
+      input.addEventListener("keydown", function(ev) {
+        if (ev.key === "Enter") unlock();
+      });
+    })();
+  </script>
 
   <script>
     // THEME TOGGLE (light / dark)
@@ -1091,7 +1200,7 @@ def build_magazine(max_reports: int = 7) -> None:
     Entry point:
       - legge i report sorgente
       - copia gli ultimi N in docs/reports
-      - genera docs/index.html con layout moderno + sidebar + extra reports
+      - genera docs/index.html
     """
     raw_reports = _find_reports()
     DOCS_DIR.mkdir(parents=True, exist_ok=True)
