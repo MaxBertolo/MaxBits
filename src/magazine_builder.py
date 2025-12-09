@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 import re
 import shutil
-from typing import List, Dict
+from typing import List, Dict, Tuple
 
 from datetime import datetime, timedelta
 import yaml
@@ -215,7 +215,124 @@ def _build_extra_reports_sidebar_html(extra_reports: List[Dict]) -> str:
 
 
 # -------------------------------------------------------------------
-#  INDEX.HTML TEMPLATE (logo + login)
+#  MARKET SNAPSHOT (STATICO DA YAML)
+# -------------------------------------------------------------------
+
+def _load_market_snapshot() -> Tuple[List[Dict], str]:
+    """
+    Legge config/market_snapshot.yaml.
+
+    Struttura attesa:
+      market_snapshot:
+        updated_at: "2025-12-09 10:00 CET"
+        items:
+          - name: "Google"
+            symbol: "GOOGL"
+            price: 142.35
+            change_percent: 1.23
+    """
+    cfg_path = BASE_DIR / "config" / "market_snapshot.yaml"
+    if not cfg_path.exists():
+        print(f"[MAG] No market_snapshot.yaml at {cfg_path}")
+        return [], "n/a"
+
+    try:
+        data = yaml.safe_load(cfg_path.read_text(encoding="utf-8")) or {}
+    except Exception as e:
+        print(f"[MAG] Cannot parse market_snapshot.yaml: {e!r}")
+        return [], "n/a"
+
+    ms = data.get("market_snapshot") or {}
+    if not isinstance(ms, dict):
+        return [], "n/a"
+
+    updated_at = str(ms.get("updated_at") or "n/a").strip()
+    items_raw = ms.get("items") or []
+    if not isinstance(items_raw, list):
+        items_raw = []
+
+    items: List[Dict] = []
+    for it in items_raw:
+        if not isinstance(it, dict):
+            continue
+        name = str(it.get("name") or "").strip()
+        symbol = str(it.get("symbol") or "").strip()
+        price = it.get("price")
+        change_pct = it.get("change_percent")
+        if not name or not symbol:
+            continue
+        items.append(
+            {
+                "name": name,
+                "symbol": symbol,
+                "price": price,
+                "change_percent": change_pct,
+            }
+        )
+
+    return items, updated_at
+
+
+def _build_market_sidebar_html(items: List[Dict], updated_at: str) -> str:
+    if not items:
+        return """
+<ul class="market-list">
+  <li class="market-item">
+    <div class="market-left">No data</div>
+    <div><span class="market-price">n/a</span></div>
+  </li>
+</ul>
+<p style="margin:6px 0 0; font-size:10px; color:#9ca3af;">
+  *No market snapshot available.
+</p>
+"""
+
+    rows: List[str] = []
+    for it in items:
+        name = it["name"]
+        symbol = it["symbol"]
+        price = it.get("price")
+        change = it.get("change_percent")
+
+        if isinstance(price, (int, float)):
+            price_txt = f"{price:.2f}"
+        else:
+            price_txt = "n/a"
+
+        change_txt = ""
+        cls = "market-change"
+        if isinstance(change, (int, float)):
+            if change > 0:
+                cls += " up"
+                change_txt = f"+{change:.2f}%"
+            elif change < 0:
+                cls += " down"
+                change_txt = f"{change:.2f}%"
+            else:
+                change_txt = "0.00%"
+
+        row = f"""
+        <li class="market-item">
+          <div class="market-left">{name}<span class="market-symbol">{symbol}</span></div>
+          <div>
+            <span class="market-price">{price_txt}</span>
+            <span class="{cls}">{change_txt}</span>
+          </div>
+        </li>
+        """
+        rows.append(row)
+
+    html_rows = "\n".join(rows)
+    footer = f"""
+<p style="margin:6px 0 0; font-size:10px; color:#9ca3af;">
+  *Static snapshot updated at {updated_at}. Values are indicative only.
+</p>
+"""
+    return f"<ul class=\"market-list\">\n{html_rows}\n</ul>\n{footer}"
+
+
+# -------------------------------------------------------------------
+#  INDEX.HTML TEMPLATE
 # -------------------------------------------------------------------
 
 def _build_index_content(reports_for_docs: List[Dict]) -> str:
@@ -266,6 +383,10 @@ def _build_index_content(reports_for_docs: List[Dict]) -> str:
     extra_reports = _load_extra_reports()
     extra_reports_html = _build_extra_reports_sidebar_html(extra_reports)
 
+    market_items, market_updated_at = _load_market_snapshot()
+    market_html = _build_market_sidebar_html(market_items, market_updated_at)
+
+    # --- HTML TEMPLATE (identico a prima, ma senza JS AlphaVantage) ---
     template = """<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -477,75 +598,33 @@ def _build_index_content(reports_for_docs: List[Dict]) -> str:
       color: var(--text-muted);
     }
 
-    .clock-container {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 8px;
-    }
-
-    .clock {
-      position: relative;
-      width: 120px;
-      height: 120px;
-      border-radius: 999px;
-      border: 4px solid #e5e7eb;
-      background: radial-gradient(circle at 30% 20%, #ffffff, #f3f4f6);
-      box-shadow: 0 6px 14px rgba(15,23,42,0.15) inset;
-    }
-
-    body[data-theme="dark"] .clock {
-      border-color: #111827;
-      background: radial-gradient(circle at 30% 20%, #020617, #020617);
-      box-shadow: 0 6px 16px rgba(0,0,0,0.8) inset;
-    }
-
-    .clock-center {
-      position: absolute;
-      width: 8px;
-      height: 8px;
-      border-radius: 999px;
-      background: #111827;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      z-index: 10;
-    }
-
-    body[data-theme="dark"] .clock-center {
-      background: #e5e7eb;
-    }
-
-    .hand {
-      position: absolute;
-      width: 2px;
-      background: #111827;
-      left: 50%;
-      top: 50%;
-      transform-origin: bottom center;
-      transform: translateX(-50%) rotate(0deg);
-    }
-
-    body[data-theme="dark"] .hand {
-      background: #e5e7eb;
-    }
-
-    .hand.hour { height: 32px; border-radius: 999px; }
-    .hand.minute { height: 44px; border-radius: 999px; }
-    .hand.second {
-      height: 52px;
-      border-radius: 999px;
-      background: var(--accent-dark);
-    }
-
-    body[data-theme="dark"] .hand.second {
-      background: #38bdf8;
+    .clock-digital {
+      font-size: 24px;
+      font-weight: 600;
+      letter-spacing: 0.06em;
+      text-align: center;
+      margin-bottom: 4px;
     }
 
     .clock-label {
       margin: 0;
-      font-size: 12px;
+      font-size: 11px;
       color: var(--text-muted);
+      text-align: center;
+    }
+
+    .weather-row {
+      margin-top: 10px;
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+
+    .weather-temp-strong {
+      font-weight: 600;
+      color: var(--text-main);
     }
 
     .side-report-list {
@@ -696,7 +775,6 @@ def _build_index_content(reports_for_docs: List[Dict]) -> str:
       }
     }
 
-    /* LOGIN OVERLAY */
     #login-screen {
       position: fixed;
       inset: 0;
@@ -774,7 +852,6 @@ def _build_index_content(reports_for_docs: List[Dict]) -> str:
 
 <body>
 
-  <!-- LOGIN OVERLAY -->
   <div id="login-screen">
     <div id="login-card">
       <h1>MaxBits</h1>
@@ -786,7 +863,6 @@ def _build_index_content(reports_for_docs: List[Dict]) -> str:
     </div>
   </div>
 
-  <!-- PROTECTED CONTENT -->
   <div id="protected-root">
     <div class="page">
 
@@ -804,7 +880,6 @@ def _build_index_content(reports_for_docs: List[Dict]) -> str:
       </header>
 
       <div class="layout">
-        <!-- MAIN COLUMN -->
         <main class="main-card">
           <div class="main-header">
             <div>
@@ -821,24 +896,18 @@ def _build_index_content(reports_for_docs: List[Dict]) -> str:
           </div>
         </main>
 
-        <!-- SIDEBAR -->
         <aside class="sidebar">
 
-          <!-- CLOCK -->
           <section class="side-card">
-            <h2 class="side-title">Local time</h2>
-            <div class="clock-container">
-              <div class="clock" id="analog-clock">
-                <div class="hand hour" id="clock-hour"></div>
-                <div class="hand minute" id="clock-minute"></div>
-                <div class="hand second" id="clock-second"></div>
-                <div class="clock-center"></div>
-              </div>
-              <p class="clock-label" id="clock-label-text"></p>
+            <h2 class="side-title">Local time & weather</h2>
+            <div class="clock-digital" id="clock-digital">--:--</div>
+            <p class="clock-label" id="clock-label-text"></p>
+            <div class="weather-row" id="weather-row">
+              <span id="weather-location">Detecting location…</span>
+              <span id="weather-temp"></span>
             </div>
           </section>
 
-          <!-- PREVIOUS REPORTS -->
           <section class="side-card">
             <h2 class="side-title">Previous 6 reports</h2>
             <ul class="side-report-list">
@@ -846,7 +915,6 @@ __PREVIOUS_LIST__
             </ul>
           </section>
 
-          <!-- EXTRA REPORTS -->
           <section class="side-card">
             <h2 class="side-title">Extra reports (30 days)</h2>
             <ul class="extra-report-list">
@@ -854,77 +922,9 @@ __EXTRA_REPORTS__
             </ul>
           </section>
 
-          <!-- MARKET SNAPSHOT -->
           <section class="side-card">
             <h2 class="side-title">Market snapshot*</h2>
-            <ul class="market-list" id="market-list">
-              <li class="market-item" data-symbol="GOOGL">
-                <div class="market-left">Google<span class="market-symbol">GOOGL</span></div>
-                <div>
-                  <span class="market-price">—</span>
-                  <span class="market-change">…</span>
-                </div>
-              </li>
-              <li class="market-item" data-symbol="TSLA">
-                <div class="market-left">Tesla<span class="market-symbol">TSLA</span></div>
-                <div>
-                  <span class="market-price">—</span>
-                  <span class="market-change">…</span>
-                </div>
-              </li>
-              <li class="market-item" data-symbol="AAPL">
-                <div class="market-left">Apple<span class="market-symbol">AAPL</span></div>
-                <div>
-                  <span class="market-price">—</span>
-                  <span class="market-change">…</span>
-                </div>
-              </li>
-              <li class="market-item" data-symbol="NVDA">
-                <div class="market-left">NVIDIA<span class="market-symbol">NVDA</span></div>
-                <div>
-                  <span class="market-price">—</span>
-                  <span class="market-change">…</span>
-                </div>
-              </li>
-              <li class="market-item" data-symbol="META">
-                <div class="market-left">Meta<span class="market-symbol">META</span></div>
-                <div>
-                  <span class="market-price">—</span>
-                  <span class="market-change">…</span>
-                </div>
-              </li>
-              <li class="market-item" data-symbol="MSFT">
-                <div class="market-left">Microsoft<span class="market-symbol">MSFT</span></div>
-                <div>
-                  <span class="market-price">—</span>
-                  <span class="market-change">…</span>
-                </div>
-              </li>
-              <li class="market-item" data-symbol="AMZN">
-                <div class="market-left">Amazon<span class="market-symbol">AMZN</span></div>
-                <div>
-                  <span class="market-price">—</span>
-                  <span class="market-change">…</span>
-                </div>
-              </li>
-              <li class="market-item" data-symbol="BTC-USD">
-                <div class="market-left">Bitcoin<span class="market-symbol">BTC</span></div>
-                <div>
-                  <span class="market-price">—</span>
-                  <span class="market-change">…</span>
-                </div>
-              </li>
-              <li class="market-item" data-symbol="ETH-USD">
-                <div class="market-left">Ethereum<span class="market-symbol">ETH</span></div>
-                <div>
-                  <span class="market-price">—</span>
-                  <span class="market-change">…</span>
-                </div>
-              </li>
-            </ul>
-            <p style="margin:6px 0 0; font-size:10px; color:#9ca3af;">
-              *Prices loaded client-side from a public API. Values are indicative only.
-            </p>
+__MARKET_HTML__
           </section>
 
         </aside>
@@ -939,9 +939,9 @@ __EXTRA_REPORTS__
   </div>
 
   <script>
-    // LOGIN OVERLAY (password lato client)
+    // LOGIN (password lato client)
     (function() {
-      const PASSWORD = "MaxBits1972!";   // <--- CAMBIA QUI LA PASSWORD
+      const PASSWORD = "MaxBites1972!";   // <--- CAMBIA QUI LA PASSWORD
       const loginScreen = document.getElementById("login-screen");
       const root = document.getElementById("protected-root");
       const input = document.getElementById("login-password");
@@ -997,95 +997,76 @@ __EXTRA_REPORTS__
       }
     })();
 
-    // Analog clock
+    // CLOCK DIGITALE
     function updateClock() {
       const now = new Date();
-      const sec = now.getSeconds();
-      const min = now.getMinutes();
-      const hr  = now.getHours();
+      const hh = String(now.getHours()).padStart(2, "0");
+      const mm = String(now.getMinutes()).padStart(2, "0");
+      const ss = String(now.getSeconds()).padStart(2, "0");
 
-      const secDeg = sec * 6;
-      const minDeg = min * 6 + sec * 0.1;
-      const hrDeg  = ((hr % 12) / 12) * 360 + min * 0.5;
-
-      const h = document.getElementById('clock-hour');
-      const m = document.getElementById('clock-minute');
-      const s = document.getElementById('clock-second');
-
-      if (h && m && s) {
-        h.style.transform = 'translateX(-50%) rotate(' + hrDeg + 'deg)';
-        m.style.transform = 'translateX(-50%) rotate(' + minDeg + 'deg)';
-        s.style.transform = 'translateX(-50%) rotate(' + secDeg + 'deg)';
-      }
-
-      const label = document.getElementById('clock-label-text');
-      if (label) {
-        label.textContent = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      const clockMain = document.getElementById("clock-digital");
+      const clockLabel = document.getElementById("clock-label-text");
+      if (clockMain) clockMain.textContent = hh + ":" + mm + ":" + ss;
+      if (clockLabel) {
+        clockLabel.textContent = now.toLocaleDateString(undefined, {
+          weekday: "short",
+          year: "numeric",
+          month: "short",
+          day: "numeric"
+        });
       }
     }
     setInterval(updateClock, 1000);
     updateClock();
 
-    // Market data (best effort – può dare problemi CORS)
-    async function loadMarketData() {
-      const items = document.querySelectorAll('#market-list .market-item');
-      if (!items.length) return;
+    // METEO (Open-Meteo)
+    async function loadWeather() {
+      const locEl = document.getElementById("weather-location");
+      const tempEl = document.getElementById("weather-temp");
+      if (!locEl || !tempEl) return;
 
-      const symbols = Array.from(items).map(li => li.dataset.symbol).join(',');
-      const url = 'https://query1.finance.yahoo.com/v7/finance/quote?symbols=' + encodeURIComponent(symbols);
+      if (!navigator.geolocation) {
+        locEl.textContent = "Location not available";
+        tempEl.textContent = "";
+        return;
+      }
 
-      try {
-        const resp = await fetch(url);
-        if (!resp.ok) throw new Error('HTTP ' + resp.status);
-        const data = await resp.json();
-        const quotes = (data.quoteResponse && data.quoteResponse.result) || [];
+      function setError(msg) {
+        locEl.textContent = msg;
+        tempEl.textContent = "";
+      }
 
-        const map = {};
-        quotes.forEach(q => {
-          if (q.symbol) map[q.symbol] = q;
-        });
+      navigator.geolocation.getCurrentPosition(async (pos) => {
+        try {
+          const lat = pos.coords.latitude;
+          const lon = pos.coords.longitude;
 
-        items.forEach(li => {
-          const sym = li.dataset.symbol;
-          const q = map[sym];
-          const priceEl = li.querySelector('.market-price');
-          const changeEl = li.querySelector('.market-change');
-          if (!priceEl || !changeEl) return;
+          const url = "https://api.open-meteo.com/v1/forecast?latitude="
+                      + encodeURIComponent(lat)
+                      + "&longitude=" + encodeURIComponent(lon)
+                      + "&current_weather=true";
 
-          if (!q || typeof q.regularMarketPrice === 'undefined') {
-            priceEl.textContent = 'n/a';
-            changeEl.textContent = '';
+          const resp = await fetch(url);
+          if (!resp.ok) throw new Error("HTTP " + resp.status);
+          const data = await resp.json();
+          const cw = data.current_weather;
+          if (!cw) {
+            setError("Weather unavailable");
             return;
           }
 
-          const price = q.regularMarketPrice;
-          const pct = q.regularMarketChangePercent;
-
-          priceEl.textContent = price.toFixed(2);
-
-          let cls = 'market-change';
-          let txt = '';
-          if (typeof pct === 'number') {
-            if (pct > 0) {
-              cls += ' up';
-              txt = '+' + pct.toFixed(2) + '%';
-            } else if (pct < 0) {
-              cls += ' down';
-              txt = pct.toFixed(2) + '%';
-            } else {
-              txt = '0.00%';
-            }
-          }
-          changeEl.className = cls;
-          changeEl.textContent = txt;
-        });
-
-      } catch (e) {
-        console.warn('[Market] failed to load prices:', e);
-      }
+          const t = cw.temperature;
+          locEl.textContent = "Your location";
+          tempEl.innerHTML = "<span class='weather-temp-strong'>" + t.toFixed(1) + "°C</span>";
+        } catch (e) {
+          console.warn("[Weather] failed:", e);
+          setError("Weather unavailable");
+        }
+      }, () => {
+        setError("Enable location to see weather");
+      }, { timeout: 8000 });
     }
-
-    loadMarketData();
+    loadWeather();
   </script>
 
 </body>
@@ -1098,6 +1079,7 @@ __EXTRA_REPORTS__
         .replace("__LATEST_HTML__", latest_html_rel)
         .replace("__PREVIOUS_LIST__", previous_list_html)
         .replace("__EXTRA_REPORTS__", extra_reports_html)
+        .replace("__MARKET_HTML__", market_html)
     )
 
 
