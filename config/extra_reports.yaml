@@ -1,0 +1,8 @@
+extra_reports:
+  - title: "2025 AI Horizon Report – Stanford"
+    url: "https://example.com/stanford_ai_report_2025.pdf"
+    date: "2025-12-08"
+
+  - title: "SpaceX Next-Gen Starlink Architecture"
+    url: "https://example.com/spacex_starlink_architecture.pdf"
+    date: "2025-12-03"
