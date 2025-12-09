@@ -1,39 +1,55 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
+  <meta charset="utf-8">
   <title>MaxBits · Daily Tech Intelligence</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 
   <style>
     :root {
-      --bg: #f5f5f7;
+      --bg: #f5f7fa;
       --card-bg: #ffffff;
-      --accent: #0052cc;
-      --accent-soft: #e6efff;
-      --text-main: #111827;
+      --accent: #25A7FF;
+      --accent-dark: #006fd6;
+      --text-main: #111111;
       --text-muted: #6b7280;
       --border: #e5e7eb;
-      --radius-lg: 14px;
-      --shadow-soft: 0 14px 30px rgba(15, 23, 42, 0.08);
+      --radius-lg: 16px;
+      --shadow-soft: 0 18px 40px rgba(15, 23, 42, 0.18);
     }
 
-    * {
-      box-sizing: border-box;
+    body[data-theme="dark"] {
+      --bg: #020617;
+      --card-bg: #020617;
+      --text-main: #f9fafb;
+      --text-muted: #9ca3af;
+      --border: #1f2937;
+      --shadow-soft: 0 18px 40px rgba(0, 0, 0, 0.8);
     }
+
+    * { box-sizing: border-box; }
 
     body {
       margin: 0;
-      padding: 32px 16px 40px;
-      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text",
-                   system-ui, -system-ui, "Segoe UI", sans-serif;
-      background: var(--bg);
+      padding: 0;
+      background: radial-gradient(circle at top left, #e5f3ff, #f5f7fa);
       color: var(--text-main);
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+      transition: background 0.35s ease, color 0.25s ease;
+    }
+
+    body[data-theme="dark"] {
+      background: radial-gradient(circle at top left, #020617, #020617);
     }
 
     .page {
-      max-width: 960px;
+      max-width: 1120px;
       margin: 0 auto;
+      padding: 24px 16px 40px;
     }
 
     header {
@@ -41,221 +57,355 @@
       align-items: center;
       justify-content: space-between;
       gap: 16px;
-      margin-bottom: 24px;
+      padding: 8px 4px 22px;
     }
 
     .brand {
       display: flex;
-      flex-direction: column;
-      gap: 4px;
-    }
-
-    .brand-title {
-      margin: 0;
-      font-size: 24px;
-      letter-spacing: 0.03em;
-    }
-
-    .brand-subtitle {
-      margin: 0;
-      font-size: 13px;
-      color: var(--text-muted);
-    }
-
-    .tag {
-      font-size: 11px;
-      text-transform: uppercase;
-      letter-spacing: 0.12em;
-      padding: 4px 8px;
-      border-radius: 999px;
-      background: #eef2ff;
-      color: #4f46e5;
-      border: 1px solid #e0e7ff;
-      white-space: nowrap;
-    }
-
-    .hero {
-      background: radial-gradient(circle at top left, #eef2ff, #f9fafb);
-      border-radius: var(--radius-lg);
-      box-shadow: var(--shadow-soft);
-      padding: 20px 20px 18px;
-      margin-bottom: 20px;
-      border: 1px solid #e5e7f0;
-    }
-
-    .hero-top {
-      display: flex;
-      justify-content: space-between;
-      align-items: flex-start;
-      gap: 16px;
-      margin-bottom: 10px;
-    }
-
-    .hero-title {
-      margin: 0;
-      font-size: 20px;
-    }
-
-    .hero-text {
-      margin: 4px 0 0;
-      font-size: 13px;
-      color: var(--text-muted);
-    }
-
-    .hero-pill {
-      font-size: 12px;
-      padding: 4px 9px;
-      border-radius: 999px;
-      background: #ecfdf3;
-      color: #047857;
-      border: 1px solid #bbf7d0;
-      white-space: nowrap;
-    }
-
-    .hero-actions {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 10px;
-      margin-top: 4px;
-    }
-
-    .btn-primary {
-      display: inline-flex;
       align-items: center;
-      justify-content: center;
-      padding: 8px 14px;
-      font-size: 13px;
-      border-radius: 999px;
-      border: none;
-      cursor: pointer;
-      background: var(--accent);
-      color: #fff;
-      text-decoration: none;
-      font-weight: 500;
+      gap: 14px;
     }
 
-    .btn-secondary {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      padding: 8px 12px;
-      font-size: 12px;
-      border-radius: 999px;
-      border: 1px solid var(--border);
-      background: rgba(255,255,255,0.9);
-      color: var(--text-muted);
-      text-decoration: none;
-      gap: 6px;
+    .brand-logo img {
+      height: 40px;
+      width: auto;
+      display: block;
     }
 
-    .btn-secondary span.badge {
-      padding: 2px 6px;
-      border-radius: 999px;
-      background: var(--accent-soft);
-      color: var(--accent);
-      font-size: 10px;
-      font-weight: 500;
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
-    }
-
-    .section {
-      margin-top: 22px;
-    }
-
-    .section-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: baseline;
-      gap: 10px;
-      margin-bottom: 6px;
-    }
-
-    .section-title {
-      margin: 0;
-      font-size: 15px;
-      text-transform: uppercase;
-      letter-spacing: 0.12em;
-      color: var(--text-muted);
-    }
-
-    .section-subtitle {
-      margin: 0;
-      font-size: 12px;
-      color: var(--text-muted);
-    }
-
-    .reports-list {
-      list-style: none;
-      padding: 0;
-      margin: 0;
-      display: grid;
-      grid-template-columns: minmax(0,1fr);
-      gap: 8px;
-    }
-
-    .reports-item {
-      display: flex;
-      justify-content: space-between;
-      align-items: baseline;
-      gap: 10px;
-      padding: 8px 10px;
-      border-radius: 10px;
-      background: var(--card-bg);
-      border: 1px solid var(--border);
-    }
-
-    .reports-item-main {
+    .brand-text {
       display: flex;
       flex-direction: column;
       gap: 2px;
     }
 
-    .reports-date {
-      font-size: 13px;
+    .brand-title {
+      margin: 0;
+      font-size: 18px;
+      font-weight: 600;
+      letter-spacing: 0.02em;
+    }
+
+    .brand-subtitle {
+      margin: 0;
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    .tagline {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.16em;
+      padding: 4px 9px;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+      white-space: nowrap;
+    }
+
+    .theme-toggle {
+      border-radius: 999px;
+      width: 40px;
+      height: 22px;
+      padding: 2px;
+      border: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      background: rgba(255,255,255,0.85);
+      cursor: pointer;
+      position: relative;
+    }
+
+    body[data-theme="dark"] .theme-toggle {
+      background: #020617;
+    }
+
+    .theme-thumb {
+      width: 16px;
+      height: 16px;
+      border-radius: 999px;
+      background: #020617;
+      transform: translateX(0);
+      transition: transform 0.22s ease, background 0.22s ease;
+    }
+
+    body[data-theme="dark"] .theme-thumb {
+      transform: translateX(16px);
+      background: #facc15;
+    }
+
+    .layout {
+      display: grid;
+      grid-template-columns: minmax(0, 2.7fr) minmax(270px, 1fr);
+      gap: 20px;
+    }
+
+    .main-card {
+      background: radial-gradient(circle at top left, rgba(37,167,255,0.12), rgba(255,255,255,0.96));
+      padding: 20px 20px 18px;
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow-soft);
+      border: 1px solid rgba(255,255,255,0.4);
+      backdrop-filter: blur(10px);
+    }
+
+    body[data-theme="dark"] .main-card {
+      background: radial-gradient(circle at top left, rgba(15,118,255,0.35), #020617);
+      border-color: #1f2937;
+    }
+
+    .main-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+
+    .main-title {
+      margin: 0;
+      font-size: 20px;
+      letter-spacing: 0.02em;
+    }
+
+    .main-meta {
+      margin: 3px 0 0;
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    .badge-today {
+      font-size: 11px;
+      padding: 4px 8px;
+      border-radius: 999px;
+      background: rgba(37,167,255,0.12);
+      color: var(--accent-dark);
+      border: 1px solid rgba(37,167,255,0.4);
+      white-space: nowrap;
+    }
+
+    body[data-theme="dark"] .badge-today {
+      background: rgba(37,167,255,0.15);
+      color: #e0f2fe;
+      border-color: rgba(59,130,246,0.6);
+    }
+
+    .iframe-wrapper {
+      margin-top: 10px;
+      border-radius: 14px;
+      overflow: hidden;
+      border: 1px solid rgba(148,163,184,0.5);
+      background: #ffffff;
+    }
+
+    body[data-theme="dark"] .iframe-wrapper {
+      background: #020617;
+      border-color: #1f2937;
+    }
+
+    .iframe-wrapper iframe {
+      width: 100%;
+      height: 78vh;
+      border: none;
+    }
+
+    /* Sidebar */
+    .sidebar {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .side-card {
+      background: var(--card-bg);
+      border-radius: 14px;
+      padding: 14px 14px 12px;
+      border: 1px solid var(--border);
+      box-shadow: 0 10px 26px rgba(15,23,42,0.08);
+    }
+
+    body[data-theme="dark"] .side-card {
+      box-shadow: 0 16px 40px rgba(0,0,0,0.85);
+    }
+
+    .side-title {
+      margin: 0 0 6px 0;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.14em;
+      color: var(--text-muted);
+    }
+
+    /* Clock */
+    .clock-container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .clock {
+      position: relative;
+      width: 120px;
+      height: 120px;
+      border-radius: 999px;
+      border: 4px solid #e5e7eb;
+      background: radial-gradient(circle at 30% 20%, #ffffff, #f3f4f6);
+      box-shadow: 0 6px 14px rgba(15,23,42,0.15) inset;
+    }
+
+    body[data-theme="dark"] .clock {
+      border-color: #111827;
+      background: radial-gradient(circle at 30% 20%, #020617, #020617);
+      box-shadow: 0 6px 16px rgba(0,0,0,0.8) inset;
+    }
+
+    .clock-center {
+      position: absolute;
+      width: 8px;
+      height: 8px;
+      border-radius: 999px;
+      background: #111827;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      z-index: 10;
+    }
+
+    body[data-theme="dark"] .clock-center {
+      background: #e5e7eb;
+    }
+
+    .hand {
+      position: absolute;
+      width: 2px;
+      background: #111827;
+      left: 50%;
+      top: 50%;
+      transform-origin: bottom center;
+      transform: translateX(-50%) rotate(0deg);
+    }
+
+    body[data-theme="dark"] .hand {
+      background: #e5e7eb;
+    }
+
+    .hand.hour { height: 32px; border-radius: 999px; }
+    .hand.minute { height: 44px; border-radius: 999px; }
+    .hand.second {
+      height: 52px;
+      border-radius: 999px;
+      background: var(--accent-dark);
+    }
+
+    body[data-theme="dark"] .hand.second {
+      background: #38bdf8;
+    }
+
+    .clock-label {
+      margin: 0;
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    /* Previous reports */
+    .side-report-list {
+      list-style: none;
+      padding-left: 0;
+      margin: 6px 0 0 0;
+    }
+
+    .side-report-item + .side-report-item {
+      margin-top: 4px;
+    }
+
+    .side-report-date {
+      font-size: 12px;
       font-weight: 500;
     }
 
-    .reports-meta {
+    .side-report-links {
       font-size: 11px;
       color: var(--text-muted);
     }
 
-    .reports-links {
-      display: flex;
-      gap: 8px;
-      font-size: 11px;
-      white-space: nowrap;
-    }
-
-    .reports-links a {
+    .side-report-links a {
+      color: var(--accent-dark);
       text-decoration: none;
-      color: var(--accent);
       font-weight: 500;
     }
 
-    .reports-links span.dot {
-      color: #d1d5db;
+    body[data-theme="dark"] .side-report-links a {
+      color: #60a5fa;
     }
 
+    .side-report-links .dot {
+      color: #d1d5db;
+      margin: 0 4px;
+    }
+
+    /* Market snapshot */
+    .market-list {
+      list-style: none;
+      padding-left: 0;
+      margin: 6px 0 0 0;
+    }
+
+    .market-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      gap: 6px;
+      font-size: 12px;
+      padding: 2px 0;
+    }
+
+    .market-left {
+      font-weight: 500;
+      color: var(--text-main);
+    }
+
+    .market-symbol {
+      font-size: 10px;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      margin-left: 4px;
+    }
+
+    .market-price {
+      font-weight: 500;
+      color: var(--text-main);
+    }
+
+    .market-change {
+      font-size: 11px;
+    }
+
+    .market-change.up { color: #16a34a; }
+    .market-change.down { color: #dc2626; }
+
+    body[data-theme="dark"] .market-change.up { color: #4ade80; }
+    body[data-theme="dark"] .market-change.down { color: #f97373; }
+
     footer {
-      margin-top: 26px;
+      margin-top: 22px;
       font-size: 11px;
       color: var(--text-muted);
       text-align: left;
     }
 
     footer a {
-      color: var(--accent);
+      color: var(--accent-dark);
       text-decoration: none;
     }
 
-    @media (min-width: 720px) {
-      body {
-        padding-top: 40px;
-      }
-      .hero-top {
-        align-items: center;
+    body[data-theme="dark"] footer a {
+      color: #60a5fa;
+    }
+
+    @media (max-width: 900px) {
+      .layout {
+        grid-template-columns: minmax(0, 1fr);
       }
     }
   </style>
@@ -264,66 +414,272 @@
 <body>
   <div class="page">
 
-    <!-- HEADER -->
     <header>
       <div class="brand">
-        <h1 class="brand-title">MaxBits Mag</h1>
-        <p class="brand-subtitle">
-          Daily tech intelligence across Telco · Media · AI · Data · Space.
-        </p>
+        <div class="brand-logo">
+          <img src="assets/maxbits-logo.png" alt="MaxBits logo">
+        </div>
+        <div class="brand-text">
+          <p class="brand-title">Daily Tech Intelligence</p>
+          <p class="brand-subtitle">Telco · Media · AI · Cloud · Space · Patents</p>
+        </div>
       </div>
-      <span class="tag">Daily Briefing</span>
+
+      <div style="display:flex; align-items:center; gap:10px;">
+        <div class="tagline">Daily briefing</div>
+        <div class="theme-toggle" id="theme-toggle">
+          <div class="theme-thumb"></div>
+        </div>
+      </div>
     </header>
 
-    <!-- HERO / LATEST REPORT -->
-    <section class="hero">
-      <div class="hero-top">
-        <div>
-          <h2 class="hero-title">Latest report · 2025-12-09</h2>
-          <p class="hero-text">
-            Curated news + deep-dives designed for busy tech leaders. Updated every morning.
+    <div class="layout">
+      <!-- MAIN COLUMN -->
+      <main class="main-card">
+        <div class="main-header">
+          <div>
+            <h1 class="main-title">Latest report · 2025-12-09</h1>
+            <p class="main-meta">
+              Curated news + deep-dives designed for busy tech leaders. Updated every morning.
+            </p>
+          </div>
+          <span class="badge-today">Today’s edition</span>
+        </div>
+
+        <div class="iframe-wrapper">
+          <iframe src="reports/html/report_2025-12-09.html" loading="lazy"></iframe>
+        </div>
+      </main>
+
+      <!-- SIDEBAR -->
+      <aside class="sidebar">
+
+        <!-- CLOCK -->
+        <section class="side-card">
+          <h2 class="side-title">Local time</h2>
+          <div class="clock-container">
+            <div class="clock" id="analog-clock">
+              <div class="hand hour" id="clock-hour"></div>
+              <div class="hand minute" id="clock-minute"></div>
+              <div class="hand second" id="clock-second"></div>
+              <div class="clock-center"></div>
+            </div>
+            <p class="clock-label" id="clock-label-text"></p>
+          </div>
+        </section>
+
+        <!-- PREVIOUS REPORTS -->
+        <section class="side-card">
+          <h2 class="side-title">Previous 6 reports</h2>
+          <ul class="side-report-list">
+<p style="font-size:12px; color:#6b7280;">No previous reports yet.</p>
+          </ul>
+        </section>
+
+        <!-- MARKET SNAPSHOT -->
+        <section class="side-card">
+          <h2 class="side-title">Market snapshot*</h2>
+          <ul class="market-list" id="market-list">
+            <li class="market-item" data-symbol="GOOGL">
+              <div class="market-left">Google<span class="market-symbol">GOOGL</span></div>
+              <div>
+                <span class="market-price">—</span>
+                <span class="market-change">…</span>
+              </div>
+            </li>
+            <li class="market-item" data-symbol="TSLA">
+              <div class="market-left">Tesla<span class="market-symbol">TSLA</span></div>
+              <div>
+                <span class="market-price">—</span>
+                <span class="market-change">…</span>
+              </div>
+            </li>
+            <li class="market-item" data-symbol="AAPL">
+              <div class="market-left">Apple<span class="market-symbol">AAPL</span></div>
+              <div>
+                <span class="market-price">—</span>
+                <span class="market-change">…</span>
+              </div>
+            </li>
+            <li class="market-item" data-symbol="NVDA">
+              <div class="market-left">NVIDIA<span class="market-symbol">NVDA</span></div>
+              <div>
+                <span class="market-price">—</span>
+                <span class="market-change">…</span>
+              </div>
+            </li>
+            <li class="market-item" data-symbol="META">
+              <div class="market-left">Meta<span class="market-symbol">META</span></div>
+              <div>
+                <span class="market-price">—</span>
+                <span class="market-change">…</span>
+              </div>
+            </li>
+            <li class="market-item" data-symbol="MSFT">
+              <div class="market-left">Microsoft<span class="market-symbol">MSFT</span></div>
+              <div>
+                <span class="market-price">—</span>
+                <span class="market-change">…</span>
+              </div>
+            </li>
+            <li class="market-item" data-symbol="AMZN">
+              <div class="market-left">Amazon<span class="market-symbol">AMZN</span></div>
+              <div>
+                <span class="market-price">—</span>
+                <span class="market-change">…</span>
+              </div>
+            </li>
+            <li class="market-item" data-symbol="BTC-USD">
+              <div class="market-left">Bitcoin<span class="market-symbol">BTC</span></div>
+              <div>
+                <span class="market-price">—</span>
+                <span class="market-change">…</span>
+              </div>
+            </li>
+            <li class="market-item" data-symbol="ETH-USD">
+              <div class="market-left">Ethereum<span class="market-symbol">ETH</span></div>
+              <div>
+                <span class="market-price">—</span>
+                <span class="market-change">…</span>
+              </div>
+            </li>
+          </ul>
+          <p style="margin:6px 0 0; font-size:10px; color:#9ca3af;">
+            *Prices loaded client-side from a public API. Values are indicative only.
           </p>
-        </div>
-        <div class="hero-pill">
-          HTML &amp; PDF · 3 deep-dives · Watchlist
-        </div>
-      </div>
-<div class="hero-actions">
-        <a class="btn-primary" href="reports/html/report_2025-12-09.html">
-          Open today’s report
-        </a>
-        <a class="btn-secondary" href="reports/pdf/report_2025-12-09.pdf">
-          Download PDF
-          <span class="badge">Daily</span>
-        </a>
-      </div>
-    </section>
+        </section>
 
-    <!-- RECENT REPORTS -->
-    <section class="section">
-      <div class="section-header">
-        <h3 class="section-title">Recent reports</h3>
-        <p class="section-subtitle">Last 1 days · HTML &amp; PDF</p>
-      </div>
-
-      <ul class="reports-list">
-
-        <li class="reports-item">
-          <div class="reports-item-main">
-            <span class="reports-date">2025-12-09</span>
-            <span class="reports-meta">MaxBits · Daily Tech Watch</span>
-          </div>
-          <div class="reports-links">
-            <a href="reports/html/report_2025-12-09.html">HTML</a><span class="dot">·</span><a href="reports/pdf/report_2025-12-09.pdf">PDF</a>
-          </div>
-        </li>
-      </ul>
-    </section>
+      </aside>
+    </div>
 
     <footer>
-      MaxBits is generated automatically from curated RSS sources and AI summaries.
+      MaxBits is generated automatically from curated RSS sources, CEO statements and patent feeds.
       Reports are published as static HTML &amp; PDF via GitHub Pages.
     </footer>
   </div>
+
+  <script>
+    // THEME TOGGLE (light / dark)
+    (function() {
+      const key = "maxbits_theme";
+      const root = document.body;
+
+      function applyTheme(t) {
+        if (t === "dark") {
+          root.setAttribute("data-theme", "dark");
+        } else {
+          root.setAttribute("data-theme", "light");
+        }
+      }
+
+      const stored = localStorage.getItem(key);
+      if (stored === "light" || stored === "dark") {
+        applyTheme(stored);
+      } else {
+        applyTheme("light");
+      }
+
+      const btn = document.getElementById("theme-toggle");
+      if (btn) {
+        btn.addEventListener("click", () => {
+          const current = root.getAttribute("data-theme") === "dark" ? "dark" : "light";
+          const next = current === "dark" ? "light" : "dark";
+          applyTheme(next);
+          try { localStorage.setItem(key, next); } catch(e) {}
+        });
+      }
+    })();
+
+    // Analog clock
+    function updateClock() {
+      const now = new Date();
+      const sec = now.getSeconds();
+      const min = now.getMinutes();
+      const hr  = now.getHours();
+
+      const secDeg = sec * 6;
+      const minDeg = min * 6 + sec * 0.1;
+      const hrDeg  = ((hr % 12) / 12) * 360 + min * 0.5;
+
+      const h = document.getElementById('clock-hour');
+      const m = document.getElementById('clock-minute');
+      const s = document.getElementById('clock-second');
+
+      if (h && m && s) {
+        h.style.transform = 'translateX(-50%) rotate(' + hrDeg + 'deg)';
+        m.style.transform = 'translateX(-50%) rotate(' + minDeg + 'deg)';
+        s.style.transform = 'translateX(-50%) rotate(' + secDeg + 'deg)';
+      }
+
+      const label = document.getElementById('clock-label-text');
+      if (label) {
+        label.textContent = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      }
+    }
+    setInterval(updateClock, 1000);
+    updateClock();
+
+    // Market data (best effort – potrebbe avere limiti CORS)
+    async function loadMarketData() {
+      const items = document.querySelectorAll('#market-list .market-item');
+      if (!items.length) return;
+
+      const symbols = Array.from(items).map(li => li.dataset.symbol).join(',');
+      const url = 'https://query1.finance.yahoo.com/v7/finance/quote?symbols=' + encodeURIComponent(symbols);
+
+      try {
+        const resp = await fetch(url);
+        if (!resp.ok) throw new Error('HTTP ' + resp.status);
+        const data = await resp.json();
+        const quotes = (data.quoteResponse && data.quoteResponse.result) || [];
+
+        const map = {};
+        quotes.forEach(q => {
+          if (q.symbol) map[q.symbol] = q;
+        });
+
+        items.forEach(li => {
+          const sym = li.dataset.symbol;
+          const q = map[sym];
+          const priceEl = li.querySelector('.market-price');
+          const changeEl = li.querySelector('.market-change');
+          if (!priceEl || !changeEl) return;
+
+          if (!q || typeof q.regularMarketPrice === 'undefined') {
+            priceEl.textContent = 'n/a';
+            changeEl.textContent = '';
+            return;
+          }
+
+          const price = q.regularMarketPrice;
+          const pct = q.regularMarketChangePercent;
+
+          priceEl.textContent = price.toFixed(2);
+
+          let cls = 'market-change';
+          let txt = '';
+          if (typeof pct === 'number') {
+            if (pct > 0) {
+              cls += ' up';
+              txt = '+' + pct.toFixed(2) + '%';
+            } else if (pct < 0) {
+              cls += ' down';
+              txt = pct.toFixed(2) + '%';
+            } else {
+              txt = '0.00%';
+            }
+          }
+          changeEl.className = cls;
+          changeEl.textContent = txt;
+        });
+
+      } catch (e) {
+        console.warn('[Market] failed to load prices:', e);
+      }
+    }
+
+    loadMarketData();
+  </script>
+
 </body>
 </html>
