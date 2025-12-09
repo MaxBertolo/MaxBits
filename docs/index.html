@@ -60,35 +60,10 @@
       padding: 8px 4px 22px;
     }
 
-    .brand {
-      display: flex;
-      align-items: center;
-      gap: 14px;
-    }
-
-    .brand-logo img {
-      height: 40px;
+    .brand img {
+      height: 36px;
       width: auto;
       display: block;
-    }
-
-    .brand-text {
-      display: flex;
-      flex-direction: column;
-      gap: 2px;
-    }
-
-    .brand-title {
-      margin: 0;
-      font-size: 18px;
-      font-weight: 600;
-      letter-spacing: 0.02em;
-    }
-
-    .brand-subtitle {
-      margin: 0;
-      font-size: 12px;
-      color: var(--text-muted);
     }
 
     .tagline {
@@ -208,7 +183,6 @@
       border: none;
     }
 
-    /* Sidebar */
     .sidebar {
       display: flex;
       flex-direction: column;
@@ -235,7 +209,6 @@
       color: var(--text-muted);
     }
 
-    /* Clock */
     .clock-container {
       display: flex;
       flex-direction: column;
@@ -307,7 +280,6 @@
       color: var(--text-muted);
     }
 
-    /* Previous reports */
     .side-report-list {
       list-style: none;
       padding-left: 0;
@@ -343,7 +315,6 @@
       margin: 0 4px;
     }
 
-    /* Extra reports */
     .extra-report-list {
       list-style: none;
       padding-left: 0;
@@ -399,19 +370,6 @@
       color: #92400e;
     }
 
-    body[data-theme="dark"] .extra-report-pill-ok {
-      background: rgba(34,197,94,0.15);
-      border-color: rgba(34,197,94,0.6);
-      color: #bbf7d0;
-    }
-
-    body[data-theme="dark"] .extra-report-pill-expiring {
-      background: rgba(250,204,21,0.1);
-      border-color: rgba(250,204,21,0.6);
-      color: #facc15;
-    }
-
-    /* Market snapshot */
     .market-list {
       list-style: none;
       padding-left: 0;
@@ -452,9 +410,6 @@
     .market-change.up { color: #16a34a; }
     .market-change.down { color: #dc2626; }
 
-    body[data-theme="dark"] .market-change.up { color: #4ade80; }
-    body[data-theme="dark"] .market-change.down { color: #f97373; }
-
     footer {
       margin-top: 22px;
       font-size: 11px;
@@ -467,87 +422,166 @@
       text-decoration: none;
     }
 
-    body[data-theme="dark"] footer a {
-      color: #60a5fa;
-    }
-
     @media (max-width: 900px) {
       .layout {
         grid-template-columns: minmax(0, 1fr);
       }
     }
+
+    /* LOGIN OVERLAY */
+    #login-screen {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: radial-gradient(circle at top, #0b1120, #020617);
+      z-index: 9999;
+    }
+
+    #login-card {
+      background: #020617;
+      border-radius: 16px;
+      padding: 24px 22px 20px;
+      width: 320px;
+      box-shadow: 0 20px 50px rgba(0,0,0,0.7);
+      color: #e5e7eb;
+      text-align: left;
+      border: 1px solid #1f2937;
+    }
+
+    #login-card h1 {
+      margin: 0 0 8px 0;
+      font-size: 20px;
+    }
+
+    #login-card p {
+      margin: 0 0 16px 0;
+      font-size: 13px;
+      color: #9ca3af;
+    }
+
+    #login-card label {
+      display: block;
+      font-size: 12px;
+      margin-bottom: 4px;
+      color: #cbd5f5;
+    }
+
+    #login-password {
+      width: 100%;
+      padding: 8px 10px;
+      border-radius: 8px;
+      border: 1px solid #4b5563;
+      background: #020617;
+      color: #e5e7eb;
+      font-size: 13px;
+      margin-bottom: 10px;
+    }
+
+    #login-btn {
+      width: 100%;
+      padding: 8px 10px;
+      border: none;
+      border-radius: 999px;
+      background: #25A7FF;
+      color: #0b1120;
+      font-weight: 600;
+      font-size: 13px;
+      cursor: pointer;
+    }
+
+    #login-error {
+      margin-top: 8px;
+      font-size: 12px;
+      color: #fca5a5;
+      min-height: 16px;
+    }
+
+    #protected-root {
+      display: none;
+    }
   </style>
 </head>
 
 <body>
-  <div class="page">
 
-    <header>
-      <div class="brand">
-        <div class="brand-logo">
-          <img src="assets/maxbits-logo.png" alt="MaxBits logo">
-        </div>
-        <div class="brand-text">
-          <p class="brand-title">Daily Tech Intelligence</p>
-          <p class="brand-subtitle">Telco · Media · AI · Cloud · Space · Patents</p>
-        </div>
-      </div>
+  <!-- LOGIN OVERLAY -->
+  <div id="login-screen">
+    <div id="login-card">
+      <h1>MaxBits</h1>
+      <p>Private daily tech report. Enter access password to continue.</p>
+      <label for="login-password">Access password</label>
+      <input type="password" id="login-password" placeholder="Password" />
+      <button id="login-btn">Enter</button>
+      <div id="login-error"></div>
+    </div>
+  </div>
 
-      <div style="display:flex; align-items:center; gap:10px;">
-        <div class="tagline">Daily briefing</div>
-        <div class="theme-toggle" id="theme-toggle">
-          <div class="theme-thumb"></div>
-        </div>
-      </div>
-    </header>
+  <!-- PROTECTED CONTENT -->
+  <div id="protected-root">
+    <div class="page">
 
-    <div class="layout">
-      <!-- MAIN COLUMN -->
-      <main class="main-card">
-        <div class="main-header">
-          <div>
-            <h1 class="main-title">Latest report · 2025-12-09</h1>
-            <p class="main-meta">
-              Curated news + deep-dives designed for busy tech leaders. Updated every morning.
-            </p>
+      <header>
+        <div class="brand">
+          <img src="assets/maxbits-logo.svg" alt="MaxBits">
+        </div>
+
+        <div style="display:flex; align-items:center; gap:10px;">
+          <div class="tagline">Daily briefing</div>
+          <div class="theme-toggle" id="theme-toggle">
+            <div class="theme-thumb"></div>
           </div>
-          <span class="badge-today">Today’s edition</span>
         </div>
+      </header>
 
-        <div class="iframe-wrapper">
-          <iframe src="reports/html/report_2025-12-09.html" loading="lazy"></iframe>
-        </div>
-      </main>
-
-      <!-- SIDEBAR -->
-      <aside class="sidebar">
-
-        <!-- CLOCK -->
-        <section class="side-card">
-          <h2 class="side-title">Local time</h2>
-          <div class="clock-container">
-            <div class="clock" id="analog-clock">
-              <div class="hand hour" id="clock-hour"></div>
-              <div class="hand minute" id="clock-minute"></div>
-              <div class="hand second" id="clock-second"></div>
-              <div class="clock-center"></div>
+      <div class="layout">
+        <!-- MAIN COLUMN -->
+        <main class="main-card">
+          <div class="main-header">
+            <div>
+              <h1 class="main-title">Latest report · 2025-12-09</h1>
+              <p class="main-meta">
+                Curated news + deep-dives designed for busy tech leaders. Updated every morning.
+              </p>
             </div>
-            <p class="clock-label" id="clock-label-text"></p>
+            <span class="badge-today">Today’s edition</span>
           </div>
-        </section>
 
-        <!-- PREVIOUS REPORTS -->
-        <section class="side-card">
-          <h2 class="side-title">Previous 6 reports</h2>
-          <ul class="side-report-list">
+          <div class="iframe-wrapper">
+            <iframe src="reports/html/report_2025-12-09.html" loading="lazy"></iframe>
+          </div>
+        </main>
+
+        <!-- SIDEBAR -->
+        <aside class="sidebar">
+
+          <!-- CLOCK -->
+          <section class="side-card">
+            <h2 class="side-title">Local time</h2>
+            <div class="clock-container">
+              <div class="clock" id="analog-clock">
+                <div class="hand hour" id="clock-hour"></div>
+                <div class="hand minute" id="clock-minute"></div>
+                <div class="hand second" id="clock-second"></div>
+                <div class="clock-center"></div>
+              </div>
+              <p class="clock-label" id="clock-label-text"></p>
+            </div>
+          </section>
+
+          <!-- PREVIOUS REPORTS -->
+          <section class="side-card">
+            <h2 class="side-title">Previous 6 reports</h2>
+            <ul class="side-report-list">
 <p style="font-size:12px; color:#6b7280;">No previous reports yet.</p>
-          </ul>
-        </section>
+            </ul>
+          </section>
 
-        <!-- EXTRA REPORTS -->
-        <section class="side-card">
-          <h2 class="side-title">Extra reports (30 days)</h2>
-          <ul class="extra-report-list">
+          <!-- EXTRA REPORTS -->
+          <section class="side-card">
+            <h2 class="side-title">Extra reports (30 days)</h2>
+            <ul class="extra-report-list">
 
         <li class="extra-report-item">
           <a href="https://example.com/stanford_ai_report_2025.pdf" target="_blank" rel="noopener" class="extra-report-link">2025 AI Horizon Report – Stanford</a>
@@ -566,93 +600,122 @@
           </div>
         </li>
         
-          </ul>
-        </section>
+            </ul>
+          </section>
 
-        <!-- MARKET SNAPSHOT -->
-        <section class="side-card">
-          <h2 class="side-title">Market snapshot*</h2>
-          <ul class="market-list" id="market-list">
-            <li class="market-item" data-symbol="GOOGL">
-              <div class="market-left">Google<span class="market-symbol">GOOGL</span></div>
-              <div>
-                <span class="market-price">—</span>
-                <span class="market-change">…</span>
-              </div>
-            </li>
-            <li class="market-item" data-symbol="TSLA">
-              <div class="market-left">Tesla<span class="market-symbol">TSLA</span></div>
-              <div>
-                <span class="market-price">—</span>
-                <span class="market-change">…</span>
-              </div>
-            </li>
-            <li class="market-item" data-symbol="AAPL">
-              <div class="market-left">Apple<span class="market-symbol">AAPL</span></div>
-              <div>
-                <span class="market-price">—</span>
-                <span class="market-change">…</span>
-              </div>
-            </li>
-            <li class="market-item" data-symbol="NVDA">
-              <div class="market-left">NVIDIA<span class="market-symbol">NVDA</span></div>
-              <div>
-                <span class="market-price">—</span>
-                <span class="market-change">…</span>
-              </div>
-            </li>
-            <li class="market-item" data-symbol="META">
-              <div class="market-left">Meta<span class="market-symbol">META</span></div>
-              <div>
-                <span class="market-price">—</span>
-                <span class="market-change">…</span>
-              </div>
-            </li>
-            <li class="market-item" data-symbol="MSFT">
-              <div class="market-left">Microsoft<span class="market-symbol">MSFT</span></div>
-              <div>
-                <span class="market-price">—</span>
-                <span class="market-change">…</span>
-              </div>
-            </li>
-            <li class="market-item" data-symbol="AMZN">
-              <div class="market-left">Amazon<span class="market-symbol">AMZN</span></div>
-              <div>
-                <span class="market-price">—</span>
-                <span class="market-change">…</span>
-              </div>
-            </li>
-            <li class="market-item" data-symbol="BTC-USD">
-              <div class="market-left">Bitcoin<span class="market-symbol">BTC</span></div>
-              <div>
-                <span class="market-price">—</span>
-                <span class="market-change">…</span>
-              </div>
-            </li>
-            <li class="market-item" data-symbol="ETH-USD">
-              <div class="market-left">Ethereum<span class="market-symbol">ETH</span></div>
-              <div>
-                <span class="market-price">—</span>
-                <span class="market-change">…</span>
-              </div>
-            </li>
-          </ul>
-          <p style="margin:6px 0 0; font-size:10px; color:#9ca3af;">
-            *Prices loaded client-side from a public API. Values are indicative only.
-          </p>
-        </section>
+          <!-- MARKET SNAPSHOT -->
+          <section class="side-card">
+            <h2 class="side-title">Market snapshot*</h2>
+            <ul class="market-list" id="market-list">
+              <li class="market-item" data-symbol="GOOGL">
+                <div class="market-left">Google<span class="market-symbol">GOOGL</span></div>
+                <div>
+                  <span class="market-price">—</span>
+                  <span class="market-change">…</span>
+                </div>
+              </li>
+              <li class="market-item" data-symbol="TSLA">
+                <div class="market-left">Tesla<span class="market-symbol">TSLA</span></div>
+                <div>
+                  <span class="market-price">—</span>
+                  <span class="market-change">…</span>
+                </div>
+              </li>
+              <li class="market-item" data-symbol="AAPL">
+                <div class="market-left">Apple<span class="market-symbol">AAPL</span></div>
+                <div>
+                  <span class="market-price">—</span>
+                  <span class="market-change">…</span>
+                </div>
+              </li>
+              <li class="market-item" data-symbol="NVDA">
+                <div class="market-left">NVIDIA<span class="market-symbol">NVDA</span></div>
+                <div>
+                  <span class="market-price">—</span>
+                  <span class="market-change">…</span>
+                </div>
+              </li>
+              <li class="market-item" data-symbol="META">
+                <div class="market-left">Meta<span class="market-symbol">META</span></div>
+                <div>
+                  <span class="market-price">—</span>
+                  <span class="market-change">…</span>
+                </div>
+              </li>
+              <li class="market-item" data-symbol="MSFT">
+                <div class="market-left">Microsoft<span class="market-symbol">MSFT</span></div>
+                <div>
+                  <span class="market-price">—</span>
+                  <span class="market-change">…</span>
+                </div>
+              </li>
+              <li class="market-item" data-symbol="AMZN">
+                <div class="market-left">Amazon<span class="market-symbol">AMZN</span></div>
+                <div>
+                  <span class="market-price">—</span>
+                  <span class="market-change">…</span>
+                </div>
+              </li>
+              <li class="market-item" data-symbol="BTC-USD">
+                <div class="market-left">Bitcoin<span class="market-symbol">BTC</span></div>
+                <div>
+                  <span class="market-price">—</span>
+                  <span class="market-change">…</span>
+                </div>
+              </li>
+              <li class="market-item" data-symbol="ETH-USD">
+                <div class="market-left">Ethereum<span class="market-symbol">ETH</span></div>
+                <div>
+                  <span class="market-price">—</span>
+                  <span class="market-change">…</span>
+                </div>
+              </li>
+            </ul>
+            <p style="margin:6px 0 0; font-size:10px; color:#9ca3af;">
+              *Prices loaded client-side from a public API. Values are indicative only.
+            </p>
+          </section>
 
-      </aside>
+        </aside>
+      </div>
+
+      <footer>
+        MaxBits is generated automatically from curated RSS sources, CEO statements, patents and external reports.
+        Reports are published as static HTML &amp; PDF via GitHub Pages.
+      </footer>
+
     </div>
-
-    <footer>
-      MaxBits is generated automatically from curated RSS sources, CEO statements, patents and external reports.
-      Reports are published as static HTML &amp; PDF via GitHub Pages.
-    </footer>
   </div>
 
   <script>
-    // THEME TOGGLE (light / dark)
+    // LOGIN OVERLAY (password lato client)
+    (function() {
+      const PASSWORD = "MaxBites1972!";   // <--- CAMBIA QUI LA PASSWORD
+      const loginScreen = document.getElementById("login-screen");
+      const root = document.getElementById("protected-root");
+      const input = document.getElementById("login-password");
+      const btn = document.getElementById("login-btn");
+      const errorBox = document.getElementById("login-error");
+
+      function unlock() {
+        const val = (input.value || "").trim();
+        if (val === PASSWORD) {
+          loginScreen.style.display = "none";
+          root.style.display = "block";
+        } else {
+          errorBox.textContent = "Wrong password. Please try again.";
+        }
+      }
+
+      btn.addEventListener("click", unlock);
+      input.addEventListener("keydown", function(ev) {
+        if (ev.key === "Enter") unlock();
+      });
+    })();
+  </script>
+
+  <script>
+    // THEME TOGGLE
     (function() {
       const key = "maxbits_theme";
       const root = document.body;
