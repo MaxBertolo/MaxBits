@@ -1,6 +1,6 @@
 from pathlib import Path
-from datetime import datetime, timedelta
-from typing import Dict, List
+from datetime import datetime
+from typing import Dict, List, Any
 import json
 import yaml
 
@@ -11,9 +11,6 @@ from .report_builder import build_html_report
 from .pdf_export import html_to_pdf
 from .email_sender import send_report_email
 from .telegram_sender import send_telegram_pdf
-
-from .ceo_pov_collector import collect_ceo_pov
-from .patent_collector import collect_patent_publications
 
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -167,62 +164,76 @@ def build_deep_dives_payload(
 
 
 # -------------------------
-#   HISTORY FOR FRONTEND
+#  CEO POV (placeholder)
 # -------------------------
 
-def build_history_payload(
-    date_str: str,
-    html_dir: Path,
-    pdf_dir: Path,
-    file_prefix: str,
-    max_reports: int = 7,
-) -> List[Dict]:
+def _collect_ceo_pov_items(date_str: str) -> List[Dict[str, Any]]:
     """
-    Costruisce lista degli ultimi report (oggi + fino a 6 giorni prima)
-    che il front-end usa per riempire il box "Last 7 daily reports".
-
-    I path sono RELATIVI alla cartella HTML dei report, quindi:
-      - html: es. "report_2025-12-08.html"
-      - pdf:  es. "../pdf/report_2025-12-08.pdf"
+    Legge config/ceo_pov.yaml e (per ora) restituisce una lista vuota
+    o una lista preconfigurata. La struttura è compatibile con report_builder.
     """
-    history: List[Dict] = []
+    cfg_path = BASE_DIR / "config" / "ceo_pov.yaml"
+    print("Collecting CEO POV items...")
+    print(f"[CEO_POV] Loading config from: {cfg_path}")
 
-    base_date = datetime.strptime(date_str, "%Y-%m-%d").date()
+    if not cfg_path.exists():
+        print(f"[CEO_POV] No ceo_pov.yaml found, skipping.")
+        return []
 
-    # Cerchiamo indietro fino a 30 giorni, ma ci fermiamo dopo max_reports trovati.
-    for i in range(0, 30):
-        day = base_date - timedelta(days=i)
-        d_str = day.strftime("%Y-%m-%d")
+    try:
+        data = yaml.safe_load(cfg_path.read_text(encoding="utf-8")) or {}
+    except Exception as e:
+        print(f"[CEO_POV] Cannot parse ceo_pov.yaml: {e!r}")
+        return []
 
-        html_name = f"{file_prefix}{d_str}.html"
-        pdf_name = f"{file_prefix}{d_str}.pdf"
+    ceos = data.get("ceos", []) or data.get("ceo_list", []) or []
+    print(f"[CEO_POV] Loaded {len(ceos)} CEOs from {cfg_path}.")
 
-        html_path = html_dir / html_name
-        pdf_path = pdf_dir / pdf_name
+    # Qui potresti in futuro agganciare scraping / API Twitter / ecc.
+    # Per ora: ritorniamo lista vuota per non rompere nulla.
+    items: List[Dict[str, Any]] = []
 
-        if i == 0:
-            # giorno corrente: lo includiamo comunque
-            html_rel = html_name
-            pdf_rel = f"../pdf/{pdf_name}"
-        else:
-            # per i giorni passati includiamo solo se esiste l'HTML
-            if not html_path.exists():
-                continue
-            html_rel = html_name
-            pdf_rel = f"../pdf/{pdf_name}" if pdf_path.exists() else None
+    print(f"[CEO_POV] Collected {len(items)} items.")
+    return items
 
-        history.append(
-            {
-                "date": d_str,
-                "html": html_rel,
-                "pdf": pdf_rel,
-            }
-        )
 
-        if len(history) >= max_reports:
-            break
+# -------------------------
+#  PATENTS (placeholder + hooks)
+# -------------------------
 
-    return history
+def _fetch_epo_patents(publication_date: str) -> List[Dict[str, Any]]:
+    """
+    Hook per EPO (EU). Per ora ritorna lista vuota ma mantiene le firme
+    e i log, così puoi sostituire l'implementazione in futuro.
+    """
+    print(f"[PATENTS][EPO] Fetching patents for date {publication_date} (placeholder)")
+    return []
+
+
+def _fetch_uspto_patents(publication_date: str) -> List[Dict[str, Any]]:
+    """
+    Hook per USPTO (US). Anche qui per ora ritorna lista vuota.
+    """
+    print(f"[PATENTS][USPTO] Fetching patents for date {publication_date} (placeholder)")
+    return []
+
+
+def _collect_patents(date_str: str) -> List[Dict[str, Any]]:
+    """
+    Colleziona i brevetti EPO + USPTO del giorno precedente / corrente.
+    """
+    print("Collecting Patent publications (EU/US)...")
+    # per semplicità usiamo la stessa date_str; se vuoi il giorno prima usa
+    # una datetime e sottrai 1 giorno.
+    epo = _fetch_epo_patents(date_str)
+    us = _fetch_uspto_patents(date_str)
+
+    items: List[Dict[str, Any]] = []
+    items.extend(epo)
+    items.extend(us)
+
+    print(f"[PATENTS] Collected {len(items)} items.")
+    return items
 
 
 # -----------
@@ -276,7 +287,6 @@ def main():
     if not cleaned:
         print("[FATAL] Still no articles after fallback. Exiting.")
         return
-    # ---------------------------
 
     # 3) Ranking globale
     ranked = rank_articles(cleaned)
@@ -311,62 +321,42 @@ def main():
         summaries=deep_dives_summaries,
     )
 
-    # 7) CEO POV + PATENT WATCH
-    print("Collecting CEO POV items...")
-    ceo_pov_items = collect_ceo_pov(
-        articles=ranked,
-        max_items=5,
-    )
-    print(f"[CEO_POV] Collected {len(ceo_pov_items)} items.")
-
-    print("Collecting Patent publications (EU/US)...")
-    date_str = today_str()
-    patents_items = collect_patent_publications(
-        today_date_str=date_str,
-        max_items=20,
-    )
-    print(f"[PATENTS] Collected {len(patents_items)} items.")
-
-    # 8) Salva JSON (deep-dives + CEO POV + PATENTS)
+    # 7) Salva JSON deep-dives + CEO POV + Patents
     json_dir = Path("reports/json")
     json_dir.mkdir(parents=True, exist_ok=True)
+    date_str = today_str()
 
     deep_json_path = json_dir / f"deep_dives_{date_str}.json"
     with open(deep_json_path, "w", encoding="utf-8") as jf:
         json.dump(deep_dives_payload, jf, ensure_ascii=False, indent=2)
     print(f"[DEBUG] Saved deep-dives JSON to: {deep_json_path}")
 
+    # CEO POV
+    ceo_pov_items = _collect_ceo_pov_items(date_str)
     ceo_json_path = json_dir / f"ceo_pov_{date_str}.json"
     with open(ceo_json_path, "w", encoding="utf-8") as jf:
         json.dump(ceo_pov_items, jf, ensure_ascii=False, indent=2)
     print(f"[DEBUG] Saved CEO POV JSON to: {ceo_json_path}")
 
+    # Patents
+    patent_items = _collect_patents(date_str)
     patents_json_path = json_dir / f"patents_{date_str}.json"
     with open(patents_json_path, "w", encoding="utf-8") as jf:
-        json.dump(patents_items, jf, ensure_ascii=False, indent=2)
+        json.dump(patent_items, jf, ensure_ascii=False, indent=2)
     print(f"[DEBUG] Saved patents JSON to: {patents_json_path}")
 
-    # 9) Costruisci payload storico per il box "Last 7 daily reports"
-    html_dir.mkdir(parents=True, exist_ok=True)
-    pdf_dir.mkdir(parents=True, exist_ok=True)
-    history_payload = build_history_payload(
-        date_str=date_str,
-        html_dir=html_dir,
-        pdf_dir=pdf_dir,
-        file_prefix=file_prefix,
-        max_reports=7,
-    )
-
-    # 10) HTML
+    # 8) HTML
     print("Building HTML report...")
     html = build_html_report(
         deep_dives=deep_dives_payload,
         watchlist=watchlist_grouped,
         date_str=date_str,
         ceo_pov=ceo_pov_items,
-        patents=patents_items,
-        history=history_payload,
+        patents=patent_items,
     )
+
+    html_dir.mkdir(parents=True, exist_ok=True)
+    pdf_dir.mkdir(parents=True, exist_ok=True)
 
     html_path = html_dir / f"{file_prefix}{date_str}.html"
     pdf_path = pdf_dir / f"{file_prefix}{date_str}.pdf"
@@ -381,7 +371,7 @@ def main():
     print("Done. HTML report:", html_path)
     print("Done. PDF report:", pdf_path)
 
-    # 11) Email
+    # 9) Email
     print("Sending report via email...")
     try:
         send_report_email(
@@ -394,7 +384,7 @@ def main():
         print("[EMAIL] Unhandled error while sending email:", repr(e))
         print("[EMAIL] Continuing anyway – report generation completed.")
 
-    # 12) Telegram (PDF al bot)
+    # 10) Telegram (PDF al bot)
     print("Sending report PDF to Telegram...")
     try:
         send_telegram_pdf(
