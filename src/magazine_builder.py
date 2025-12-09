@@ -26,17 +26,6 @@ PDF_DST_DIR = DOCS_DIR / "reports" / "pdf"
 # -------------------------------------------------------------------
 
 def _find_reports() -> List[Dict]:
-    """
-    Cerca tutti i report HTML in reports/html, estrae la data dal nome file,
-    e costruisce una lista ordinata per data (desc).
-
-    Ritorna una lista di dict:
-      {
-        "date": "YYYY-MM-DD",
-        "html_file": Path(...),
-        "pdf_file": Path(...) or None,
-      }
-    """
     reports: List[Dict] = []
     if not HTML_SRC_DIR.exists():
         print(f"[MAG] HTML source dir not found: {HTML_SRC_DIR}")
@@ -64,16 +53,6 @@ def _find_reports() -> List[Dict]:
 
 
 def _copy_last_reports_to_docs(reports: List[Dict], max_reports: int = 7) -> List[Dict]:
-    """
-    Copia gli ultimi max_reports report in docs/reports/html e docs/reports/pdf.
-
-    Ritorna una lista di dict riferiti ai FILE DI DESTINAZIONE:
-      {
-        "date": "YYYY-MM-DD",
-        "html_file": Path(...),  # sotto docs/reports/html
-        "pdf_file": Path(...) or None,  # sotto docs/reports/pdf
-      }
-    """
     HTML_DST_DIR.mkdir(parents=True, exist_ok=True)
     PDF_DST_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -108,15 +87,12 @@ def _copy_last_reports_to_docs(reports: List[Dict], max_reports: int = 7) -> Lis
 
 
 def _build_previous_reports_list(reports_for_docs: List[Dict]) -> str:
-    """
-    HTML per la sidebar: link ai 6 giorni precedenti (salta il più recente).
-    """
     if len(reports_for_docs) <= 1:
         return '<p style="font-size:12px; color:#6b7280;">No previous reports yet.</p>'
 
     items: List[str] = []
 
-    for r in reports_for_docs[1:7]:  # max 6 giorni precedenti
+    for r in reports_for_docs[1:7]:
         date = r["date"]
         html_rel = f"reports/html/{r['html_file'].name}"
         pdf_rel = f"reports/pdf/{r['pdf_file'].name}" if r["pdf_file"] else None
@@ -147,16 +123,6 @@ def _build_previous_reports_list(reports_for_docs: List[Dict]) -> str:
 # -------------------------------------------------------------------
 
 def _load_extra_reports() -> List[Dict]:
-    """
-    Legge config/extra_reports.yaml e restituisce solo i report
-    con data negli ultimi 30 giorni.
-
-    YAML atteso:
-      extra_reports:
-        - title: "..."
-          url: "https://..."
-          date: "YYYY-MM-DD"
-    """
     cfg_path = BASE_DIR / "config" / "extra_reports.yaml"
     if not cfg_path.exists():
         print(f"[MAG] No extra_reports.yaml at {cfg_path}")
@@ -213,9 +179,6 @@ def _load_extra_reports() -> List[Dict]:
 
 
 def _build_extra_reports_sidebar_html(extra_reports: List[Dict]) -> str:
-    """
-    Costruisce la mini-UI per la sezione "Extra reports (30 days)".
-    """
     if not extra_reports:
         return '<p style="font-size:12px; color:#6b7280;">No extra reports (last 30 days).</p>'
 
@@ -252,17 +215,10 @@ def _build_extra_reports_sidebar_html(extra_reports: List[Dict]) -> str:
 
 
 # -------------------------------------------------------------------
-#  INDEX.HTML TEMPLATE (con login JS)
+#  INDEX.HTML TEMPLATE (logo + login)
 # -------------------------------------------------------------------
 
 def _build_index_content(reports_for_docs: List[Dict]) -> str:
-    """
-    Genera docs/index.html con:
-      - overlay di login (password JS)
-      - header con logo immagine + toggle light/dark
-      - main hero con iframe ultimo report
-      - sidebar con clock, previous 6 reports, extra reports, market snapshot
-    """
     if not reports_for_docs:
         print("[MAG] No reports found, generating minimal placeholder index.")
         return """<!DOCTYPE html>
@@ -372,35 +328,10 @@ def _build_index_content(reports_for_docs: List[Dict]) -> str:
       padding: 8px 4px 22px;
     }
 
-    .brand {
-      display: flex;
-      align-items: center;
-      gap: 14px;
-    }
-
-    .brand-logo img {
-      height: 40px;
+    .brand img {
+      height: 36px;
       width: auto;
       display: block;
-    }
-
-    .brand-text {
-      display: flex;
-      flex-direction: column;
-      gap: 2px;
-    }
-
-    .brand-title {
-      margin: 0;
-      font-size: 18px;
-      font-weight: 600;
-      letter-spacing: 0.02em;
-    }
-
-    .brand-subtitle {
-      margin: 0;
-      font-size: 12px;
-      color: var(--text-muted);
     }
 
     .tagline {
@@ -707,18 +638,6 @@ def _build_index_content(reports_for_docs: List[Dict]) -> str:
       color: #92400e;
     }
 
-    body[data-theme="dark"] .extra-report-pill-ok {
-      background: rgba(34,197,94,0.15);
-      border-color: rgba(34,197,94,0.6);
-      color: #bbf7d0;
-    }
-
-    body[data-theme="dark"] .extra-report-pill-expiring {
-      background: rgba(250,204,21,0.1);
-      border-color: rgba(250,204,21,0.6);
-      color: #facc15;
-    }
-
     .market-list {
       list-style: none;
       padding-left: 0;
@@ -759,9 +678,6 @@ def _build_index_content(reports_for_docs: List[Dict]) -> str:
     .market-change.up { color: #16a34a; }
     .market-change.down { color: #dc2626; }
 
-    body[data-theme="dark"] .market-change.up { color: #4ade80; }
-    body[data-theme="dark"] .market-change.down { color: #f97373; }
-
     footer {
       margin-top: 22px;
       font-size: 11px;
@@ -772,10 +688,6 @@ def _build_index_content(reports_for_docs: List[Dict]) -> str:
     footer a {
       color: var(--accent-dark);
       text-decoration: none;
-    }
-
-    body[data-theme="dark"] footer a {
-      color: #60a5fa;
     }
 
     @media (max-width: 900px) {
@@ -880,13 +792,7 @@ def _build_index_content(reports_for_docs: List[Dict]) -> str:
 
       <header>
         <div class="brand">
-          <div class="brand-logo">
-            <img src="assets/maxbits-logo.png" alt="MaxBits logo">
-          </div>
-          <div class="brand-text">
-            <p class="brand-title">Daily Tech Intelligence</p>
-            <p class="brand-subtitle">Telco · Media · AI · Cloud · Space · Patents</p>
-          </div>
+          <img src="assets/maxbits-logo.svg" alt="MaxBits">
         </div>
 
         <div style="display:flex; align-items:center; gap:10px;">
@@ -1033,9 +939,9 @@ __EXTRA_REPORTS__
   </div>
 
   <script>
-    // LOGIN OVERLAY (password lato client, non sicurezza "vera")
+    // LOGIN OVERLAY (password lato client)
     (function() {
-      const PASSWORD = "MaxBites1972!";
+      const PASSWORD = "MaxBites1972!";   // <--- CAMBIA QUI LA PASSWORD
       const loginScreen = document.getElementById("login-screen");
       const root = document.getElementById("protected-root");
       const input = document.getElementById("login-password");
@@ -1060,7 +966,7 @@ __EXTRA_REPORTS__
   </script>
 
   <script>
-    // THEME TOGGLE (light / dark)
+    // THEME TOGGLE
     (function() {
       const key = "maxbits_theme";
       const root = document.body;
@@ -1196,12 +1102,6 @@ __EXTRA_REPORTS__
 
 
 def build_magazine(max_reports: int = 7) -> None:
-    """
-    Entry point:
-      - legge i report sorgente
-      - copia gli ultimi N in docs/reports
-      - genera docs/index.html
-    """
     raw_reports = _find_reports()
     DOCS_DIR.mkdir(parents=True, exist_ok=True)
 
