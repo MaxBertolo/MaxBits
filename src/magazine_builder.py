@@ -22,14 +22,14 @@ PDF_DST_DIR = DOCS_DIR / "reports" / "pdf"
 
 
 # -------------------------------------------------------------------
-#  REPORT DAILY (HTML/PDF)
+#  TROVA TUTTI I REPORT (ARCHIVIO + FRESCHI)
 # -------------------------------------------------------------------
 
 def _find_reports() -> List[Dict]:
     """
     Costruisce la lista dei report disponibili unendo:
-      - l'archivio già presente in docs/reports/html + docs/reports/pdf
-      - i report freschi generati oggi in reports/html + reports/pdf
+      - archivio già presente in docs/reports/html + docs/reports/pdf
+      - report freschi del giorno in reports/html + reports/pdf
 
     Per ogni data tiene un solo record (se esiste sia in docs che in reports,
     vince la versione 'fresh' in reports/).
@@ -38,7 +38,7 @@ def _find_reports() -> List[Dict]:
 
     pattern = re.compile(r"report_(\d{4}-\d{2}-\d{2})\.html$")
 
-    # 1) ARCHIVIO GIA' PUBBLICATO (docs/reports/...)
+    # 1) ARCHIVIO GIA' PUBBLICATO
     archive_html_dir = DOCS_DIR / "reports" / "html"
     archive_pdf_dir = DOCS_DIR / "reports" / "pdf"
 
@@ -49,14 +49,13 @@ def _find_reports() -> List[Dict]:
                 continue
             date_str = m.group(1)
             pdf_file = archive_pdf_dir / f"report_{date_str}.pdf"
-
             reports_by_date[date_str] = {
                 "date": date_str,
                 "html_file": f,
                 "pdf_file": pdf_file if pdf_file.exists() else None,
             }
 
-    # 2) REPORT FRESCHI DEL RUN CORRENTE (reports/html + reports/pdf)
+    # 2) REPORT FRESCHI DEL RUN CORRENTE
     if HTML_SRC_DIR.exists():
         for f in HTML_SRC_DIR.glob("report_*.html"):
             m = pattern.match(f.name)
@@ -64,8 +63,7 @@ def _find_reports() -> List[Dict]:
                 continue
             date_str = m.group(1)
             pdf_file = PDF_SRC_DIR / f"report_{date_str}.pdf"
-
-            # Se esiste già quella data nell'archivio, la sovrascriviamo con la versione nuova
+            # sovrascrive eventuale archivio per la stessa data
             reports_by_date[date_str] = {
                 "date": date_str,
                 "html_file": f,
@@ -78,7 +76,23 @@ def _find_reports() -> List[Dict]:
     return reports
 
 
+# -------------------------------------------------------------------
+#  COPIA GLI ULTIMI N REPORT IN /docs (EVITA SameFileError)
+# -------------------------------------------------------------------
+
 def _copy_last_reports_to_docs(reports: List[Dict], max_reports: int = 7) -> List[Dict]:
+    """
+    Copia gli ultimi max_reports report in docs/reports/html e docs/reports/pdf.
+
+    Se il file sorgente è già in docs/, NON viene ricopiato (per evitare SameFileError).
+
+    Ritorna una lista di dict riferiti ai FILE DI DESTINAZIONE:
+      {
+        "date": "YYYY-MM-DD",
+        "html_file": Path(...),  # sotto docs/reports/html
+        "pdf_file": Path(...) or None,  # sotto docs/reports/pdf
+      }
+    """
     HTML_DST_DIR.mkdir(parents=True, exist_ok=True)
     PDF_DST_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -87,17 +101,29 @@ def _copy_last_reports_to_docs(reports: List[Dict], max_reports: int = 7) -> Lis
 
     for r in selected:
         date = r["date"]
-        src_html = r["html_file"]
+        src_html: Path = r["html_file"]
         dst_html = HTML_DST_DIR / src_html.name
-        shutil.copy2(src_html, dst_html)
-        print(f"[MAG] Copied HTML for {date} -> {dst_html}")
+
+        # Evita SameFileError se src e dst sono lo stesso file
+        if src_html.resolve() != dst_html.resolve():
+            shutil.copy2(src_html, dst_html)
+            print(f"[MAG] Copied HTML for {date} -> {dst_html}")
+        else:
+            print(f"[MAG] HTML for {date} already in docs, skip copy.")
 
         dst_pdf = None
         if r["pdf_file"] is not None:
-            src_pdf = r["pdf_file"]
+            src_pdf: Path = r["pdf_file"]
             dst_pdf = PDF_DST_DIR / src_pdf.name
-            shutil.copy2(src_pdf, dst_pdf)
-            print(f"[MAG] Copied PDF for {date} -> {dst_pdf}")
+            if src_pdf.exists():
+                if src_pdf.resolve() != dst_pdf.resolve():
+                    shutil.copy2(src_pdf, dst_pdf)
+                    print(f"[MAG] Copied PDF for {date} -> {dst_pdf}")
+                else:
+                    print(f"[MAG] PDF for {date} already in docs, skip copy.")
+            else:
+                print(f"[MAG] PDF source for {date} not found: {src_pdf}")
+                dst_pdf = None
         else:
             print(f"[MAG] No PDF for {date}, skipping PDF copy.")
 
@@ -112,6 +138,10 @@ def _copy_last_reports_to_docs(reports: List[Dict], max_reports: int = 7) -> Lis
     return out
 
 
+# -------------------------------------------------------------------
+#  PREVIOUS 6 REPORTS (SIDEBAR)
+# -------------------------------------------------------------------
+
 def _build_previous_reports_list(reports_for_docs: List[Dict]) -> str:
     """
     Genera la lista dei 6 report precedenti per la sidebar.
@@ -122,9 +152,7 @@ def _build_previous_reports_list(reports_for_docs: List[Dict]) -> str:
 
     items: List[str] = []
 
-    # reports_for_docs è già ordinato dal più recente.
-    # r[0] = latest
-    # r[1:7] = 6 giorni precedenti
+    # r[0] = latest, r[1:7] = 6 giorni precedenti
     for r in reports_for_docs[1:7]:
         date = r["date"]
         html_rel = f"reports/html/{r['html_file'].name}"
@@ -141,15 +169,14 @@ def _build_previous_reports_list(reports_for_docs: List[Dict]) -> str:
 
         items.append(f"""
         <li class="side-report-item">
-            <div class="side-report-main">
-                <span class="side-report-date">{date}</span>
-                <span class="side-report-links">{links_html}</span>
-            </div>
+          <div class="side-report-main">
+            <span class="side-report-date">{date}</span>
+            <span class="side-report-links">{links_html}</span>
+          </div>
         </li>
         """)
 
     return "\n".join(items)
-
 
 
 # -------------------------------------------------------------------
@@ -366,7 +393,7 @@ def _build_market_sidebar_html(items: List[Dict], updated_at: str) -> str:
 
 
 # -------------------------------------------------------------------
-#  INDEX.HTML TEMPLATE
+#  INDEX.HTML TEMPLATE (CLOCK DIGITALE, METEO, LOGO, PASSWORD)
 # -------------------------------------------------------------------
 
 def _build_index_content(reports_for_docs: List[Dict]) -> str:
@@ -420,7 +447,6 @@ def _build_index_content(reports_for_docs: List[Dict]) -> str:
     market_items, market_updated_at = _load_market_snapshot()
     market_html = _build_market_sidebar_html(market_items, market_updated_at)
 
-    # --- HTML TEMPLATE (identico a prima, ma senza JS AlphaVantage) ---
     template = """<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -975,7 +1001,7 @@ __MARKET_HTML__
   <script>
     // LOGIN (password lato client)
     (function() {
-      const PASSWORD = "MIX";   // <--- CAMBIA QUI LA PASSWORD
+      const PASSWORD = "MaxBites1972!";   // <--- PUOI CAMBIARLA QUI
       const loginScreen = document.getElementById("login-screen");
       const root = document.getElementById("protected-root");
       const input = document.getElementById("login-password");
