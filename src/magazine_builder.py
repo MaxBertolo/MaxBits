@@ -87,11 +87,18 @@ def _copy_last_reports_to_docs(reports: List[Dict], max_reports: int = 7) -> Lis
 
 
 def _build_previous_reports_list(reports_for_docs: List[Dict]) -> str:
+    """
+    Genera la lista dei 6 report precedenti per la sidebar.
+    Ogni item mostra link HTML + PDF.
+    """
     if len(reports_for_docs) <= 1:
         return '<p style="font-size:12px; color:#6b7280;">No previous reports yet.</p>'
 
     items: List[str] = []
 
+    # reports_for_docs è già ordinato dal più recente.
+    # r[0] = latest
+    # r[1:7] = 6 giorni precedenti
     for r in reports_for_docs[1:7]:
         date = r["date"]
         html_rel = f"reports/html/{r['html_file'].name}"
@@ -99,23 +106,24 @@ def _build_previous_reports_list(reports_for_docs: List[Dict]) -> str:
 
         if pdf_rel:
             links_html = (
-                f'<a href="{html_rel}" target="_blank" rel="noopener">HTML</a>'
-                f'<span class="dot">·</span>'
-                f'<a href="{pdf_rel}" target="_blank" rel="noopener">PDF</a>'
+                f'<a href="{html_rel}" target="_blank">HTML</a>'
+                f'<span class="dot"> · </span>'
+                f'<a href="{pdf_rel}" target="_blank">PDF</a>'
             )
         else:
-            links_html = f'<a href="{html_rel}" target="_blank" rel="noopener">HTML</a>'
+            links_html = f'<a href="{html_rel}" target="_blank">HTML</a>'
 
-        item = f"""
+        items.append(f"""
         <li class="side-report-item">
-          <div class="side-report-main">
-            <span class="side-report-date">{date}</span>
-            <span class="side-report-links">{links_html}</span>
-          </div>
-        </li>"""
-        items.append(item)
+            <div class="side-report-main">
+                <span class="side-report-date">{date}</span>
+                <span class="side-report-links">{links_html}</span>
+            </div>
+        </li>
+        """)
 
     return "\n".join(items)
+
 
 
 # -------------------------------------------------------------------
