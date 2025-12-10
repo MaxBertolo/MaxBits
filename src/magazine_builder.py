@@ -26,29 +26,55 @@ PDF_DST_DIR = DOCS_DIR / "reports" / "pdf"
 # -------------------------------------------------------------------
 
 def _find_reports() -> List[Dict]:
-    reports: List[Dict] = []
-    if not HTML_SRC_DIR.exists():
-        print(f"[MAG] HTML source dir not found: {HTML_SRC_DIR}")
-        return reports
+    """
+    Costruisce la lista dei report disponibili unendo:
+      - l'archivio già presente in docs/reports/html + docs/reports/pdf
+      - i report freschi generati oggi in reports/html + reports/pdf
+
+    Per ogni data tiene un solo record (se esiste sia in docs che in reports,
+    vince la versione 'fresh' in reports/).
+    """
+    reports_by_date: Dict[str, Dict] = {}
 
     pattern = re.compile(r"report_(\d{4}-\d{2}-\d{2})\.html$")
 
-    for f in HTML_SRC_DIR.glob("report_*.html"):
-        m = pattern.match(f.name)
-        if not m:
-            continue
-        date_str = m.group(1)
-        pdf_file = PDF_SRC_DIR / f"report_{date_str}.pdf"
-        reports.append(
-            {
+    # 1) ARCHIVIO GIA' PUBBLICATO (docs/reports/...)
+    archive_html_dir = DOCS_DIR / "reports" / "html"
+    archive_pdf_dir = DOCS_DIR / "reports" / "pdf"
+
+    if archive_html_dir.exists():
+        for f in archive_html_dir.glob("report_*.html"):
+            m = pattern.match(f.name)
+            if not m:
+                continue
+            date_str = m.group(1)
+            pdf_file = archive_pdf_dir / f"report_{date_str}.pdf"
+
+            reports_by_date[date_str] = {
                 "date": date_str,
                 "html_file": f,
                 "pdf_file": pdf_file if pdf_file.exists() else None,
             }
-        )
 
+    # 2) REPORT FRESCHI DEL RUN CORRENTE (reports/html + reports/pdf)
+    if HTML_SRC_DIR.exists():
+        for f in HTML_SRC_DIR.glob("report_*.html"):
+            m = pattern.match(f.name)
+            if not m:
+                continue
+            date_str = m.group(1)
+            pdf_file = PDF_SRC_DIR / f"report_{date_str}.pdf"
+
+            # Se esiste già quella data nell'archivio, la sovrascriviamo con la versione nuova
+            reports_by_date[date_str] = {
+                "date": date_str,
+                "html_file": f,
+                "pdf_file": pdf_file if pdf_file.exists() else None,
+            }
+
+    reports = list(reports_by_date.values())
     reports.sort(key=lambda x: x["date"], reverse=True)
-    print(f"[MAG] Found {len(reports)} reports in {HTML_SRC_DIR}")
+    print(f"[MAG] Found {len(reports)} reports (docs + fresh)")
     return reports
 
 
