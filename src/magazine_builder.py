@@ -1001,7 +1001,7 @@ __MARKET_HTML__
   <script>
     // LOGIN (password lato client)
     (function() {
-      const PASSWORD = "MaxBites1972!";   // <--- PUOI CAMBIARLA QUI
+      const PASSWORD = "mix";   // <--- PUOI CAMBIARLA QUI
       const loginScreen = document.getElementById("login-screen");
       const root = document.getElementById("protected-root");
       const input = document.getElementById("login-password");
