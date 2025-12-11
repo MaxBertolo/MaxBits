@@ -465,25 +465,9 @@ def _render_watchlist(watchlist: Dict[str, List[Dict]]) -> str:
 # HTML GENERATION
 # -------------------------------------------------------
 
-def build_html_report(
-    *,
-    deep_dives,
-    watchlist,
-    date_str: str,
-    ceo_pov: List[Dict[str, Any]] | None = None,
-    patents: List[Dict[str, Any]] | None = None,
-) -> str:
-    """
-    Genera l'HTML del daily report.
-
-    Parametri nuovi (opzionali, backward compatible):
-      - ceo_pov: lista di dict con dichiarazioni dei CEO
-      - patents: lista di brevetti rilevanti
-    """
+def build_html_report(*, deep_dives, watchlist, date_str: str) -> str:
     header = _render_header(date_str)
     deep_html = _render_deep_dives(deep_dives)
-    ceo_html = _render_ceo_pov(ceo_pov or [])
-    patent_html = _render_patent_watch(patents or [])
     wl_html = _render_watchlist(watchlist)
 
     return f"""<!DOCTYPE html>
@@ -493,10 +477,53 @@ def build_html_report(
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="report-date" content="{escape(date_str)}" />
   <title>MaxBits · Daily Tech Watch · {escape(date_str)}</title>
+
+  <style>
+    /* bottone fisso "Back to MaxBits" */
+    #maxbits-back-btn {{
+      position: fixed;
+      bottom: 12px;
+      left: 12px;              /* sposta a right:12px se lo vuoi a destra */
+      z-index: 9999;
+      padding: 7px 12px;
+      border-radius: 999px;
+      border: 1px solid #e5e7eb;
+      background: rgba(15,23,42,0.96);
+      color: #e5e7eb;
+      font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;
+      font-size: 12px;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      cursor: pointer;
+      box-shadow: 0 6px 18px rgba(15,23,42,0.45);
+    }}
+    #maxbits-back-btn span.icon {{
+      font-size: 14px;
+    }}
+    #maxbits-back-btn:hover {{
+      background: #0b1120;
+    }}
+
+    @media (max-width: 640px) {{
+      #maxbits-back-btn {{
+        bottom: 8px;
+        left: 8px;
+        font-size: 11px;
+        padding: 6px 10px;
+      }}
+    }}
+  </style>
 </head>
 
 <body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;
              background:#fafafa; margin:0; padding:24px; color:#111;">
+
+<!-- Bottone globale per tornare al report / home MaxBits -->
+<button id="maxbits-back-btn" type="button">
+  <span class="icon">←</span>
+  <span>Back to MaxBits</span>
+</button>
 
 <div style="max-width:900px; margin:0 auto; background:white;
             padding:24px 32px; border-radius:8px; box-shadow:0 0 12px rgba(0,0,0,0.05);">
@@ -507,10 +534,6 @@ def build_html_report(
     <h2 style="margin:0 0 12px 0; font-size:22px;">3 deep-dives you should really read</h2>
     {deep_html}
   </section>
-
-  {ceo_html}
-
-  {patent_html}
 
   <section style="margin-top:30px;">
     <h2 style="margin:0 0 12px 0; font-size:20px;">Curated watchlist · 3–5 links per topic</h2>
@@ -525,7 +548,7 @@ def build_html_report(
 
   function loadSel() {{
     try {{
-      return JSON.parse(localStorage.getItem(KEY) || "{{}}" );
+      return JSON.parse(localStorage.getItem(KEY) || "{{}}");
     }} catch (e) {{
       return {{}};
     }}
@@ -640,10 +663,32 @@ def build_html_report(
     ).join("");
   }}
 
+  // BACK BUTTON LOGIC
+  function initBackButton() {{
+    const btn = document.getElementById("maxbits-back-btn");
+    if (!btn) return;
+    const HOME = "https://maxbertolo.github.io/MaxBits/";
+
+    btn.addEventListener("click", () => {{
+      try {{
+        if (window.history.length > 1) {{
+          window.history.back();
+        }} else if (window.top && window.top !== window) {{
+          window.top.location.href = HOME;
+        }} else {{
+          window.location.href = HOME;
+        }}
+      }} catch(e) {{
+        window.location.href = HOME;
+      }}
+    }});
+  }}
+
   document.addEventListener("DOMContentLoaded", () => {{
     setupCheckboxes();
     initWeeklyBtn();
     initHistory();
+    initBackButton();
   }});
 }})();
 </script>
