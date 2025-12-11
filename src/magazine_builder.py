@@ -3,10 +3,11 @@ from __future__ import annotations
 from pathlib import Path
 import re
 import shutil
-from typing import List, Dict, Tuple
-
+from typing import List, Dict
 from datetime import datetime, timedelta
 import yaml
+import json
+import glob
 
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -20,78 +21,52 @@ DOCS_DIR = BASE_DIR / "docs"
 HTML_DST_DIR = DOCS_DIR / "reports" / "html"
 PDF_DST_DIR = DOCS_DIR / "reports" / "pdf"
 
+JSON_REPORTS_DIR = BASE_DIR / "reports" / "json"
+
 
 # -------------------------------------------------------------------
-#  TROVA TUTTI I REPORT (ARCHIVIO + FRESCHI)
+#  REPORT DAILY (HTML/PDF)
 # -------------------------------------------------------------------
 
 def _find_reports() -> List[Dict]:
     """
-    Costruisce la lista dei report disponibili unendo:
-      - archivio già presente in docs/reports/html + docs/reports/pdf
-      - report freschi del giorno in reports/html + reports/pdf
-
-    Per ogni data tiene un solo record (se esiste sia in docs che in reports,
-    vince la versione 'fresh' in reports/).
+    Cerca tutti i report HTML in reports/html, estrae la data dal nome file,
+    e costruisce una lista ordinata per data (desc).
     """
-    reports_by_date: Dict[str, Dict] = {}
+    reports: List[Dict] = []
+    if not HTML_SRC_DIR.exists():
+        print(f"[MAG] HTML source dir not found: {HTML_SRC_DIR}")
+        return reports
 
     pattern = re.compile(r"report_(\d{4}-\d{2}-\d{2})\.html$")
 
-    # 1) ARCHIVIO GIA' PUBBLICATO
-    archive_html_dir = DOCS_DIR / "reports" / "html"
-    archive_pdf_dir = DOCS_DIR / "reports" / "pdf"
-
-    if archive_html_dir.exists():
-        for f in archive_html_dir.glob("report_*.html"):
-            m = pattern.match(f.name)
-            if not m:
-                continue
-            date_str = m.group(1)
-            pdf_file = archive_pdf_dir / f"report_{date_str}.pdf"
-            reports_by_date[date_str] = {
+    for f in HTML_SRC_DIR.glob("report_*.html"):
+        m = pattern.match(f.name)
+        if not m:
+            continue
+        date_str = m.group(1)
+        pdf_file = PDF_SRC_DIR / f"report_{date_str}.pdf"
+        reports.append(
+            {
                 "date": date_str,
                 "html_file": f,
                 "pdf_file": pdf_file if pdf_file.exists() else None,
             }
+        )
 
-    # 2) REPORT FRESCHI DEL RUN CORRENTE
-    if HTML_SRC_DIR.exists():
-        for f in HTML_SRC_DIR.glob("report_*.html"):
-            m = pattern.match(f.name)
-            if not m:
-                continue
-            date_str = m.group(1)
-            pdf_file = PDF_SRC_DIR / f"report_{date_str}.pdf"
-            # sovrascrive eventuale archivio per la stessa data
-            reports_by_date[date_str] = {
-                "date": date_str,
-                "html_file": f,
-                "pdf_file": pdf_file if pdf_file.exists() else None,
-            }
-
-    reports = list(reports_by_date.values())
     reports.sort(key=lambda x: x["date"], reverse=True)
-    print(f"[MAG] Found {len(reports)} reports (docs + fresh)")
+    print(f"[MAG] Found {len(reports)} reports in {HTML_SRC_DIR}")
     return reports
 
-
-# -------------------------------------------------------------------
-#  COPIA GLI ULTIMI N REPORT IN /docs (EVITA SameFileError)
-# -------------------------------------------------------------------
 
 def _copy_last_reports_to_docs(reports: List[Dict], max_reports: int = 7) -> List[Dict]:
     """
     Copia gli ultimi max_reports report in docs/reports/html e docs/reports/pdf.
 
-    Se il file sorgente è già in docs/, NON viene ricopiato (per evitare SameFileError).
+    Se il file sorgente e destinazione coincidono, non copia (evita SameFileError).
 
-    Ritorna una lista di dict riferiti ai FILE DI DESTINAZIONE:
-      {
-        "date": "YYYY-MM-DD",
-        "html_file": Path(...),  # sotto docs/reports/html
-        "pdf_file": Path(...) or None,  # sotto docs/reports/pdf
-      }
+    Ritorna una lista riferita ai file di destinazione:
+      { "date": "YYYY-MM-DD", "html_file": Path(...), "pdf_file": Path(...) or None }
     """
     HTML_DST_DIR.mkdir(parents=True, exist_ok=True)
     PDF_DST_DIR.mkdir(parents=True, exist_ok=True)
@@ -101,28 +76,30 @@ def _copy_last_reports_to_docs(reports: List[Dict], max_reports: int = 7) -> Lis
 
     for r in selected:
         date = r["date"]
-        src_html: Path = r["html_file"]
+        src_html = r["html_file"]
         dst_html = HTML_DST_DIR / src_html.name
 
-        # Evita SameFileError se src e dst sono lo stesso file
-        if src_html.resolve() != dst_html.resolve():
-            shutil.copy2(src_html, dst_html)
-            print(f"[MAG] Copied HTML for {date} -> {dst_html}")
-        else:
-            print(f"[MAG] HTML for {date} already in docs, skip copy.")
+        try:
+            if src_html.resolve() != dst_html.resolve():
+                shutil.copy2(src_html, dst_html)
+                print(f"[MAG] Copied HTML for {date} -> {dst_html}")
+            else:
+                print(f"[MAG] HTML for {date} already in docs/, skipping copy.")
+        except Exception as e:
+            print(f"[MAG][WARN] Cannot copy HTML for {date}: {e!r}")
 
         dst_pdf = None
         if r["pdf_file"] is not None:
-            src_pdf: Path = r["pdf_file"]
+            src_pdf = r["pdf_file"]
             dst_pdf = PDF_DST_DIR / src_pdf.name
-            if src_pdf.exists():
+            try:
                 if src_pdf.resolve() != dst_pdf.resolve():
                     shutil.copy2(src_pdf, dst_pdf)
                     print(f"[MAG] Copied PDF for {date} -> {dst_pdf}")
                 else:
-                    print(f"[MAG] PDF for {date} already in docs, skip copy.")
-            else:
-                print(f"[MAG] PDF source for {date} not found: {src_pdf}")
+                    print(f"[MAG] PDF for {date} already in docs/, skipping copy.")
+            except Exception as e:
+                print(f"[MAG][WARN] Cannot copy PDF for {date}: {e!r}")
                 dst_pdf = None
         else:
             print(f"[MAG] No PDF for {date}, skipping PDF copy.")
@@ -138,43 +115,37 @@ def _copy_last_reports_to_docs(reports: List[Dict], max_reports: int = 7) -> Lis
     return out
 
 
-# -------------------------------------------------------------------
-#  PREVIOUS 6 REPORTS (SIDEBAR)
-# -------------------------------------------------------------------
-
 def _build_previous_reports_list(reports_for_docs: List[Dict]) -> str:
     """
-    Genera la lista dei 6 report precedenti per la sidebar.
-    Ogni item mostra link HTML + PDF.
+    HTML per la sidebar: link ai 6 giorni precedenti (salta il più recente).
     """
     if len(reports_for_docs) <= 1:
         return '<p style="font-size:12px; color:#6b7280;">No previous reports yet.</p>'
 
     items: List[str] = []
 
-    # r[0] = latest, r[1:7] = 6 giorni precedenti
-    for r in reports_for_docs[1:7]:
+    for r in reports_for_docs[1:7]:  # max 6 giorni precedenti
         date = r["date"]
         html_rel = f"reports/html/{r['html_file'].name}"
         pdf_rel = f"reports/pdf/{r['pdf_file'].name}" if r["pdf_file"] else None
 
         if pdf_rel:
             links_html = (
-                f'<a href="{html_rel}" target="_blank">HTML</a>'
-                f'<span class="dot"> · </span>'
-                f'<a href="{pdf_rel}" target="_blank">PDF</a>'
+                f'<a href="{html_rel}" target="_blank" rel="noopener">HTML</a>'
+                f'<span class="dot">·</span>'
+                f'<a href="{pdf_rel}" target="_blank" rel="noopener">PDF</a>'
             )
         else:
-            links_html = f'<a href="{html_rel}" target="_blank">HTML</a>'
+            links_html = f'<a href="{html_rel}" target="_blank" rel="noopener">HTML</a>'
 
-        items.append(f"""
+        item = f"""
         <li class="side-report-item">
           <div class="side-report-main">
             <span class="side-report-date">{date}</span>
             <span class="side-report-links">{links_html}</span>
           </div>
-        </li>
-        """)
+        </li>"""
+        items.append(item)
 
     return "\n".join(items)
 
@@ -184,6 +155,10 @@ def _build_previous_reports_list(reports_for_docs: List[Dict]) -> str:
 # -------------------------------------------------------------------
 
 def _load_extra_reports() -> List[Dict]:
+    """
+    Legge config/extra_reports.yaml e restituisce solo i report con data
+    negli ultimi 30 giorni.
+    """
     cfg_path = BASE_DIR / "config" / "extra_reports.yaml"
     if not cfg_path.exists():
         print(f"[MAG] No extra_reports.yaml at {cfg_path}")
@@ -240,6 +215,9 @@ def _load_extra_reports() -> List[Dict]:
 
 
 def _build_extra_reports_sidebar_html(extra_reports: List[Dict]) -> str:
+    """
+    HTML per la sezione "Extra reports (30 days)".
+    """
     if not extra_reports:
         return '<p style="font-size:12px; color:#6b7280;">No extra reports (last 30 days).</p>'
 
@@ -276,124 +254,152 @@ def _build_extra_reports_sidebar_html(extra_reports: List[Dict]) -> str:
 
 
 # -------------------------------------------------------------------
-#  MARKET SNAPSHOT (STATICO DA YAML)
+#  MARKET SNAPSHOT (static JSON, es. 10:00 e 20:00)
 # -------------------------------------------------------------------
 
-def _load_market_snapshot() -> Tuple[List[Dict], str]:
+def _load_market_snapshot() -> Dict | None:
     """
-    Legge config/market_snapshot.yaml.
+    Cerca il market snapshot più recente in reports/json:
 
-    Struttura attesa:
-      market_snapshot:
-        updated_at: "2025-12-09 10:00 CET"
-        items:
-          - name: "Google"
-            symbol: "GOOGL"
-            price: 142.35
-            change_percent: 1.23
+      market_snapshot_YYYY-MM-DD.json   oppure   market_snapshot_latest.json
+
+    Formato atteso:
+      {
+        "updated_at": "2025-12-10 20:00 CET",
+        "items": [
+          {"name": "Google", "symbol": "GOOGL", "price": 142.35, "change_pct": 1.23},
+          ...
+        ]
+      }
     """
-    cfg_path = BASE_DIR / "config" / "market_snapshot.yaml"
-    if not cfg_path.exists():
-        print(f"[MAG] No market_snapshot.yaml at {cfg_path}")
-        return [], "n/a"
+    if not JSON_REPORTS_DIR.exists():
+        return None
+
+    # prima prova con pattern market_snapshot_*.json
+    candidates = sorted(JSON_REPORTS_DIR.glob("market_snapshot_*.json"))
+    target = None
+    if candidates:
+        target = candidates[-1]
+    else:
+        alt = JSON_REPORTS_DIR / "market_snapshot_latest.json"
+        if alt.exists():
+            target = alt
+
+    if not target:
+        print("[MAG] No market snapshot JSON found.")
+        return None
 
     try:
-        data = yaml.safe_load(cfg_path.read_text(encoding="utf-8")) or {}
+        data = json.loads(target.read_text(encoding="utf-8"))
+        if not isinstance(data, dict):
+            return None
+        return data
     except Exception as e:
-        print(f"[MAG] Cannot parse market_snapshot.yaml: {e!r}")
-        return [], "n/a"
-
-    ms = data.get("market_snapshot") or {}
-    if not isinstance(ms, dict):
-        return [], "n/a"
-
-    updated_at = str(ms.get("updated_at") or "n/a").strip()
-    items_raw = ms.get("items") or []
-    if not isinstance(items_raw, list):
-        items_raw = []
-
-    items: List[Dict] = []
-    for it in items_raw:
-        if not isinstance(it, dict):
-            continue
-        name = str(it.get("name") or "").strip()
-        symbol = str(it.get("symbol") or "").strip()
-        price = it.get("price")
-        change_pct = it.get("change_percent")
-        if not name or not symbol:
-            continue
-        items.append(
-            {
-                "name": name,
-                "symbol": symbol,
-                "price": price,
-                "change_percent": change_pct,
-            }
-        )
-
-    return items, updated_at
+        print(f"[MAG] Cannot parse market snapshot {target}: {e!r}")
+        return None
 
 
-def _build_market_sidebar_html(items: List[Dict], updated_at: str) -> str:
-    if not items:
-        return """
-<ul class="market-list">
-  <li class="market-item">
-    <div class="market-left">No data</div>
-    <div><span class="market-price">n/a</span></div>
-  </li>
-</ul>
-<p style="margin:6px 0 0; font-size:10px; color:#9ca3af;">
-  *No market snapshot available.
-</p>
-"""
+def _build_market_snapshot_html(snapshot: Dict | None) -> (str, str):
+    """
+    Ritorna (html_items, updated_label).
+    """
+    if not snapshot:
+        html = """
+        <li class="market-item">
+          <div class="market-left">Google<span class="market-symbol">GOOGL</span></div>
+          <div><span class="market-price">—</span><span class="market-change"></span></div>
+        </li>
+        <li class="market-item">
+          <div class="market-left">Tesla<span class="market-symbol">TSLA</span></div>
+          <div><span class="market-price">—</span><span class="market-change"></span></div>
+        </li>
+        <li class="market-item">
+          <div class="market-left">Apple<span class="market-symbol">AAPL</span></div>
+          <div><span class="market-price">—</span><span class="market-change"></span></div>
+        </li>
+        <li class="market-item">
+          <div class="market-left">NVIDIA<span class="market-symbol">NVDA</span></div>
+          <div><span class="market-price">—</span><span class="market-change"></span></div>
+        </li>
+        <li class="market-item">
+          <div class="market-left">Meta<span class="market-symbol">META</span></div>
+          <div><span class="market-price">—</span><span class="market-change"></span></div>
+        </li>
+        <li class="market-item">
+          <div class="market-left">Microsoft<span class="market-symbol">MSFT</span></div>
+          <div><span class="market-price">—</span><span class="market-change"></span></div>
+        </li>
+        <li class="market-item">
+          <div class="market-left">Amazon<span class="market-symbol">AMZN</span></div>
+          <div><span class="market-price">—</span><span class="market-change"></span></div>
+        </li>
+        <li class="market-item">
+          <div class="market-left">Bitcoin<span class="market-symbol">BTC</span></div>
+          <div><span class="market-price">—</span><span class="market-change"></span></div>
+        </li>
+        <li class="market-item">
+          <div class="market-left">Ethereum<span class="market-symbol">ETH</span></div>
+          <div><span class="market-price">—</span><span class="market-change"></span></div>
+        </li>
+        """
+        return html, "not available"
 
-    rows: List[str] = []
-    for it in items:
-        name = it["name"]
-        symbol = it["symbol"]
-        price = it.get("price")
-        change = it.get("change_percent")
+    items = snapshot.get("items") or []
+    updated_at = snapshot.get("updated_at", "n/a")
+
+    # mantieni l'ordine fisso dei titoli principali se possibile
+    desired_order = [
+        "GOOGL", "TSLA", "AAPL", "NVDA", "META", "MSFT", "AMZN", "BTC", "ETH",
+    ]
+    lookup = {str(it.get("symbol")): it for it in items}
+
+    ordered_items: List[Dict] = []
+    for sym in desired_order:
+        if sym in lookup:
+            ordered_items.append(lookup[sym])
+
+    html_items: List[str] = []
+    for it in ordered_items:
+        name = it.get("name", "")
+        sym = it.get("symbol", "")
+        price = it.get("price", None)
+        pct = it.get("change_pct", None)
 
         if isinstance(price, (int, float)):
-            price_txt = f"{price:.2f}"
+            price_str = f"{price:.2f}"
         else:
-            price_txt = "n/a"
+            price_str = "—"
 
-        change_txt = ""
-        cls = "market-change"
-        if isinstance(change, (int, float)):
-            if change > 0:
-                cls += " up"
-                change_txt = f"+{change:.2f}%"
-            elif change < 0:
-                cls += " down"
-                change_txt = f"{change:.2f}%"
+        if isinstance(pct, (int, float)):
+            if pct > 0:
+                cls = "market-change up"
+                pct_str = f"+{pct:.2f}%"
+            elif pct < 0:
+                cls = "market-change down"
+                pct_str = f"{pct:.2f}%"
             else:
-                change_txt = "0.00%"
-
-        row = f"""
+                cls = "market-change"
+                pct_str = "0.00%"
+        else:
+            cls = "market-change"
+            pct_str = ""
+        html_items.append(
+            f"""
         <li class="market-item">
-          <div class="market-left">{name}<span class="market-symbol">{symbol}</span></div>
+          <div class="market-left">{name}<span class="market-symbol">{sym}</span></div>
           <div>
-            <span class="market-price">{price_txt}</span>
-            <span class="{cls}">{change_txt}</span>
+            <span class="market-price">{price_str}</span>
+            <span class="{cls}">{pct_str}</span>
           </div>
         </li>
         """
-        rows.append(row)
+        )
 
-    html_rows = "\n".join(rows)
-    footer = f"""
-<p style="margin:6px 0 0; font-size:10px; color:#9ca3af;">
-  *Static snapshot updated at {updated_at}. Values are indicative only.
-</p>
-"""
-    return f"<ul class=\"market-list\">\n{html_rows}\n</ul>\n{footer}"
+    return "\n".join(html_items), updated_at
 
 
 # -------------------------------------------------------------------
-#  INDEX.HTML TEMPLATE (CLOCK DIGITALE, METEO, LOGO, PASSWORD)
+#  INDEX.HTML TEMPLATE
 # -------------------------------------------------------------------
 
 def _build_index_content(reports_for_docs: List[Dict]) -> str:
@@ -405,32 +411,13 @@ def _build_index_content(reports_for_docs: List[Dict]) -> str:
   <meta charset="utf-8" />
   <title>MaxBits · Daily Tech Intelligence</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <style>
-    body {
-      margin: 0;
-      padding: 32px 16px;
-      font-family: -apple-system, BlinkMacSystemFont, system-ui, "Segoe UI", sans-serif;
-      background: #f5f5f7;
-      color: #111827;
-    }
-    .page {
-      max-width: 960px;
-      margin: 0 auto;
-    }
-    h1 {
-      font-size: 24px;
-      margin-bottom: 10px;
-    }
-    p {
-      font-size: 14px;
-      color: #4b5563;
-    }
-  </style>
 </head>
-<body>
-  <div class="page">
-    <h1>MaxBits Mag</h1>
-    <p>No reports available yet. Once the first daily report is generated, this page will show the latest report and the last days.</p>
+<body style="margin:0;padding:32px 16px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f5f5f7;color:#111827;">
+  <div style="max-width:960px;margin:0 auto;">
+    <h1 style="font-size:24px;margin-bottom:10px;">MaxBits Mag</h1>
+    <p style="font-size:14px;color:#4b5563;">
+      No reports available yet. Once the first daily report is generated, this page will show the latest report and the last days.
+    </p>
   </div>
 </body>
 </html>
@@ -440,12 +427,11 @@ def _build_index_content(reports_for_docs: List[Dict]) -> str:
     latest_date = latest["date"]
     latest_html_rel = f"reports/html/{latest['html_file'].name}"
     previous_list_html = _build_previous_reports_list(reports_for_docs)
-
     extra_reports = _load_extra_reports()
     extra_reports_html = _build_extra_reports_sidebar_html(extra_reports)
 
-    market_items, market_updated_at = _load_market_snapshot()
-    market_html = _build_market_sidebar_html(market_items, market_updated_at)
+    snapshot = _load_market_snapshot()
+    market_html, market_updated = _build_market_snapshot_html(snapshot)
 
     template = """<!DOCTYPE html>
 <html lang="en">
@@ -509,52 +495,101 @@ def _build_index_content(reports_for_docs: List[Dict]) -> str:
       padding: 8px 4px 22px;
     }
 
-    .brand img {
-      height: 36px;
-      width: auto;
-      display: block;
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
     }
 
-    .tagline {
-      font-size: 11px;
-      text-transform: uppercase;
-      letter-spacing: 0.16em;
-      padding: 4px 9px;
-      border-radius: 999px;
-      border: 1px solid var(--border);
-      color: var(--text-muted);
-      white-space: nowrap;
+    .brand-mark {
+      background:#ffffff;
+      padding:6px 12px;
+      border-radius:999px;
+      box-shadow:0 12px 30px rgba(15,23,42,0.18);
+      font-weight:700;
+      letter-spacing:0.06em;
+      font-size:16px;
+    }
+
+    .brand-mark span:first-child { color:#111827; }
+    .brand-mark span:last-child { color:#0ea5e9; }
+
+    .brand-subtitle {
+      margin:0;
+      font-size:12px;
+      color:var(--text-muted);
+    }
+
+    .header-controls {
+      display:flex;
+      flex-direction:column;
+      align-items:flex-end;
+      gap:6px;
+    }
+
+    .viewmode-pill {
+      font-size:11px;
+      text-transform:uppercase;
+      letter-spacing:0.16em;
+      padding:4px 10px;
+      border-radius:999px;
+      border:1px solid var(--border);
+      color:var(--text-muted);
+      background:rgba(255,255,255,0.9);
+      cursor:pointer;
+      display:inline-flex;
+      align-items:center;
+      gap:6px;
+    }
+
+    body[data-theme="dark"] .viewmode-pill {
+      background:#020617;
     }
 
     .theme-toggle {
-      border-radius: 999px;
-      width: 40px;
-      height: 22px;
-      padding: 2px;
-      border: 1px solid var(--border);
-      display: flex;
-      align-items: center;
-      background: rgba(255,255,255,0.85);
-      cursor: pointer;
-      position: relative;
+      width:36px;
+      height:18px;
+      padding:2px;
+      border-radius:999px;
+      border:1px solid var(--border);
+      display:flex;
+      align-items:center;
+      background:rgba(255,255,255,0.85);
+      cursor:pointer;
     }
 
     body[data-theme="dark"] .theme-toggle {
-      background: #020617;
+      background:#020617;
     }
 
     .theme-thumb {
-      width: 16px;
-      height: 16px;
-      border-radius: 999px;
-      background: #020617;
-      transform: translateX(0);
-      transition: transform 0.22s ease, background 0.22s ease;
+      width:13px;
+      height:13px;
+      border-radius:999px;
+      background:#020617;
+      transform:translateX(0);
+      transition:transform 0.22s ease, background 0.22s ease;
     }
 
     body[data-theme="dark"] .theme-thumb {
-      transform: translateX(16px);
-      background: #facc15;
+      transform:translateX(16px);
+      background:#facc15;
+    }
+
+    .exit-btn {
+      font-size:11px;
+      padding:4px 10px;
+      border-radius:999px;
+      border:1px solid #ef4444;
+      color:#b91c1c;
+      background:rgba(254,242,242,0.95);
+      cursor:pointer;
+    }
+
+    body[data-theme="dark"] .exit-btn {
+      background:rgba(127,29,29,0.85);
+      color:#fee2e2;
+      border-color:#b91c1c;
     }
 
     .layout {
@@ -605,6 +640,7 @@ def _build_index_content(reports_for_docs: List[Dict]) -> str:
       color: var(--accent-dark);
       border: 1px solid rgba(37,167,255,0.4);
       white-space: nowrap;
+      cursor:pointer;
     }
 
     body[data-theme="dark"] .badge-today {
@@ -632,6 +668,7 @@ def _build_index_content(reports_for_docs: List[Dict]) -> str:
       border: none;
     }
 
+    /* Sidebar */
     .sidebar {
       display: flex;
       flex-direction: column;
@@ -658,35 +695,40 @@ def _build_index_content(reports_for_docs: List[Dict]) -> str:
       color: var(--text-muted);
     }
 
-    .clock-digital {
-      font-size: 24px;
-      font-weight: 600;
-      letter-spacing: 0.06em;
-      text-align: center;
-      margin-bottom: 4px;
+    /* Clock + weather */
+    .time-row {
+      display:flex;
+      justify-content:space-between;
+      align-items:baseline;
+      font-size:13px;
+      margin-top:4px;
+      color:var(--text-main);
     }
 
-    .clock-label {
-      margin: 0;
-      font-size: 11px;
-      color: var(--text-muted);
-      text-align: center;
+    .time-label {
+      font-size:11px;
+      text-transform:uppercase;
+      letter-spacing:0.14em;
+      color:var(--text-muted);
     }
 
-    .weather-row {
-      margin-top: 10px;
-      display: flex;
-      justify-content: space-between;
-      align-items: baseline;
-      font-size: 11px;
-      color: var(--text-muted);
+    .time-main {
+      font-size:20px;
+      font-weight:600;
     }
 
-    .weather-temp-strong {
-      font-weight: 600;
-      color: var(--text-main);
+    .time-sub {
+      font-size:11px;
+      color:var(--text-muted);
     }
 
+    .time-weather {
+      margin-top:6px;
+      font-size:12px;
+      color:var(--text-muted);
+    }
+
+    /* Previous reports */
     .side-report-list {
       list-style: none;
       padding-left: 0;
@@ -722,6 +764,7 @@ def _build_index_content(reports_for_docs: List[Dict]) -> str:
       margin: 0 4px;
     }
 
+    /* Extra reports */
     .extra-report-list {
       list-style: none;
       padding-left: 0;
@@ -777,6 +820,19 @@ def _build_index_content(reports_for_docs: List[Dict]) -> str:
       color: #92400e;
     }
 
+    body[data-theme="dark"] .extra-report-pill-ok {
+      background: rgba(34,197,94,0.15);
+      border-color: rgba(34,197,94,0.6);
+      color: #bbf7d0;
+    }
+
+    body[data-theme="dark"] .extra-report-pill-expiring {
+      background: rgba(250,204,21,0.1);
+      border-color: rgba(250,204,21,0.6);
+      color: #facc15;
+    }
+
+    /* Market snapshot */
     .market-list {
       list-style: none;
       padding-left: 0;
@@ -808,6 +864,7 @@ def _build_index_content(reports_for_docs: List[Dict]) -> str:
     .market-price {
       font-weight: 500;
       color: var(--text-main);
+      margin-right:4px;
     }
 
     .market-change {
@@ -816,6 +873,9 @@ def _build_index_content(reports_for_docs: List[Dict]) -> str:
 
     .market-change.up { color: #16a34a; }
     .market-change.down { color: #dc2626; }
+
+    body[data-theme="dark"] .market-change.up { color: #4ade80; }
+    body[data-theme="dark"] .market-change.down { color: #f97373; }
 
     footer {
       margin-top: 22px;
@@ -829,204 +889,112 @@ def _build_index_content(reports_for_docs: List[Dict]) -> str:
       text-decoration: none;
     }
 
+    body[data-theme="dark"] footer a {
+      color: #60a5fa;
+    }
+
     @media (max-width: 900px) {
       .layout {
         grid-template-columns: minmax(0, 1fr);
       }
     }
-
-    #login-screen {
-      position: fixed;
-      inset: 0;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      background: radial-gradient(circle at top, #0b1120, #020617);
-      z-index: 9999;
-    }
-
-    #login-card {
-      background: #020617;
-      border-radius: 16px;
-      padding: 24px 22px 20px;
-      width: 320px;
-      box-shadow: 0 20px 50px rgba(0,0,0,0.7);
-      color: #e5e7eb;
-      text-align: left;
-      border: 1px solid #1f2937;
-    }
-
-    #login-card h1 {
-      margin: 0 0 8px 0;
-      font-size: 20px;
-    }
-
-    #login-card p {
-      margin: 0 0 16px 0;
-      font-size: 13px;
-      color: #9ca3af;
-    }
-
-    #login-card label {
-      display: block;
-      font-size: 12px;
-      margin-bottom: 4px;
-      color: #cbd5f5;
-    }
-
-    #login-password {
-      width: 100%;
-      padding: 8px 10px;
-      border-radius: 8px;
-      border: 1px solid #4b5563;
-      background: #020617;
-      color: #e5e7eb;
-      font-size: 13px;
-      margin-bottom: 10px;
-    }
-
-    #login-btn {
-      width: 100%;
-      padding: 8px 10px;
-      border: none;
-      border-radius: 999px;
-      background: #25A7FF;
-      color: #0b1120;
-      font-weight: 600;
-      font-size: 13px;
-      cursor: pointer;
-    }
-
-    #login-error {
-      margin-top: 8px;
-      font-size: 12px;
-      color: #fca5a5;
-      min-height: 16px;
-    }
-
-    #protected-root {
-      display: none;
-    }
   </style>
 </head>
 
 <body>
+  <div class="page">
 
-  <div id="login-screen">
-    <div id="login-card">
-      <h1>MaxBits</h1>
-      <p>Private daily tech report. Enter access password to continue.</p>
-      <label for="login-password">Access password</label>
-      <input type="password" id="login-password" placeholder="Password" />
-      <button id="login-btn">Enter</button>
-      <div id="login-error"></div>
-    </div>
-  </div>
-
-  <div id="protected-root">
-    <div class="page">
-
-      <header>
-        <div class="brand">
-          <img src="assets/maxbits-logo.svg" alt="MaxBits">
-        </div>
-
-        <div style="display:flex; align-items:center; gap:10px;">
-          <div class="tagline">Daily briefing</div>
-          <div class="theme-toggle" id="theme-toggle">
-            <div class="theme-thumb"></div>
-          </div>
-        </div>
-      </header>
-
-      <div class="layout">
-        <main class="main-card">
-          <div class="main-header">
-            <div>
-              <h1 class="main-title">Latest report · __LATEST_DATE__</h1>
-              <p class="main-meta">
-                Curated news + deep-dives designed for busy tech leaders. Updated every morning.
-              </p>
-            </div>
-            <span class="badge-today">Today’s edition</span>
-          </div>
-
-          <div class="iframe-wrapper">
-            <iframe src="__LATEST_HTML__" loading="lazy"></iframe>
-          </div>
-        </main>
-
-        <aside class="sidebar">
-
-          <section class="side-card">
-            <h2 class="side-title">Local time & weather</h2>
-            <div class="clock-digital" id="clock-digital">--:--</div>
-            <p class="clock-label" id="clock-label-text"></p>
-            <div class="weather-row" id="weather-row">
-              <span id="weather-location">Detecting location…</span>
-              <span id="weather-temp"></span>
-            </div>
-          </section>
-
-          <section class="side-card">
-            <h2 class="side-title">Previous 6 reports</h2>
-            <ul class="side-report-list">
-__PREVIOUS_LIST__
-            </ul>
-          </section>
-
-          <section class="side-card">
-            <h2 class="side-title">Extra reports (30 days)</h2>
-            <ul class="extra-report-list">
-__EXTRA_REPORTS__
-            </ul>
-          </section>
-
-          <section class="side-card">
-            <h2 class="side-title">Market snapshot*</h2>
-__MARKET_HTML__
-          </section>
-
-        </aside>
+    <header>
+      <div class="brand">
+        <div class="brand-mark"><span>Max</span> <span>Bits</span></div>
+        <p class="brand-subtitle">Daily Tech Intelligence · Telco · Media · AI · Cloud · Space · Patents</p>
       </div>
 
-      <footer>
-        MaxBits is generated automatically from curated RSS sources, CEO statements, patents and external reports.
-        Reports are published as static HTML &amp; PDF via GitHub Pages.
-      </footer>
+      <div class="header-controls">
+        <button class="viewmode-pill" id="viewmode-btn">
+          <span>View mode</span>
+        </button>
+        <div class="theme-toggle" id="theme-toggle">
+          <div class="theme-thumb"></div>
+        </div>
+        <button class="exit-btn" id="exit-btn">Exit</button>
+      </div>
+    </header>
 
+    <div class="layout">
+      <!-- MAIN COLUMN -->
+      <main class="main-card">
+        <div class="main-header">
+          <div>
+            <h1 class="main-title">Latest report · __LATEST_DATE__</h1>
+            <p class="main-meta">
+              Curated news + deep-dives designed for busy tech leaders. Updated every morning.
+            </p>
+          </div>
+          <span class="badge-today" id="today-pill">Today’s edition</span>
+        </div>
+
+        <div class="iframe-wrapper">
+          <iframe src="__LATEST_HTML__" loading="lazy"></iframe>
+        </div>
+      </main>
+
+      <!-- SIDEBAR -->
+      <aside class="sidebar">
+
+        <!-- TIME & WEATHER (time locale + placeholder meteo) -->
+        <section class="side-card">
+          <h2 class="side-title">Local time & weather</h2>
+          <div class="time-row">
+            <div>
+              <div class="time-main" id="clock-main">--:--:--</div>
+              <div class="time-sub" id="clock-sub">--</div>
+            </div>
+            <div class="time-weather">
+              <div>Your location</div>
+              <div id="weather-temp">--°C</div>
+            </div>
+          </div>
+        </section>
+
+        <!-- PREVIOUS REPORTS -->
+        <section class="side-card">
+          <h2 class="side-title">Previous 6 reports</h2>
+          <ul class="side-report-list">
+__PREVIOUS_LIST__
+          </ul>
+        </section>
+
+        <!-- EXTRA REPORTS -->
+        <section class="side-card">
+          <h2 class="side-title">Extra reports (30 days)</h2>
+          <ul class="extra-report-list">
+__EXTRA_REPORTS__
+          </ul>
+        </section>
+
+        <!-- MARKET SNAPSHOT -->
+        <section class="side-card">
+          <h2 class="side-title">Market snapshot*</h2>
+          <ul class="market-list">
+__MARKET_ITEMS__
+          </ul>
+          <p style="margin:6px 0 0; font-size:10px; color:#9ca3af;">
+            *Static snapshot updated at __MARKET_UPDATED__. Values are indicative only.
+          </p>
+        </section>
+
+      </aside>
     </div>
+
+    <footer>
+      MaxBits is generated automatically from curated RSS sources, CEO statements, patents and external reports.
+      Reports are published as static HTML &amp; PDF via GitHub Pages.
+    </footer>
   </div>
 
   <script>
-    // LOGIN (password lato client)
-    (function() {
-      const PASSWORD = "mix";   // <--- PUOI CAMBIARLA QUI
-      const loginScreen = document.getElementById("login-screen");
-      const root = document.getElementById("protected-root");
-      const input = document.getElementById("login-password");
-      const btn = document.getElementById("login-btn");
-      const errorBox = document.getElementById("login-error");
-
-      function unlock() {
-        const val = (input.value || "").trim();
-        if (val === PASSWORD) {
-          loginScreen.style.display = "none";
-          root.style.display = "block";
-        } else {
-          errorBox.textContent = "Wrong password. Please try again.";
-        }
-      }
-
-      btn.addEventListener("click", unlock);
-      input.addEventListener("keydown", function(ev) {
-        if (ev.key === "Enter") unlock();
-      });
-    })();
-  </script>
-
-  <script>
-    // THEME TOGGLE
+    // THEME TOGGLE (light / dark) + VIEW MODE BUTTON
     (function() {
       const key = "maxbits_theme";
       const root = document.body;
@@ -1039,6 +1007,13 @@ __MARKET_HTML__
         }
       }
 
+      function toggleTheme() {
+        const current = root.getAttribute("data-theme") === "dark" ? "dark" : "light";
+        const next = current === "dark" ? "light" : "dark";
+        applyTheme(next);
+        try { localStorage.setItem(key, next); } catch(e) {}
+      }
+
       const stored = localStorage.getItem(key);
       if (stored === "light" || stored === "dark") {
         applyTheme(stored);
@@ -1046,87 +1021,82 @@ __MARKET_HTML__
         applyTheme("light");
       }
 
-      const btn = document.getElementById("theme-toggle");
-      if (btn) {
-        btn.addEventListener("click", () => {
-          const current = root.getAttribute("data-theme") === "dark" ? "dark" : "light";
-          const next = current === "dark" ? "light" : "dark";
-          applyTheme(next);
-          try { localStorage.setItem(key, next); } catch(e) {}
-        });
+      const toggle = document.getElementById("theme-toggle");
+      if (toggle) {
+        toggle.addEventListener("click", toggleTheme);
+      }
+
+      const viewBtn = document.getElementById("viewmode-btn");
+      if (viewBtn) {
+        viewBtn.addEventListener("click", toggleTheme);
       }
     })();
 
-    // CLOCK DIGITALE
+    // Digital clock (locale) + simple weather placeholder
     function updateClock() {
       const now = new Date();
-      const hh = String(now.getHours()).padStart(2, "0");
-      const mm = String(now.getMinutes()).padStart(2, "0");
-      const ss = String(now.getSeconds()).padStart(2, "0");
+      const main = document.getElementById('clock-main');
+      const sub = document.getElementById('clock-sub');
 
-      const clockMain = document.getElementById("clock-digital");
-      const clockLabel = document.getElementById("clock-label-text");
-      if (clockMain) clockMain.textContent = hh + ":" + mm + ":" + ss;
-      if (clockLabel) {
-        clockLabel.textContent = now.toLocaleDateString(undefined, {
-          weekday: "short",
-          year: "numeric",
-          month: "short",
-          day: "numeric"
-        });
+      if (main) {
+        main.textContent = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      }
+      if (sub) {
+        sub.textContent = now.toLocaleDateString(undefined, { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' });
       }
     }
     setInterval(updateClock, 1000);
     updateClock();
 
-    // METEO (Open-Meteo)
-    async function loadWeather() {
-      const locEl = document.getElementById("weather-location");
-      const tempEl = document.getElementById("weather-temp");
-      if (!locEl || !tempEl) return;
+    // Weather: best effort (navigator.geolocation required + open-meteo)
+    (function() {
+      const out = document.getElementById("weather-temp");
+      if (!navigator.geolocation || !out) return;
 
-      if (!navigator.geolocation) {
-        locEl.textContent = "Location not available";
-        tempEl.textContent = "";
-        return;
-      }
+      navigator.geolocation.getCurrentPosition(function(pos) {
+        const lat = pos.coords.latitude.toFixed(4);
+        const lon = pos.coords.longitude.toFixed(4);
+        const url = "https://api.open-meteo.com/v1/forecast?latitude=" + lat + "&longitude=" + lon + "&current_weather=true";
 
-      function setError(msg) {
-        locEl.textContent = msg;
-        tempEl.textContent = "";
-      }
-
-      navigator.geolocation.getCurrentPosition(async (pos) => {
-        try {
-          const lat = pos.coords.latitude;
-          const lon = pos.coords.longitude;
-
-          const url = "https://api.open-meteo.com/v1/forecast?latitude="
-                      + encodeURIComponent(lat)
-                      + "&longitude=" + encodeURIComponent(lon)
-                      + "&current_weather=true";
-
-          const resp = await fetch(url);
+        fetch(url).then(function(resp) {
           if (!resp.ok) throw new Error("HTTP " + resp.status);
-          const data = await resp.json();
-          const cw = data.current_weather;
-          if (!cw) {
-            setError("Weather unavailable");
-            return;
+          return resp.json();
+        }).then(function(data) {
+          if (data && data.current_weather && typeof data.current_weather.temperature !== "undefined") {
+            out.textContent = data.current_weather.temperature.toFixed(1) + "°C";
           }
+        }).catch(function() {
+          // silenzio in caso di errore
+        });
+      }, function() {
+        // se l'utente rifiuta la geolocalizzazione, non facciamo nulla
+      }, { timeout: 5000 });
+    })();
 
-          const t = cw.temperature;
-          locEl.textContent = "Your location";
-          tempEl.innerHTML = "<span class='weather-temp-strong'>" + t.toFixed(1) + "°C</span>";
-        } catch (e) {
-          console.warn("[Weather] failed:", e);
-          setError("Weather unavailable");
-        }
-      }, () => {
-        setError("Enable location to see weather");
-      }, { timeout: 8000 });
-    }
-    loadWeather();
+    // "Today’s edition" = BACK HOME (sempre disponibile)
+    (function() {
+      const pill = document.getElementById("today-pill");
+      if (!pill) return;
+      pill.addEventListener("click", function() {
+        // torna sempre alla home del sito (index.html) senza password
+        var path = window.location.pathname || "/";
+        path = path.replace(/index\\.html?$/i, "");
+        if (!path.endsWith("/")) path += "/";
+        window.location.href = path;
+      });
+    })();
+
+    // EXIT button: prova a chiudere la tab, poi redirect al profilo GitHub
+    (function() {
+      const btn = document.getElementById("exit-btn");
+      if (!btn) return;
+      btn.addEventListener("click", function() {
+        try { window.close(); } catch(e) {}
+        setTimeout(function() {
+          window.location.href = "https://github.com/MaxBertolo";
+        }, 150);
+      });
+    })();
   </script>
 
 </body>
@@ -1139,11 +1109,18 @@ __MARKET_HTML__
         .replace("__LATEST_HTML__", latest_html_rel)
         .replace("__PREVIOUS_LIST__", previous_list_html)
         .replace("__EXTRA_REPORTS__", extra_reports_html)
-        .replace("__MARKET_HTML__", market_html)
+        .replace("__MARKET_ITEMS__", market_html)
+        .replace("__MARKET_UPDATED__", market_updated)
     )
 
 
 def build_magazine(max_reports: int = 7) -> None:
+    """
+    Entry point:
+      - legge i report sorgente
+      - copia gli ultimi N in docs/reports
+      - genera docs/index.html con layout moderno + sidebar
+    """
     raw_reports = _find_reports()
     DOCS_DIR.mkdir(parents=True, exist_ok=True)
 
