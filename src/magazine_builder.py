@@ -8,14 +8,13 @@ from datetime import datetime, timedelta
 import yaml
 import json
 
-
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-# Sorgente report primario (main.py)
+# Sorgenti report primari (output di main.py)
 HTML_SRC_DIR_PRIMARY = BASE_DIR / "reports" / "html"
 PDF_SRC_DIR_PRIMARY = BASE_DIR / "reports" / "pdf"
 
-# Fallback: se non ci sono lì, guardiamo direttamente in docs/
+# Archivio già in docs (serve a mantenere i 6 giorni precedenti)
 HTML_SRC_DIR_FALLBACK = BASE_DIR / "docs" / "reports" / "html"
 PDF_SRC_DIR_FALLBACK = BASE_DIR / "docs" / "reports" / "pdf"
 
@@ -24,7 +23,7 @@ DOCS_DIR = BASE_DIR / "docs"
 HTML_DST_DIR = DOCS_DIR / "reports" / "html"
 PDF_DST_DIR = DOCS_DIR / "reports" / "pdf"
 
-# Cartella per JSON (market snapshot, ecc.)
+# Cartella per JSON (market snapshot statico)
 JSON_REPORTS_DIR = BASE_DIR / "reports" / "json"
 
 
@@ -34,7 +33,12 @@ JSON_REPORTS_DIR = BASE_DIR / "reports" / "json"
 
 def _scan_reports(html_dir: Path, pdf_dir: Path) -> List[Dict]:
     """
-    Scansiona una coppia (html_dir, pdf_dir) e ritorna lista di report trovati.
+    Scansiona una coppia (html_dir, pdf_dir) e ritorna lista di report trovati:
+    {
+      "date": "YYYY-MM-DD",
+      "html_file": Path(...),
+      "pdf_file": Path(...) or None
+    }
     """
     reports: List[Dict] = []
     if not html_dir.exists():
@@ -62,16 +66,23 @@ def _scan_reports(html_dir: Path, pdf_dir: Path) -> List[Dict]:
 
 def _find_reports() -> List[Dict]:
     """
-    1) Prova a leggere da reports/html e reports/pdf
-    2) Se non trova nulla, prova da docs/reports/html e docs/reports/pdf
-    """
-    reports = _scan_reports(HTML_SRC_DIR_PRIMARY, PDF_SRC_DIR_PRIMARY)
-    if reports:
-        print(f"[MAG] Found {len(reports)} reports in {HTML_SRC_DIR_PRIMARY}")
-        return reports
+    Unisce i report trovati in:
+      - reports/html + reports/pdf
+      - docs/reports/html + docs/reports/pdf
 
-    reports = _scan_reports(HTML_SRC_DIR_FALLBACK, PDF_SRC_DIR_FALLBACK)
-    print(f"[MAG] [FALLBACK] Found {len(reports)} reports in {HTML_SRC_DIR_FALLBACK}")
+    In questo modo la colonna "Previous 6 reports" resta sempre popolata.
+    """
+    combined: Dict[str, Dict] = {}
+
+    for r in _scan_reports(HTML_SRC_DIR_PRIMARY, PDF_SRC_DIR_PRIMARY):
+        combined.setdefault(r["date"], r)
+
+    for r in _scan_reports(HTML_SRC_DIR_FALLBACK, PDF_SRC_DIR_FALLBACK):
+        combined.setdefault(r["date"], r)
+
+    reports = list(combined.values())
+    reports.sort(key=lambda x: x["date"], reverse=True)
+    print(f"[MAG] Total reports found (merged): {len(reports)}")
     return reports
 
 
@@ -79,6 +90,8 @@ def _copy_last_reports_to_docs(reports: List[Dict], max_reports: int = 7) -> Lis
     """
     Copia gli ultimi max_reports report in docs/reports/html e docs/reports/pdf.
     Evita SameFileError se sorgente e destinazione coincidono.
+
+    Ritorna lista riferita ai file DI DESTINAZIONE.
     """
     HTML_DST_DIR.mkdir(parents=True, exist_ok=True)
     PDF_DST_DIR.mkdir(parents=True, exist_ok=True)
@@ -258,25 +271,31 @@ def _build_extra_reports_sidebar_html(extra_reports: List[Dict]) -> str:
 
 
 # -------------------------------------------------------------------
-#  MARKET SNAPSHOT (statico da JSON)
+#  MARKET SNAPSHOT (STATICO DA JSON 08:00 / 20:00)
 # -------------------------------------------------------------------
 
 def _load_market_snapshot() -> Dict | None:
+    """
+    Legge l'ULTIMO file JSON in reports/json (per data di modifica).
+    Qualunque nome abbia, es: market_snapshot_2025-12-11_08-00.json
+    """
     if not JSON_REPORTS_DIR.exists():
+        print("[MAG] JSON_REPORTS_DIR does not exist:", JSON_REPORTS_DIR)
         return None
 
-    candidates = sorted(JSON_REPORTS_DIR.glob("market_snapshot_*.json"))
-    target = None
-    if candidates:
-        target = candidates[-1]
-    else:
-        alt = JSON_REPORTS_DIR / "market_snapshot_latest.json"
-        if alt.exists():
-            target = alt
-
-    if not target:
-        print("[MAG] No market snapshot JSON found.")
+    candidates = list(JSON_REPORTS_DIR.glob("*.json"))
+    if not candidates:
+        print("[MAG] No market snapshot JSON in", JSON_REPORTS_DIR)
         return None
+
+    try:
+        candidates.sort(key=lambda p: p.stat().st_mtime)
+    except Exception as e:
+        print("[MAG] Cannot stat JSON files:", e)
+        return None
+
+    target = candidates[-1]
+    print(f"[MAG] Using market snapshot JSON: {target}")
 
     try:
         data = json.loads(target.read_text(encoding="utf-8"))
@@ -289,6 +308,11 @@ def _load_market_snapshot() -> Dict | None:
 
 
 def _build_market_snapshot_html(snapshot: Dict | None) -> (str, str):
+    """
+    Ritorna:
+      - html <li>...</li> per ciascun titolo
+      - stringa updated_at da mostrare nel footer della card
+    """
     if not snapshot:
         html = """
         <li class="market-item">
@@ -385,12 +409,11 @@ def _build_market_snapshot_html(snapshot: Dict | None) -> (str, str):
 
 
 # -------------------------------------------------------------------
-#  INDEX.HTML TEMPLATE (con password "mix")
+#  INDEX.HTML TEMPLATE (password "mix", View mode, Exit, Today’s edition)
 # -------------------------------------------------------------------
 
 def _build_index_content(reports_for_docs: List[Dict]) -> str:
     if not reports_for_docs:
-        print("[MAG] No reports found, generating minimal placeholder index.")
         return """<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -400,10 +423,8 @@ def _build_index_content(reports_for_docs: List[Dict]) -> str:
 </head>
 <body style="margin:0;padding:32px 16px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f5f5f7;color:#111827;">
   <div style="max-width:960px;margin:0 auto;">
-    <h1 style="font-size:24px;margin-bottom:10px;">MaxBits Mag</h1>
-    <p style="font-size:14px;color:#4b5563;">
-      No reports available yet. Once the first daily report is generated, this page will show the latest report and the last days.
-    </p>
+    <h1>MaxBits · Daily Tech Intelligence</h1>
+    <p>No reports available yet. Once the first daily report is generated, this page will show the latest report and the last days.</p>
   </div>
 </body>
 </html>
@@ -412,6 +433,7 @@ def _build_index_content(reports_for_docs: List[Dict]) -> str:
     latest = reports_for_docs[0]
     latest_date = latest["date"]
     latest_html_rel = f"reports/html/{latest['html_file'].name}"
+
     previous_list_html = _build_previous_reports_list(reports_for_docs)
     extra_reports = _load_extra_reports()
     extra_reports_html = _build_extra_reports_sidebar_html(extra_reports)
@@ -481,101 +503,106 @@ def _build_index_content(reports_for_docs: List[Dict]) -> str:
       padding: 8px 4px 22px;
     }
 
-    .brand {
+    .brand-left {
       display: flex;
-      align-items: center;
-      gap: 10px;
+      flex-direction: column;
+      gap: 4px;
     }
 
-    .brand-mark {
-      background:#ffffff;
-      padding:6px 12px;
+    .brand-pill {
+      display:inline-flex;
+      align-items:center;
+      padding:4px 10px;
       border-radius:999px;
-      box-shadow:0 12px 30px rgba(15,23,42,0.18);
-      font-weight:700;
-      letter-spacing:0.06em;
-      font-size:16px;
+      background:#ffffff;
+      box-shadow:0 6px 14px rgba(15,23,42,0.10);
     }
 
-    .brand-mark span:first-child { color:#111827; }
-    .brand-mark span:last-child { color:#0ea5e9; }
+    body[data-theme="dark"] .brand-pill {
+      background:#020617;
+      box-shadow:0 10px 24px rgba(0,0,0,0.85);
+    }
 
-    .brand-subtitle {
-      margin:0;
-      font-size:12px;
+    .brand-pill span:first-child {
+      font-weight:600;
+      padding-right:4px;
+    }
+    .brand-pill span:last-child {
+      font-weight:600;
+      color:var(--accent-dark);
+    }
+
+    .brand-tagline {
+      font-size:11px;
       color:var(--text-muted);
     }
 
-    .header-controls {
+    .header-right {
       display:flex;
       flex-direction:column;
       align-items:flex-end;
-      gap:6px;
+      gap:4px;
     }
 
-    .viewmode-pill {
-      font-size:11px;
-      text-transform:uppercase;
+    .view-mode-label {
+      font-size:10px;
       letter-spacing:0.16em;
-      padding:4px 10px;
-      border-radius:999px;
-      border:1px solid var(--border);
+      text-transform:uppercase;
       color:var(--text-muted);
-      background:rgba(255,255,255,0.9);
-      cursor:pointer;
-      display:inline-flex;
-      align-items:center;
-      gap:6px;
     }
 
-    body[data-theme="dark"] .viewmode-pill {
-      background:#020617;
+    .view-mode-row {
+      display:flex;
+      align-items:center;
+      gap:8px;
     }
 
     .theme-toggle {
-      width:36px;
-      height:18px;
-      padding:2px;
-      border-radius:999px;
-      border:1px solid var(--border);
-      display:flex;
-      align-items:center;
-      background:rgba(255,255,255,0.85);
-      cursor:pointer;
+      border-radius: 999px;
+      width: 40px;
+      height: 22px;
+      padding: 2px;
+      border: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      background: rgba(255,255,255,0.85);
+      cursor: pointer;
+      position: relative;
     }
 
     body[data-theme="dark"] .theme-toggle {
-      background:#020617;
+      background: #020617;
     }
 
     .theme-thumb {
-      width:13px;
-      height:13px;
-      border-radius:999px;
-      background:#020617;
-      transform:translateX(0);
-      transition:transform 0.22s ease, background 0.22s ease;
+      width: 16px;
+      height: 16px;
+      border-radius: 999px;
+      background: #020617;
+      transform: translateX(0);
+      transition: transform 0.22s ease, background 0.22s ease;
     }
 
     body[data-theme="dark"] .theme-thumb {
-      transform:translateX(16px);
-      background:#facc15;
+      transform: translateX(16px);
+      background: #facc15;
     }
 
     .exit-btn {
+      margin-top:2px;
       font-size:11px;
-      padding:4px 10px;
+      padding:3px 10px;
       border-radius:999px;
-      border:1px solid #ef4444;
+      border:1px solid #fecaca;
+      background:#fee2e2;
       color:#b91c1c;
-      background:rgba(254,242,242,0.95);
       cursor:pointer;
     }
 
     body[data-theme="dark"] .exit-btn {
-      background:rgba(127,29,29,0.85);
+      background:#7f1d1d;
+      border-color:#fecaca;
       color:#fee2e2;
-      border-color:#b91c1c;
     }
 
     .layout {
@@ -620,7 +647,7 @@ def _build_index_content(reports_for_docs: List[Dict]) -> str:
 
     .badge-today {
       font-size: 11px;
-      padding: 4px 8px;
+      padding: 4px 10px;
       border-radius: 999px;
       background: rgba(37,167,255,0.12);
       color: var(--accent-dark);
@@ -681,31 +708,21 @@ def _build_index_content(reports_for_docs: List[Dict]) -> str:
       color: var(--text-muted);
     }
 
-    /* Time & weather */
-    .time-row {
-      display:flex;
-      justify-content:space-between;
-      align-items:baseline;
-      font-size:13px;
-      margin-top:4px;
-      color:var(--text-main);
+    .clock-digital {
+      font-size: 20px;
+      font-weight: 600;
     }
 
-    .time-main {
-      font-size:20px;
-      font-weight:600;
-    }
-
-    .time-sub {
+    .clock-sub {
+      margin:2px 0 0;
       font-size:11px;
       color:var(--text-muted);
     }
 
-    .time-weather {
-      margin-top:6px;
+    .weather-temp {
+      margin-top:8px;
       font-size:12px;
       color:var(--text-muted);
-      text-align:right;
     }
 
     /* Previous reports */
@@ -844,7 +861,6 @@ def _build_index_content(reports_for_docs: List[Dict]) -> str:
     .market-price {
       font-weight: 500;
       color: var(--text-main);
-      margin-right:4px;
     }
 
     .market-change {
@@ -873,18 +889,6 @@ def _build_index_content(reports_for_docs: List[Dict]) -> str:
       color: #60a5fa;
     }
 
-    /* LOGIN OVERLAY */
-    #login-overlay {
-      position:fixed;
-      inset:0;
-      background:rgba(15,23,42,0.92);
-      display:flex;
-      align-items:center;
-      justify-content:center;
-      z-index:9999;
-      font-family:'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
-    }
-
     @media (max-width: 900px) {
       .layout {
         grid-template-columns: minmax(0, 1fr);
@@ -894,71 +898,24 @@ def _build_index_content(reports_for_docs: List[Dict]) -> str:
 </head>
 
 <body>
-
-  <!-- LOGIN OVERLAY (password: mix) -->
-  <div id="login-overlay">
-    <div style="
-         background:#020617;
-         border-radius:16px;
-         padding:24px 26px;
-         width:280px;
-         max-width:90%;
-         box-shadow:0 18px 40px rgba(0,0,0,0.85);
-         border:1px solid #1f2937;
-         color:#e5e7eb;
-    ">
-      <h1 style="margin:0 0 10px 0;font-size:18px;">MaxBits access</h1>
-      <p style="margin:0 0 14px 0;font-size:13px;color:#9ca3af;">
-        Enter access password to open the daily report.
-      </p>
-      <input id="login-password-input"
-             type="password"
-             placeholder="Password"
-             style="
-               width:100%;
-               padding:8px 10px;
-               border-radius:8px;
-               border:1px solid #4b5563;
-               background:#020617;
-               color:#f9fafb;
-               font-size:13px;
-               box-sizing:border-box;
-             " />
-      <button id="login-button"
-              style="
-                margin-top:10px;
-                width:100%;
-                padding:8px 10px;
-                border-radius:8px;
-                border:none;
-                cursor:pointer;
-                background:#2563eb;
-                color:#f9fafb;
-                font-size:13px;
-                font-weight:500;
-              ">
-        Enter
-      </button>
-      <p style="margin:8px 0 0 0;font-size:11px;color:#6b7280;">
-        Access is stored locally in this browser.
-      </p>
-    </div>
-  </div>
-
   <div class="page">
 
     <header>
-      <div class="brand">
-        <div class="brand-mark"><span>Max</span> <span>Bits</span></div>
-        <p class="brand-subtitle">Daily Tech Intelligence · Telco · Media · AI · Cloud · Space · Patents</p>
+      <div class="brand-left">
+        <div class="brand-pill">
+          <span>Max</span><span>Bits</span>
+        </div>
+        <div class="brand-tagline">
+          Daily Tech Intelligence · Telco · Media · AI · Cloud · Space · Patents
+        </div>
       </div>
 
-      <div class="header-controls">
-        <button class="viewmode-pill" id="viewmode-btn">
-          <span>View mode</span>
-        </button>
-        <div class="theme-toggle" id="theme-toggle">
-          <div class="theme-thumb"></div>
+      <div class="header-right">
+        <div class="view-mode-row">
+          <span class="view-mode-label">View mode</span>
+          <div class="theme-toggle" id="theme-toggle">
+            <div class="theme-thumb"></div>
+          </div>
         </div>
         <button class="exit-btn" id="exit-btn">Exit</button>
       </div>
@@ -974,7 +931,7 @@ def _build_index_content(reports_for_docs: List[Dict]) -> str:
               Curated news + deep-dives designed for busy tech leaders. Updated every morning.
             </p>
           </div>
-          <span class="badge-today" id="today-pill">Today’s edition</span>
+          <span class="badge-today" id="today-badge">Today’s edition</span>
         </div>
 
         <div class="iframe-wrapper">
@@ -985,18 +942,13 @@ def _build_index_content(reports_for_docs: List[Dict]) -> str:
       <!-- SIDEBAR -->
       <aside class="sidebar">
 
-        <!-- TIME & WEATHER -->
+        <!-- LOCAL TIME & WEATHER -->
         <section class="side-card">
-          <h2 class="side-title">Local time & weather</h2>
-          <div class="time-row">
-            <div>
-              <div class="time-main" id="clock-main">--:--:--</div>
-              <div class="time-sub" id="clock-sub">--</div>
-            </div>
-            <div class="time-weather">
-              <div>Your location</div>
-              <div id="weather-temp">--°C</div>
-            </div>
+          <h2 class="side-title">Local time &amp; weather</h2>
+          <div>
+            <div class="clock-digital" id="clock-digital">--:--:--</div>
+            <p class="clock-sub" id="clock-date"></p>
+            <p class="weather-temp" id="weather-text">Detecting your location…</p>
           </div>
         </section>
 
@@ -1037,7 +989,23 @@ __MARKET_ITEMS__
   </div>
 
   <script>
-    // THEME TOGGLE (light / dark) + VIEW MODE BUTTON
+    // ---- Password gate (SESSION) ----
+    (function() {
+      const PASSWORD = "mix";
+      const KEY = "maxbits-auth";
+
+      if (!sessionStorage.getItem(KEY)) {
+        const userInput = prompt("Enter password to access MaxBits:");
+        if (userInput !== PASSWORD) {
+          alert("Incorrect password.");
+          window.location.href = "bye.html";
+          return;
+        }
+        sessionStorage.setItem(KEY, "1");
+      }
+    })();
+
+    // ---- View mode (light/dark) ----
     (function() {
       const key = "maxbits_theme";
       const root = document.body;
@@ -1050,13 +1018,6 @@ __MARKET_ITEMS__
         }
       }
 
-      function toggleTheme() {
-        const current = root.getAttribute("data-theme") === "dark" ? "dark" : "light";
-        const next = current === "dark" ? "light" : "dark";
-        applyTheme(next);
-        try { localStorage.setItem(key, next); } catch(e) {}
-      }
-
       const stored = localStorage.getItem(key);
       if (stored === "light" || stored === "dark") {
         applyTheme(stored);
@@ -1064,118 +1025,97 @@ __MARKET_ITEMS__
         applyTheme("light");
       }
 
-      const toggle = document.getElementById("theme-toggle");
-      if (toggle) {
-        toggle.addEventListener("click", toggleTheme);
-      }
-
-      const viewBtn = document.getElementById("viewmode-btn");
-      if (viewBtn) {
-        viewBtn.addEventListener("click", toggleTheme);
+      const btn = document.getElementById("theme-toggle");
+      if (btn) {
+        btn.addEventListener("click", () => {
+          const current = root.getAttribute("data-theme") === "dark" ? "dark" : "light";
+          const next = current === "dark" ? "light" : "dark";
+          applyTheme(next);
+          try { localStorage.setItem(key, next); } catch(e) {}
+        });
       }
     })();
 
-    // Digital clock (locale)
+    // ---- Today’s edition = back to home ----
+    (function() {
+      const btn = document.getElementById("today-badge");
+      if (!btn) return;
+      btn.addEventListener("click", function() {
+        // Torna sempre alla index (senza ripassare dalla password)
+        window.location.href = "index.html";
+      });
+    })();
+
+    // ---- Exit button ----
+    (function() {
+      const btn = document.getElementById("exit-btn");
+      if (!btn) return;
+      btn.addEventListener("click", function() {
+        try {
+          window.close();
+        } catch(e) {}
+        // se window.close non chiude la tab, vai a bye.html
+        window.location.href = "bye.html";
+      });
+    })();
+
+    // ---- Digital clock ----
     function updateClock() {
       const now = new Date();
-      const main = document.getElementById('clock-main');
-      const sub = document.getElementById('clock-sub');
-
-      if (main) {
-        main.textContent = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      const timeEl = document.getElementById("clock-digital");
+      const dateEl = document.getElementById("clock-date");
+      if (timeEl) {
+        timeEl.textContent = now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
       }
-      if (sub) {
-        sub.textContent = now.toLocaleDateString(undefined, { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' });
+      if (dateEl) {
+        dateEl.textContent = now.toLocaleDateString([], { weekday: "short", day: "2-digit", month: "short", year: "numeric" });
       }
     }
     setInterval(updateClock, 1000);
     updateClock();
 
-    // Weather: best effort (navigator.geolocation + open-meteo)
+    // ---- Weather via browser geolocation + Open-Meteo ----
     (function() {
-      const out = document.getElementById("weather-temp");
-      if (!navigator.geolocation || !out) return;
+      const el = document.getElementById("weather-text");
+      if (!el) return;
 
-      navigator.geolocation.getCurrentPosition(function(pos) {
-        const lat = pos.coords.latitude.toFixed(4);
-        const lon = pos.coords.longitude.toFixed(4);
-        const url = "https://api.open-meteo.com/v1/forecast?latitude=" + lat + "&longitude=" + lon + "&current_weather=true";
-
-        fetch(url).then(function(resp) {
-          if (!resp.ok) throw new Error("HTTP " + resp.status);
-          return resp.json();
-        }).then(function(data) {
-          if (data && data.current_weather && typeof data.current_weather.temperature !== "undefined") {
-            out.textContent = data.current_weather.temperature.toFixed(1) + "°C";
-          }
-        }).catch(function() {});
-      }, function() {}, { timeout: 5000 });
-    })();
-
-    // "Today’s edition" = BACK HOME (sempre disponibile)
-    (function() {
-      const pill = document.getElementById("today-pill");
-      if (!pill) return;
-      pill.addEventListener("click", function() {
-        var path = window.location.pathname || "/";
-        path = path.replace(/index\\.html?$/i, "");
-        if (!path.endsWith("/")) path += "/";
-        window.location.href = path;
-      });
-    })();
-
-    // EXIT button: logout + pagina di cortesia
-    (function() {
-      const btn = document.getElementById("exit-btn");
-      if (!btn) return;
-      btn.addEventListener("click", function() {
-        try { localStorage.removeItem("maxbits_auth_ok_v1"); } catch(e) {}
-        setTimeout(function() {
-          window.location.href = "bye.html";
-        }, 150);
-      });
-    })();
-
-    // Simple password gate (password: "mix", ricordata in localStorage)
-    (function () {
-      const PASS = "mix";                  // <--- QUI cambi password quando vuoi
-      const KEY  = "maxbits_auth_ok_v1";   // chiave locale per ricordare l’accesso
-
-      const overlay = document.getElementById("login-overlay");
-      const input   = document.getElementById("login-password-input");
-      const button  = document.getElementById("login-button");
-
-      if (!overlay || !input || !button) return;
-
-      function unlock() {
-        overlay.style.display = "none";
-        try {
-          localStorage.setItem(KEY, "1");
-        } catch (e) {}
+      function show(msg) {
+        el.textContent = msg;
       }
 
-      // se già loggato in questo browser, non chiedo di nuovo
-      try {
-        if (localStorage.getItem(KEY) === "1") {
-          overlay.style.display = "none";
-          return;
-        }
-      } catch (e) {}
+      if (!navigator.geolocation) {
+        show("Location not available.");
+        return;
+      }
 
-      button.addEventListener("click", function () {
-        const val = input.value.trim();
-        if (val === PASS) {
-          unlock();
-        } else {
-          alert("Wrong password");
-        }
-      });
+      navigator.geolocation.getCurrentPosition(
+        function(pos) {
+          const lat = pos.coords.latitude.toFixed(3);
+          const lon = pos.coords.longitude.toFixed(3);
+          const url = "https://api.open-meteo.com/v1/forecast?latitude=" + lat +
+                      "&longitude=" + lon + "&current=temperature_2m&timezone=auto";
 
-      input.addEventListener("keyup", function (e) {
-        if (e.key === "Enter") {
-          button.click();
-        }
-      });
+          fetch(url)
+            .then(r => r.json())
+            .then(data => {
+              try {
+                const t = data.current.temperature_2m;
+                if (typeof t === "number") {
+                  show("Your location  ·  " + t.toFixed(1) + "°C");
+                } else {
+                  show("Your location  ·  temperature unavailable");
+                }
+              } catch (e) {
+                show("Weather unavailable.");
+              }
+            })
+            .catch(() => show("Weather unavailable."));
+        },
+        function() {
+          show("Location not shared.");
+        },
+        { timeout: 5000 }
+      );
     })();
   </script>
 
@@ -1194,103 +1134,100 @@ __MARKET_ITEMS__
     )
 
 
+# -------------------------------------------------------------------
+#  BYE PAGE (EXIT)
+# -------------------------------------------------------------------
+
 def _build_bye_page() -> str:
-    """
-    Pagina di cortesia per dopo l'Exit (bye.html).
-    """
     return """<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <title>MaxBits · Session closed</title>
+  <title>MaxBits · Exit</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <style>
     body {
       margin:0;
       padding:0;
-      font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;
+      font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
       background:#020617;
       color:#e5e7eb;
       display:flex;
       align-items:center;
       justify-content:center;
-      height:100vh;
+      min-height:100vh;
     }
-    .card {
-      background:#020617;
-      border-radius:16px;
+    .box {
+      max-width:360px;
       padding:24px 28px;
-      width:320px;
-      max-width:90%;
-      box-shadow:0 18px 40px rgba(0,0,0,0.85);
-      border:1px solid #1f2937;
-      text-align:left;
+      border-radius:16px;
+      background:rgba(15,23,42,0.9);
+      box-shadow:0 18px 40px rgba(0,0,0,0.9);
+      text-align:center;
     }
-    .title {
-      margin:0 0 8px 0;
-      font-size:18px;
-      font-weight:600;
+    h1 {
+      margin:0 0 8px;
+      font-size:20px;
     }
-    .subtitle {
-      margin:0 0 16px 0;
+    p {
+      margin:4px 0;
       font-size:13px;
       color:#9ca3af;
     }
     button {
-      width:100%;
-      padding:8px 10px;
-      border-radius:8px;
+      margin-top:12px;
+      padding:8px 16px;
+      border-radius:999px;
       border:none;
-      cursor:pointer;
-      background:#2563eb;
-      color:#f9fafb;
-      font-size:13px;
+      background:#25A7FF;
+      color:#0b1120;
       font-weight:500;
-    }
-    p.small {
-      margin:10px 0 0 0;
-      font-size:11px;
-      color:#6b7280;
+      cursor:pointer;
     }
   </style>
 </head>
 <body>
-  <div class="card">
-    <h1 class="title">MaxBits session closed</h1>
-    <p class="subtitle">
-      You have exited your MaxBits session. To re-enter the daily report you will be asked for your access password again.
-    </p>
-    <button onclick="window.location.href='index.html'">
-      Re-enter MaxBits
-    </button>
-    <p class="small">
-      When you go back, the page will ask for your password again (for this browser).
-    </p>
+  <div class="box">
+    <h1>MaxBits closed</h1>
+    <p>You exited the MaxBits daily view.</p>
+    <p>To re-enter, you will be asked again for the access password.</p>
+    <button id="back-btn">Back to MaxBits</button>
   </div>
+
+  <script>
+    document.getElementById("back-btn").addEventListener("click", function() {
+      try {
+        sessionStorage.removeItem("maxbits-auth");
+      } catch(e) {}
+      window.location.href = "index.html";
+    });
+  </script>
 </body>
 </html>
 """
 
 
+# -------------------------------------------------------------------
+#  ENTRY POINT
+# -------------------------------------------------------------------
+
 def build_magazine(max_reports: int = 7) -> None:
     """
-    Entry point:
-      - legge i report sorgente (reports/… oppure, se vuoti, docs/…)
-      - copia gli ultimi N in docs/reports
-      - genera docs/index.html e docs/bye.html
+    - Legge i report sorgente (reports/ + docs/)
+    - Copia gli ultimi N in docs/reports
+    - Genera docs/index.html con layout moderno
+    - Genera docs/bye.html (exit page)
     """
     raw_reports = _find_reports()
     DOCS_DIR.mkdir(parents=True, exist_ok=True)
 
     reports_for_docs = _copy_last_reports_to_docs(raw_reports, max_reports=max_reports)
 
-    # index.html
     index_path = DOCS_DIR / "index.html"
     index_content = _build_index_content(reports_for_docs)
     index_path.write_text(index_content, encoding="utf-8")
     print(f"[MAG] MaxBits magazine index generated at: {index_path}")
 
-    # bye.html (pagina di cortesia per Exit)
     bye_path = DOCS_DIR / "bye.html"
     bye_content = _build_bye_page()
     bye_path.write_text(bye_content, encoding="utf-8")
