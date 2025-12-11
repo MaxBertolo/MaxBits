@@ -60,52 +60,101 @@
       padding: 8px 4px 22px;
     }
 
-    .brand img {
-      height: 36px;
-      width: auto;
-      display: block;
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
     }
 
-    .tagline {
-      font-size: 11px;
-      text-transform: uppercase;
-      letter-spacing: 0.16em;
-      padding: 4px 9px;
-      border-radius: 999px;
-      border: 1px solid var(--border);
-      color: var(--text-muted);
-      white-space: nowrap;
+    .brand-mark {
+      background:#ffffff;
+      padding:6px 12px;
+      border-radius:999px;
+      box-shadow:0 12px 30px rgba(15,23,42,0.18);
+      font-weight:700;
+      letter-spacing:0.06em;
+      font-size:16px;
+    }
+
+    .brand-mark span:first-child { color:#111827; }
+    .brand-mark span:last-child { color:#0ea5e9; }
+
+    .brand-subtitle {
+      margin:0;
+      font-size:12px;
+      color:var(--text-muted);
+    }
+
+    .header-controls {
+      display:flex;
+      flex-direction:column;
+      align-items:flex-end;
+      gap:6px;
+    }
+
+    .viewmode-pill {
+      font-size:11px;
+      text-transform:uppercase;
+      letter-spacing:0.16em;
+      padding:4px 10px;
+      border-radius:999px;
+      border:1px solid var(--border);
+      color:var(--text-muted);
+      background:rgba(255,255,255,0.9);
+      cursor:pointer;
+      display:inline-flex;
+      align-items:center;
+      gap:6px;
+    }
+
+    body[data-theme="dark"] .viewmode-pill {
+      background:#020617;
     }
 
     .theme-toggle {
-      border-radius: 999px;
-      width: 40px;
-      height: 22px;
-      padding: 2px;
-      border: 1px solid var(--border);
-      display: flex;
-      align-items: center;
-      background: rgba(255,255,255,0.85);
-      cursor: pointer;
-      position: relative;
+      width:36px;
+      height:18px;
+      padding:2px;
+      border-radius:999px;
+      border:1px solid var(--border);
+      display:flex;
+      align-items:center;
+      background:rgba(255,255,255,0.85);
+      cursor:pointer;
     }
 
     body[data-theme="dark"] .theme-toggle {
-      background: #020617;
+      background:#020617;
     }
 
     .theme-thumb {
-      width: 16px;
-      height: 16px;
-      border-radius: 999px;
-      background: #020617;
-      transform: translateX(0);
-      transition: transform 0.22s ease, background 0.22s ease;
+      width:13px;
+      height:13px;
+      border-radius:999px;
+      background:#020617;
+      transform:translateX(0);
+      transition:transform 0.22s ease, background 0.22s ease;
     }
 
     body[data-theme="dark"] .theme-thumb {
-      transform: translateX(16px);
-      background: #facc15;
+      transform:translateX(16px);
+      background:#facc15;
+    }
+
+    .exit-btn {
+      font-size:11px;
+      padding:4px 10px;
+      border-radius:999px;
+      border:1px solid #ef4444;
+      color:#b91c1c;
+      background:rgba(254,242,242,0.95);
+      cursor:pointer;
+    }
+
+    body[data-theme="dark"] .exit-btn {
+      background:rgba(127,29,29,0.85);
+      color:#fee2e2;
+      border-color:#b91c1c;
     }
 
     .layout {
@@ -156,6 +205,7 @@
       color: var(--accent-dark);
       border: 1px solid rgba(37,167,255,0.4);
       white-space: nowrap;
+      cursor:pointer;
     }
 
     body[data-theme="dark"] .badge-today {
@@ -183,6 +233,7 @@
       border: none;
     }
 
+    /* Sidebar */
     .sidebar {
       display: flex;
       flex-direction: column;
@@ -209,35 +260,40 @@
       color: var(--text-muted);
     }
 
-    .clock-digital {
-      font-size: 24px;
-      font-weight: 600;
-      letter-spacing: 0.06em;
-      text-align: center;
-      margin-bottom: 4px;
+    /* Clock + weather */
+    .time-row {
+      display:flex;
+      justify-content:space-between;
+      align-items:baseline;
+      font-size:13px;
+      margin-top:4px;
+      color:var(--text-main);
     }
 
-    .clock-label {
-      margin: 0;
-      font-size: 11px;
-      color: var(--text-muted);
-      text-align: center;
+    .time-label {
+      font-size:11px;
+      text-transform:uppercase;
+      letter-spacing:0.14em;
+      color:var(--text-muted);
     }
 
-    .weather-row {
-      margin-top: 10px;
-      display: flex;
-      justify-content: space-between;
-      align-items: baseline;
-      font-size: 11px;
-      color: var(--text-muted);
+    .time-main {
+      font-size:20px;
+      font-weight:600;
     }
 
-    .weather-temp-strong {
-      font-weight: 600;
-      color: var(--text-main);
+    .time-sub {
+      font-size:11px;
+      color:var(--text-muted);
     }
 
+    .time-weather {
+      margin-top:6px;
+      font-size:12px;
+      color:var(--text-muted);
+    }
+
+    /* Previous reports */
     .side-report-list {
       list-style: none;
       padding-left: 0;
@@ -273,6 +329,7 @@
       margin: 0 4px;
     }
 
+    /* Extra reports */
     .extra-report-list {
       list-style: none;
       padding-left: 0;
@@ -328,6 +385,19 @@
       color: #92400e;
     }
 
+    body[data-theme="dark"] .extra-report-pill-ok {
+      background: rgba(34,197,94,0.15);
+      border-color: rgba(34,197,94,0.6);
+      color: #bbf7d0;
+    }
+
+    body[data-theme="dark"] .extra-report-pill-expiring {
+      background: rgba(250,204,21,0.1);
+      border-color: rgba(250,204,21,0.6);
+      color: #facc15;
+    }
+
+    /* Market snapshot */
     .market-list {
       list-style: none;
       padding-left: 0;
@@ -359,6 +429,7 @@
     .market-price {
       font-weight: 500;
       color: var(--text-main);
+      margin-right:4px;
     }
 
     .market-change {
@@ -367,6 +438,9 @@
 
     .market-change.up { color: #16a34a; }
     .market-change.down { color: #dc2626; }
+
+    body[data-theme="dark"] .market-change.up { color: #4ade80; }
+    body[data-theme="dark"] .market-change.down { color: #f97373; }
 
     footer {
       margin-top: 22px;
@@ -380,202 +454,86 @@
       text-decoration: none;
     }
 
+    body[data-theme="dark"] footer a {
+      color: #60a5fa;
+    }
+
     @media (max-width: 900px) {
       .layout {
         grid-template-columns: minmax(0, 1fr);
       }
     }
-
-    #login-screen {
-      position: fixed;
-      inset: 0;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      background: radial-gradient(circle at top, #0b1120, #020617);
-      z-index: 9999;
-    }
-
-    #login-card {
-      background: #020617;
-      border-radius: 16px;
-      padding: 24px 22px 20px;
-      width: 320px;
-      box-shadow: 0 20px 50px rgba(0,0,0,0.7);
-      color: #e5e7eb;
-      text-align: left;
-      border: 1px solid #1f2937;
-    }
-
-    #login-card h1 {
-      margin: 0 0 8px 0;
-      font-size: 20px;
-    }
-
-    #login-card p {
-      margin: 0 0 16px 0;
-      font-size: 13px;
-      color: #9ca3af;
-    }
-
-    #login-card label {
-      display: block;
-      font-size: 12px;
-      margin-bottom: 4px;
-      color: #cbd5f5;
-    }
-
-    #login-password {
-      width: 100%;
-      padding: 8px 10px;
-      border-radius: 8px;
-      border: 1px solid #4b5563;
-      background: #020617;
-      color: #e5e7eb;
-      font-size: 13px;
-      margin-bottom: 10px;
-    }
-
-    #login-btn {
-      width: 100%;
-      padding: 8px 10px;
-      border: none;
-      border-radius: 999px;
-      background: #25A7FF;
-      color: #0b1120;
-      font-weight: 600;
-      font-size: 13px;
-      cursor: pointer;
-    }
-
-    #login-error {
-      margin-top: 8px;
-      font-size: 12px;
-      color: #fca5a5;
-      min-height: 16px;
-    }
-
-    #protected-root {
-      display: none;
-    }
   </style>
 </head>
 
 <body>
+  <div class="page">
 
-  <div id="login-screen">
-    <div id="login-card">
-      <h1>MaxBits</h1>
-      <p>Private daily tech report. Enter access password to continue.</p>
-      <label for="login-password">Access password</label>
-      <input type="password" id="login-password" placeholder="Password" />
-      <button id="login-btn">Enter</button>
-      <div id="login-error"></div>
-    </div>
-  </div>
+    <header>
+      <div class="brand">
+        <div class="brand-mark"><span>Max</span> <span>Bits</span></div>
+        <p class="brand-subtitle">Daily Tech Intelligence · Telco · Media · AI · Cloud · Space · Patents</p>
+      </div>
 
-  <div id="protected-root">
-    <div class="page">
-
-      <header>
-        <div class="brand">
-          <img src="assets/maxbits-logo.svg" alt="MaxBits">
+      <div class="header-controls">
+        <button class="viewmode-pill" id="viewmode-btn">
+          <span>View mode</span>
+        </button>
+        <div class="theme-toggle" id="theme-toggle">
+          <div class="theme-thumb"></div>
         </div>
+        <button class="exit-btn" id="exit-btn">Exit</button>
+      </div>
+    </header>
 
-        <div style="display:flex; align-items:center; gap:10px;">
-          <div class="tagline">Daily briefing</div>
-          <div class="theme-toggle" id="theme-toggle">
-            <div class="theme-thumb"></div>
+    <div class="layout">
+      <!-- MAIN COLUMN -->
+      <main class="main-card">
+        <div class="main-header">
+          <div>
+            <h1 class="main-title">Latest report · 2025-12-11</h1>
+            <p class="main-meta">
+              Curated news + deep-dives designed for busy tech leaders. Updated every morning.
+            </p>
           </div>
+          <span class="badge-today" id="today-pill">Today’s edition</span>
         </div>
-      </header>
 
-      <div class="layout">
-        <main class="main-card">
-          <div class="main-header">
+        <div class="iframe-wrapper">
+          <iframe src="reports/html/report_2025-12-11.html" loading="lazy"></iframe>
+        </div>
+      </main>
+
+      <!-- SIDEBAR -->
+      <aside class="sidebar">
+
+        <!-- TIME & WEATHER (time locale + placeholder meteo) -->
+        <section class="side-card">
+          <h2 class="side-title">Local time & weather</h2>
+          <div class="time-row">
             <div>
-              <h1 class="main-title">Latest report · 2025-12-11</h1>
-              <p class="main-meta">
-                Curated news + deep-dives designed for busy tech leaders. Updated every morning.
-              </p>
+              <div class="time-main" id="clock-main">--:--:--</div>
+              <div class="time-sub" id="clock-sub">--</div>
             </div>
-            <span class="badge-today">Today’s edition</span>
-          </div>
-
-          <div class="iframe-wrapper">
-            <iframe src="reports/html/report_2025-12-11.html" loading="lazy"></iframe>
-          </div>
-        </main>
-
-        <aside class="sidebar">
-
-          <section class="side-card">
-            <h2 class="side-title">Local time & weather</h2>
-            <div class="clock-digital" id="clock-digital">--:--</div>
-            <p class="clock-label" id="clock-label-text"></p>
-            <div class="weather-row" id="weather-row">
-              <span id="weather-location">Detecting location…</span>
-              <span id="weather-temp"></span>
+            <div class="time-weather">
+              <div>Your location</div>
+              <div id="weather-temp">--°C</div>
             </div>
-          </section>
-
-          <section class="side-card">
-            <h2 class="side-title">Previous 6 reports</h2>
-            <ul class="side-report-list">
-
-        <li class="side-report-item">
-          <div class="side-report-main">
-            <span class="side-report-date">2025-12-10</span>
-            <span class="side-report-links"><a href="reports/html/report_2025-12-10.html" target="_blank">HTML</a><span class="dot"> · </span><a href="reports/pdf/report_2025-12-10.pdf" target="_blank">PDF</a></span>
           </div>
-        </li>
-        
+        </section>
 
-        <li class="side-report-item">
-          <div class="side-report-main">
-            <span class="side-report-date">2025-12-09</span>
-            <span class="side-report-links"><a href="reports/html/report_2025-12-09.html" target="_blank">HTML</a><span class="dot"> · </span><a href="reports/pdf/report_2025-12-09.pdf" target="_blank">PDF</a></span>
-          </div>
-        </li>
-        
+        <!-- PREVIOUS REPORTS -->
+        <section class="side-card">
+          <h2 class="side-title">Previous 6 reports</h2>
+          <ul class="side-report-list">
+<p style="font-size:12px; color:#6b7280;">No previous reports yet.</p>
+          </ul>
+        </section>
 
-        <li class="side-report-item">
-          <div class="side-report-main">
-            <span class="side-report-date">2025-12-08</span>
-            <span class="side-report-links"><a href="reports/html/report_2025-12-08.html" target="_blank">HTML</a><span class="dot"> · </span><a href="reports/pdf/report_2025-12-08.pdf" target="_blank">PDF</a></span>
-          </div>
-        </li>
-        
-
-        <li class="side-report-item">
-          <div class="side-report-main">
-            <span class="side-report-date">2025-12-07</span>
-            <span class="side-report-links"><a href="reports/html/report_2025-12-07.html" target="_blank">HTML</a><span class="dot"> · </span><a href="reports/pdf/report_2025-12-07.pdf" target="_blank">PDF</a></span>
-          </div>
-        </li>
-        
-
-        <li class="side-report-item">
-          <div class="side-report-main">
-            <span class="side-report-date">2025-12-06</span>
-            <span class="side-report-links"><a href="reports/html/report_2025-12-06.html" target="_blank">HTML</a><span class="dot"> · </span><a href="reports/pdf/report_2025-12-06.pdf" target="_blank">PDF</a></span>
-          </div>
-        </li>
-        
-
-        <li class="side-report-item">
-          <div class="side-report-main">
-            <span class="side-report-date">2025-12-05</span>
-            <span class="side-report-links"><a href="reports/html/report_2025-12-05.html" target="_blank">HTML</a><span class="dot"> · </span><a href="reports/pdf/report_2025-12-05.pdf" target="_blank">PDF</a></span>
-          </div>
-        </li>
-        
-            </ul>
-          </section>
-
-          <section class="side-card">
-            <h2 class="side-title">Extra reports (30 days)</h2>
-            <ul class="extra-report-list">
+        <!-- EXTRA REPORTS -->
+        <section class="side-card">
+          <h2 class="side-title">Extra reports (30 days)</h2>
+          <ul class="extra-report-list">
 
         <li class="extra-report-item">
           <a href="https://aiindex.stanford.edu/wp-content/uploads/2025/03/ai-index-report-2025.pdf" target="_blank" rel="noopener" class="extra-report-link">2025 AI Horizon Report – Stanford</a>
@@ -594,141 +552,68 @@
           </div>
         </li>
         
-            </ul>
-          </section>
+          </ul>
+        </section>
 
-          <section class="side-card">
-            <h2 class="side-title">Market snapshot*</h2>
-<ul class="market-list">
+        <!-- MARKET SNAPSHOT -->
+        <section class="side-card">
+          <h2 class="side-title">Market snapshot*</h2>
+          <ul class="market-list">
 
         <li class="market-item">
           <div class="market-left">Google<span class="market-symbol">GOOGL</span></div>
-          <div>
-            <span class="market-price">142.35</span>
-            <span class="market-change up">+1.23%</span>
-          </div>
+          <div><span class="market-price">—</span><span class="market-change"></span></div>
         </li>
-        
-
         <li class="market-item">
           <div class="market-left">Tesla<span class="market-symbol">TSLA</span></div>
-          <div>
-            <span class="market-price">245.10</span>
-            <span class="market-change down">-0.85%</span>
-          </div>
+          <div><span class="market-price">—</span><span class="market-change"></span></div>
         </li>
-        
-
         <li class="market-item">
           <div class="market-left">Apple<span class="market-symbol">AAPL</span></div>
-          <div>
-            <span class="market-price">195.42</span>
-            <span class="market-change up">+0.35%</span>
-          </div>
+          <div><span class="market-price">—</span><span class="market-change"></span></div>
         </li>
-        
-
         <li class="market-item">
           <div class="market-left">NVIDIA<span class="market-symbol">NVDA</span></div>
-          <div>
-            <span class="market-price">470.10</span>
-            <span class="market-change up">+2.10%</span>
-          </div>
+          <div><span class="market-price">—</span><span class="market-change"></span></div>
         </li>
-        
-
         <li class="market-item">
           <div class="market-left">Meta<span class="market-symbol">META</span></div>
-          <div>
-            <span class="market-price">338.55</span>
-            <span class="market-change down">-0.40%</span>
-          </div>
+          <div><span class="market-price">—</span><span class="market-change"></span></div>
         </li>
-        
-
         <li class="market-item">
           <div class="market-left">Microsoft<span class="market-symbol">MSFT</span></div>
-          <div>
-            <span class="market-price">412.20</span>
-            <span class="market-change up">+0.90%</span>
-          </div>
+          <div><span class="market-price">—</span><span class="market-change"></span></div>
         </li>
-        
-
         <li class="market-item">
           <div class="market-left">Amazon<span class="market-symbol">AMZN</span></div>
-          <div>
-            <span class="market-price">156.78</span>
-            <span class="market-change down">-0.15%</span>
-          </div>
+          <div><span class="market-price">—</span><span class="market-change"></span></div>
         </li>
-        
-
         <li class="market-item">
           <div class="market-left">Bitcoin<span class="market-symbol">BTC</span></div>
-          <div>
-            <span class="market-price">9725.50</span>
-            <span class="market-change up">+3.25%</span>
-          </div>
+          <div><span class="market-price">—</span><span class="market-change"></span></div>
         </li>
-        
-
         <li class="market-item">
           <div class="market-left">Ethereum<span class="market-symbol">ETH</span></div>
-          <div>
-            <span class="market-price">1875.20</span>
-            <span class="market-change down">-1.10%</span>
-          </div>
+          <div><span class="market-price">—</span><span class="market-change"></span></div>
         </li>
         
-</ul>
+          </ul>
+          <p style="margin:6px 0 0; font-size:10px; color:#9ca3af;">
+            *Static snapshot updated at not available. Values are indicative only.
+          </p>
+        </section>
 
-<p style="margin:6px 0 0; font-size:10px; color:#9ca3af;">
-  *Static snapshot updated at 2025-12-09 20:00 CET. Values are indicative only.
-</p>
-
-          </section>
-
-        </aside>
-      </div>
-
-      <footer>
-        MaxBits is generated automatically from curated RSS sources, CEO statements, patents and external reports.
-        Reports are published as static HTML &amp; PDF via GitHub Pages.
-      </footer>
-
+      </aside>
     </div>
+
+    <footer>
+      MaxBits is generated automatically from curated RSS sources, CEO statements, patents and external reports.
+      Reports are published as static HTML &amp; PDF via GitHub Pages.
+    </footer>
   </div>
 
   <script>
-    // LOGIN (password lato client)
-    (function() {
-      const PASSWORD = "mix";   // <--- PUOI CAMBIARLA QUI
-      const loginScreen = document.getElementById("login-screen");
-      const root = document.getElementById("protected-root");
-      const input = document.getElementById("login-password");
-      const btn = document.getElementById("login-btn");
-      const errorBox = document.getElementById("login-error");
-
-      function unlock() {
-        const val = (input.value || "").trim();
-        if (val === PASSWORD) {
-          loginScreen.style.display = "none";
-          root.style.display = "block";
-        } else {
-          errorBox.textContent = "Wrong password. Please try again.";
-        }
-      }
-
-      btn.addEventListener("click", unlock);
-      input.addEventListener("keydown", function(ev) {
-        if (ev.key === "Enter") unlock();
-      });
-    })();
-  </script>
-
-  <script>
-    // THEME TOGGLE
+    // THEME TOGGLE (light / dark) + VIEW MODE BUTTON
     (function() {
       const key = "maxbits_theme";
       const root = document.body;
@@ -741,6 +626,13 @@
         }
       }
 
+      function toggleTheme() {
+        const current = root.getAttribute("data-theme") === "dark" ? "dark" : "light";
+        const next = current === "dark" ? "light" : "dark";
+        applyTheme(next);
+        try { localStorage.setItem(key, next); } catch(e) {}
+      }
+
       const stored = localStorage.getItem(key);
       if (stored === "light" || stored === "dark") {
         applyTheme(stored);
@@ -748,87 +640,82 @@
         applyTheme("light");
       }
 
-      const btn = document.getElementById("theme-toggle");
-      if (btn) {
-        btn.addEventListener("click", () => {
-          const current = root.getAttribute("data-theme") === "dark" ? "dark" : "light";
-          const next = current === "dark" ? "light" : "dark";
-          applyTheme(next);
-          try { localStorage.setItem(key, next); } catch(e) {}
-        });
+      const toggle = document.getElementById("theme-toggle");
+      if (toggle) {
+        toggle.addEventListener("click", toggleTheme);
+      }
+
+      const viewBtn = document.getElementById("viewmode-btn");
+      if (viewBtn) {
+        viewBtn.addEventListener("click", toggleTheme);
       }
     })();
 
-    // CLOCK DIGITALE
+    // Digital clock (locale) + simple weather placeholder
     function updateClock() {
       const now = new Date();
-      const hh = String(now.getHours()).padStart(2, "0");
-      const mm = String(now.getMinutes()).padStart(2, "0");
-      const ss = String(now.getSeconds()).padStart(2, "0");
+      const main = document.getElementById('clock-main');
+      const sub = document.getElementById('clock-sub');
 
-      const clockMain = document.getElementById("clock-digital");
-      const clockLabel = document.getElementById("clock-label-text");
-      if (clockMain) clockMain.textContent = hh + ":" + mm + ":" + ss;
-      if (clockLabel) {
-        clockLabel.textContent = now.toLocaleDateString(undefined, {
-          weekday: "short",
-          year: "numeric",
-          month: "short",
-          day: "numeric"
-        });
+      if (main) {
+        main.textContent = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      }
+      if (sub) {
+        sub.textContent = now.toLocaleDateString(undefined, { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' });
       }
     }
     setInterval(updateClock, 1000);
     updateClock();
 
-    // METEO (Open-Meteo)
-    async function loadWeather() {
-      const locEl = document.getElementById("weather-location");
-      const tempEl = document.getElementById("weather-temp");
-      if (!locEl || !tempEl) return;
+    // Weather: best effort (navigator.geolocation required + open-meteo)
+    (function() {
+      const out = document.getElementById("weather-temp");
+      if (!navigator.geolocation || !out) return;
 
-      if (!navigator.geolocation) {
-        locEl.textContent = "Location not available";
-        tempEl.textContent = "";
-        return;
-      }
+      navigator.geolocation.getCurrentPosition(function(pos) {
+        const lat = pos.coords.latitude.toFixed(4);
+        const lon = pos.coords.longitude.toFixed(4);
+        const url = "https://api.open-meteo.com/v1/forecast?latitude=" + lat + "&longitude=" + lon + "&current_weather=true";
 
-      function setError(msg) {
-        locEl.textContent = msg;
-        tempEl.textContent = "";
-      }
-
-      navigator.geolocation.getCurrentPosition(async (pos) => {
-        try {
-          const lat = pos.coords.latitude;
-          const lon = pos.coords.longitude;
-
-          const url = "https://api.open-meteo.com/v1/forecast?latitude="
-                      + encodeURIComponent(lat)
-                      + "&longitude=" + encodeURIComponent(lon)
-                      + "&current_weather=true";
-
-          const resp = await fetch(url);
+        fetch(url).then(function(resp) {
           if (!resp.ok) throw new Error("HTTP " + resp.status);
-          const data = await resp.json();
-          const cw = data.current_weather;
-          if (!cw) {
-            setError("Weather unavailable");
-            return;
+          return resp.json();
+        }).then(function(data) {
+          if (data && data.current_weather && typeof data.current_weather.temperature !== "undefined") {
+            out.textContent = data.current_weather.temperature.toFixed(1) + "°C";
           }
+        }).catch(function() {
+          // silenzio in caso di errore
+        });
+      }, function() {
+        // se l'utente rifiuta la geolocalizzazione, non facciamo nulla
+      }, { timeout: 5000 });
+    })();
 
-          const t = cw.temperature;
-          locEl.textContent = "Your location";
-          tempEl.innerHTML = "<span class='weather-temp-strong'>" + t.toFixed(1) + "°C</span>";
-        } catch (e) {
-          console.warn("[Weather] failed:", e);
-          setError("Weather unavailable");
-        }
-      }, () => {
-        setError("Enable location to see weather");
-      }, { timeout: 8000 });
-    }
-    loadWeather();
+    // "Today’s edition" = BACK HOME (sempre disponibile)
+    (function() {
+      const pill = document.getElementById("today-pill");
+      if (!pill) return;
+      pill.addEventListener("click", function() {
+        // torna sempre alla home del sito (index.html) senza password
+        var path = window.location.pathname || "/";
+        path = path.replace(/index\.html?$/i, "");
+        if (!path.endsWith("/")) path += "/";
+        window.location.href = path;
+      });
+    })();
+
+    // EXIT button: prova a chiudere la tab, poi redirect al profilo GitHub
+    (function() {
+      const btn = document.getElementById("exit-btn");
+      if (!btn) return;
+      btn.addEventListener("click", function() {
+        try { window.close(); } catch(e) {}
+        setTimeout(function() {
+          window.location.href = "https://github.com/MaxBertolo";
+        }, 150);
+      });
+    })();
   </script>
 
 </body>
