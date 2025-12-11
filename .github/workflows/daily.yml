@@ -1,97 +1,40 @@
-name: MaxBits Daily Tech Report
+name: Daily Report
 
 on:
-  # Lancio automatico (cron in UTC) – lun–ven alle 06:00 italiane circa (05:00 UTC)
   schedule:
-    - cron: "0 5 * * *"
-  # Lancio manuale da GitHub UI
+    - cron: "0 6 * * *"   # 08:00 CET
+    - cron: "0 18 * * *"  # 20:00 CET
   workflow_dispatch:
 
-permissions:
-  contents: write   # necessario per fare commit/push su main
-
 jobs:
-  run-report:
+  build:
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0   # serve la history completa per git push
-
-      - name: Install system dependencies (wkhtmltopdf)
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y wkhtmltopdf
+        uses: actions/checkout@v3
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v4
         with:
           python-version: "3.11"
 
-      - name: Install Python dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
+      - name: Install dependencies
+        run: pip install -r requirements.txt
 
-      - name: Run MaxBits daily report script
-        env:
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      - name: Run MaxBits daily content builder
+        run: python -m src.main
 
-          SMTP_HOST: ${{ secrets.SMTP_HOST }}
-          SMTP_PORT: ${{ secrets.SMTP_PORT }}
-          SMTP_USER: ${{ secrets.SMTP_USER }}
-          SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
-          FROM_EMAIL: ${{ secrets.FROM_EMAIL }}
-          TO_EMAIL: ${{ secrets.TO_EMAIL }}
+      # 🔵 Market snapshot JSON (usato dal magazine)
+      - name: Build market snapshot (08:00 + 20:00)
+        run: python -m src.market_snapshot
 
-          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-        run: |
-          python -m src.main
+      # 🔵 Costruisce la homepage + archivio ultimi 7 report
+      - name: Build MaxBits Magazine
+        run: python -m src.magazine_builder
 
-      - name: Upload HTML reports as artifact
-        uses: actions/upload-artifact@v4
+      # 🔵 Pubblica su GitHub Pages
+      - name: Upload docs to GitHub Pages
+        uses: actions/upload-pages-artifact@v2
         with:
-          name: maxbits-report-html
-          path: reports/html/
-
-      - name: Upload PDF reports as artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: maxbits-report-pdf
-          path: reports/pdf/
-
-      # -----------------------------------
-      # Build mini-app / GitHub Pages docs
-      # -----------------------------------
-      - name: Build MaxBits Magazine archive (GitHub Pages)
-        run: |
-          # Script che genera/aggiorna la mini-app in /docs
-          python -m src.magazine_builder
-
-      # -----------------------------------
-      # Commit & push docs/ -> main
-      # -----------------------------------
-      - name: Commit docs for GitHub Pages
-        if: github.ref == 'refs/heads/main'
-        run: |
-          git config --global user.name  "github-actions[bot]"
-          git config --global user.email "github-actions[bot]@users.noreply.github.com"
-
-          echo "[DOCS] Current branch: $(git rev-parse --abbrev-ref HEAD)"
-
-          git fetch origin main
-          git checkout main
-          git pull --ff-only origin main || echo "[DOCS] git pull --ff-only failed, uso il main locale."
-
-          git add docs/ || echo "[DOCS] Nessun file in docs/ da aggiungere."
-
-          if git diff --cached --quiet; then
-            echo "[DOCS] Nessuna modifica in docs/, salto il commit."
-          else
-            git commit -m "Update MaxBits Magazine archive"
-          fi
-
-          git push origin main || echo "[DOCS] git push fallito (probabile nuovo commit su main). Salto il push."
+          path: docs/
