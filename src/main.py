@@ -157,7 +157,7 @@ def build_deep_dives_payload(
         topic = _article_topic(art)
         entry = {
             "id": f"deep|{art.source}|{art.title}",
-            "title": art.title,  # titolo originale dell'articolo
+            "title": art.title,
             "url": art.url,
             "source": art.source,
             "topic": topic,
@@ -295,7 +295,8 @@ def main() -> None:
         deep_dive_articles=deep_dive_articles,
         max_per_topic=5,
     )
-    print("[SELECT] Watchlist built with topics:", list(watchlist_grouped.keys()))
+    print("[SELECT] Watchlist built with topics:", list(watchlist_group.keys())
+    )
 
     # 6) Summarization con LLM
     print("Summarizing deep-dive articles with LLM...")
@@ -307,7 +308,7 @@ def main() -> None:
     )
 
     deep_dives_payload = build_deep_dives_payload(
-        deep_dive_articles=deep_dive_articles,
+        deep_dives_articles=deep_dive_articles,
         summaries=deep_dives_summaries,
     )
 
@@ -355,11 +356,19 @@ def main() -> None:
     with open(html_path, "w", encoding="utf-8") as f:
         f.write(html)
 
+    # ---- PDF robusto: non deve far fallire il job ----
     print("[DEBUG] Converting HTML to PDF at:", pdf_path)
-    html_to_pdf(html, str(pdf_path))
+    try:
+        html_to_pdf(html, str(pdf_path))
+        print("Done. PDF report:", pdf_path)
+    except Exception as e:
+        print("[PDF] Error while converting HTML to PDF:", repr(e))
+        print("[PDF] Skipping PDF generation, continuing pipeline.")
+        # opzionale: potresti settare pdf_path = None, ma le sezioni sotto
+        # sono già protette da try/except.
+    # -------------------------------------------
 
     print("Done. HTML report:", html_path)
-    print("Done. PDF report:", pdf_path)
 
     # 9) Email
     print("Sending report via email...")
