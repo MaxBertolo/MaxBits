@@ -7,17 +7,30 @@ from typing import List, Dict
 
 
 # -------------------------------------------------------
-# HEADER + STORICO 7 GIORNI + PULSANTE WEEKLY
+# HEADER + STORICO 7 GIORNI + WEEKLY + TODAY EDITION
 # -------------------------------------------------------
 
 def _render_header(date_str: str) -> str:
     return f"""
 <header style="margin-bottom: 24px;">
-  <h1 style="margin:0; font-size:26px;">MaxBits · Daily Tech Watch</h1>
-  <p style="margin:2px 0 0 0; color:#666; font-size:13px;">
-    High-quality technology news from around the world.
-  </p>
-  <p style="margin:4px 0 0 0; color:#555;">Daily brief · {escape(date_str)}</p>
+  <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:12px; flex-wrap:wrap;">
+    <div>
+      <h1 style="margin:0; font-size:26px;">MaxBits · Daily Tech Watch</h1>
+      <p style="margin:2px 0 0 0; color:#666; font-size:13px;">
+        High-quality technology news from around the world.
+      </p>
+      <p style="margin:4px 0 0 0; color:#555;">Daily brief · {escape(date_str)}</p>
+    </div>
+
+    <!-- PILL "Today's edition" usata come back button verso la home MaxBits -->
+    <button id="today-edition-btn"
+            type="button"
+            style="margin-top:4px; padding:6px 12px; border-radius:999px;
+                   border:1px solid #e5e7eb; background:#0f172a; color:#e5e7eb;
+                   font-size:12px; cursor:pointer; white-space:nowrap;">
+      Today’s edition
+    </button>
+  </div>
 
   <div style="margin-top:10px; display:flex; gap:8px; flex-wrap:wrap;">
     <button id="open-weekly-btn"
@@ -605,12 +618,11 @@ def build_html_report(
     ).join("");
   }}
 
+  // back verso la home MaxBits (usato da bottone flottante + Today’s edition)
   function initBackButton() {{
-    const btn = document.getElementById("maxbits-back-btn");
-    if (!btn) return;
     const HOME = "https://maxbertolo.github.io/MaxBits/";
 
-    btn.addEventListener("click", () => {{
+    function goHome() {{
       try {{
         if (window.history.length > 1) {{
           window.history.back();
@@ -619,10 +631,20 @@ def build_html_report(
         }} else {{
           window.location.href = HOME;
         }}
-      }} catch(e) {{
+      }} catch (e) {{
         window.location.href = HOME;
       }}
-    }});
+    }}
+
+    const btnFloating = document.getElementById("maxbits-back-btn");
+    if (btnFloating) {{
+      btnFloating.addEventListener("click", goHome);
+    }}
+
+    const pillToday = document.getElementById("today-edition-btn");
+    if (pillToday) {{
+      pillToday.addEventListener("click", goHome);
+    }}
   }}
 
   document.addEventListener("DOMContentLoaded", () => {{
