@@ -11,9 +11,13 @@ import json
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-# Sorgente report (generati da main.py)
-HTML_SRC_DIR = BASE_DIR / "reports" / "html"
-PDF_SRC_DIR = BASE_DIR / "reports" / "pdf"
+# Sorgente report primario (main.py)
+HTML_SRC_DIR_PRIMARY = BASE_DIR / "reports" / "html"
+PDF_SRC_DIR_PRIMARY = BASE_DIR / "reports" / "pdf"
+
+# Fallback: se non ci sono lì, guardiamo direttamente in docs/
+HTML_SRC_DIR_FALLBACK = BASE_DIR / "docs" / "reports" / "html"
+PDF_SRC_DIR_FALLBACK = BASE_DIR / "docs" / "reports" / "pdf"
 
 # Cartella pubblica per GitHub Pages
 DOCS_DIR = BASE_DIR / "docs"
@@ -28,31 +32,22 @@ JSON_REPORTS_DIR = BASE_DIR / "reports" / "json"
 #  REPORT DAILY (HTML/PDF)
 # -------------------------------------------------------------------
 
-def _find_reports() -> List[Dict]:
+def _scan_reports(html_dir: Path, pdf_dir: Path) -> List[Dict]:
     """
-    Cerca tutti i report HTML in reports/html, estrae la data dal nome file,
-    e costruisce una lista ordinata per data (desc).
-
-    Ritorna una lista di dict:
-      {
-        "date": "YYYY-MM-DD",
-        "html_file": Path(...),
-        "pdf_file": Path(...) or None,
-      }
+    Scansiona una coppia (html_dir, pdf_dir) e ritorna lista di report trovati.
     """
     reports: List[Dict] = []
-    if not HTML_SRC_DIR.exists():
-        print(f"[MAG] HTML source dir not found: {HTML_SRC_DIR}")
+    if not html_dir.exists():
         return reports
 
     pattern = re.compile(r"report_(\d{4}-\d{2}-\d{2})\.html$")
 
-    for f in HTML_SRC_DIR.glob("report_*.html"):
+    for f in html_dir.glob("report_*.html"):
         m = pattern.match(f.name)
         if not m:
             continue
         date_str = m.group(1)
-        pdf_file = PDF_SRC_DIR / f"report_{date_str}.pdf"
+        pdf_file = pdf_dir / f"report_{date_str}.pdf"
         reports.append(
             {
                 "date": date_str,
@@ -62,23 +57,28 @@ def _find_reports() -> List[Dict]:
         )
 
     reports.sort(key=lambda x: x["date"], reverse=True)
-    print(f"[MAG] Found {len(reports)} reports in {HTML_SRC_DIR}")
+    return reports
+
+
+def _find_reports() -> List[Dict]:
+    """
+    1) Prova a leggere da reports/html e reports/pdf
+    2) Se non trova nulla, prova da docs/reports/html e docs/reports/pdf
+    """
+    reports = _scan_reports(HTML_SRC_DIR_PRIMARY, PDF_SRC_DIR_PRIMARY)
+    if reports:
+        print(f"[MAG] Found {len(reports)} reports in {HTML_SRC_DIR_PRIMARY}")
+        return reports
+
+    reports = _scan_reports(HTML_SRC_DIR_FALLBACK, PDF_SRC_DIR_FALLBACK)
+    print(f"[MAG] [FALLBACK] Found {len(reports)} reports in {HTML_SRC_DIR_FALLBACK}")
     return reports
 
 
 def _copy_last_reports_to_docs(reports: List[Dict], max_reports: int = 7) -> List[Dict]:
     """
     Copia gli ultimi max_reports report in docs/reports/html e docs/reports/pdf.
-
-    Se il file sorgente e destinazione coincidono (stesso path), NON copia
-    per evitare shutil.SameFileError (run successivi).
-
-    Ritorna una lista di dict riferiti ai FILE DI DESTINAZIONE:
-      {
-        "date": "YYYY-MM-DD",
-        "html_file": Path(...),  # sotto docs/reports/html
-        "pdf_file": Path(...) or None,  # sotto docs/reports/pdf
-      }
+    Evita SameFileError se sorgente e destinazione coincidono.
     """
     HTML_DST_DIR.mkdir(parents=True, exist_ok=True)
     PDF_DST_DIR.mkdir(parents=True, exist_ok=True)
@@ -129,14 +129,13 @@ def _copy_last_reports_to_docs(reports: List[Dict], max_reports: int = 7) -> Lis
 
 def _build_previous_reports_list(reports_for_docs: List[Dict]) -> str:
     """
-    HTML per la sidebar: link ai 6 giorni precedenti (salta il più recente).
+    Sidebar: link ai 6 giorni precedenti (salta il più recente).
     """
     if len(reports_for_docs) <= 1:
         return '<p style="font-size:12px; color:#6b7280;">No previous reports yet.</p>'
 
     items: List[str] = []
 
-    # salta il primo (latest) e mostra max 6 precedenti
     for r in reports_for_docs[1:7]:
         date = r["date"]
         html_rel = f"reports/html/{r['html_file'].name}"
@@ -168,16 +167,6 @@ def _build_previous_reports_list(reports_for_docs: List[Dict]) -> str:
 # -------------------------------------------------------------------
 
 def _load_extra_reports() -> List[Dict]:
-    """
-    Legge config/extra_reports.yaml e restituisce solo i report
-    con data negli ultimi 30 giorni.
-
-    YAML atteso:
-      extra_reports:
-        - title: "..."
-          url: "https://..."
-          date: "YYYY-MM-DD"
-    """
     cfg_path = BASE_DIR / "config" / "extra_reports.yaml"
     if not cfg_path.exists():
         print(f"[MAG] No extra_reports.yaml at {cfg_path}")
@@ -214,7 +203,6 @@ def _load_extra_reports() -> List[Dict]:
             continue
 
         if d < cutoff or d > today:
-            # fuori finestra 30 giorni o nel futuro
             continue
 
         age_days = (today - d).days
@@ -235,14 +223,10 @@ def _load_extra_reports() -> List[Dict]:
 
 
 def _build_extra_reports_sidebar_html(extra_reports: List[Dict]) -> str:
-    """
-    Costruisce la mini-UI per la sezione "Extra reports (30 days)".
-    """
     if not extra_reports:
         return '<p style="font-size:12px; color:#6b7280;">No extra reports (last 30 days).</p>'
 
     items: List[str] = []
-
     for rep in extra_reports:
         title = rep["title"]
         url = rep["url"]
@@ -278,24 +262,9 @@ def _build_extra_reports_sidebar_html(extra_reports: List[Dict]) -> str:
 # -------------------------------------------------------------------
 
 def _load_market_snapshot() -> Dict | None:
-    """
-    Cerca il market snapshot più recente in reports/json:
-
-      market_snapshot_YYYY-MM-DD.json   oppure   market_snapshot_latest.json
-
-    Formato atteso:
-      {
-        "updated_at": "2025-12-10 20:00 CET",
-        "items": [
-          {"name": "Google", "symbol": "GOOGL", "price": 142.35, "change_pct": 1.23},
-          ...
-        ]
-      }
-    """
     if not JSON_REPORTS_DIR.exists():
         return None
 
-    # primo: market_snapshot_YYYY-MM-DD.json
     candidates = sorted(JSON_REPORTS_DIR.glob("market_snapshot_*.json"))
     target = None
     if candidates:
@@ -320,9 +289,6 @@ def _load_market_snapshot() -> Dict | None:
 
 
 def _build_market_snapshot_html(snapshot: Dict | None) -> (str, str):
-    """
-    Ritorna (html_items, updated_label).
-    """
     if not snapshot:
         html = """
         <li class="market-item">
@@ -1142,12 +1108,8 @@ __MARKET_ITEMS__
           if (data && data.current_weather && typeof data.current_weather.temperature !== "undefined") {
             out.textContent = data.current_weather.temperature.toFixed(1) + "°C";
           }
-        }).catch(function() {
-          // silenzio in caso di errore
-        });
-      }, function() {
-        // se l'utente rifiuta la geolocalizzazione, non facciamo nulla
-      }, { timeout: 5000 });
+        }).catch(function() {});
+      }, function() {}, { timeout: 5000 });
     })();
 
     // "Today’s edition" = BACK HOME (sempre disponibile)
@@ -1162,14 +1124,14 @@ __MARKET_ITEMS__
       });
     })();
 
-    // EXIT button: chiusura tab + redirect al profilo GitHub
+    // EXIT button: logout + pagina di cortesia
     (function() {
       const btn = document.getElementById("exit-btn");
       if (!btn) return;
       btn.addEventListener("click", function() {
-        try { window.close(); } catch(e) {}
+        try { localStorage.removeItem("maxbits_auth_ok_v1"); } catch(e) {}
         setTimeout(function() {
-          window.location.href = "https://github.com/MaxBertolo";
+          window.location.href = "bye.html";
         }, 150);
       });
     })();
@@ -1232,22 +1194,107 @@ __MARKET_ITEMS__
     )
 
 
+def _build_bye_page() -> str:
+    """
+    Pagina di cortesia per dopo l'Exit (bye.html).
+    """
+    return """<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>MaxBits · Session closed</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    body {
+      margin:0;
+      padding:0;
+      font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;
+      background:#020617;
+      color:#e5e7eb;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      height:100vh;
+    }
+    .card {
+      background:#020617;
+      border-radius:16px;
+      padding:24px 28px;
+      width:320px;
+      max-width:90%;
+      box-shadow:0 18px 40px rgba(0,0,0,0.85);
+      border:1px solid #1f2937;
+      text-align:left;
+    }
+    .title {
+      margin:0 0 8px 0;
+      font-size:18px;
+      font-weight:600;
+    }
+    .subtitle {
+      margin:0 0 16px 0;
+      font-size:13px;
+      color:#9ca3af;
+    }
+    button {
+      width:100%;
+      padding:8px 10px;
+      border-radius:8px;
+      border:none;
+      cursor:pointer;
+      background:#2563eb;
+      color:#f9fafb;
+      font-size:13px;
+      font-weight:500;
+    }
+    p.small {
+      margin:10px 0 0 0;
+      font-size:11px;
+      color:#6b7280;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1 class="title">MaxBits session closed</h1>
+    <p class="subtitle">
+      You have exited your MaxBits session. To re-enter the daily report you will be asked for your access password again.
+    </p>
+    <button onclick="window.location.href='index.html'">
+      Re-enter MaxBits
+    </button>
+    <p class="small">
+      When you go back, the page will ask for your password again (for this browser).
+    </p>
+  </div>
+</body>
+</html>
+"""
+
+
 def build_magazine(max_reports: int = 7) -> None:
     """
     Entry point:
-      - legge i report sorgente
+      - legge i report sorgente (reports/… oppure, se vuoti, docs/…)
       - copia gli ultimi N in docs/reports
-      - genera docs/index.html con layout moderno + sidebar + extra reports
+      - genera docs/index.html e docs/bye.html
     """
     raw_reports = _find_reports()
     DOCS_DIR.mkdir(parents=True, exist_ok=True)
 
     reports_for_docs = _copy_last_reports_to_docs(raw_reports, max_reports=max_reports)
-    index_path = DOCS_DIR / "index.html"
 
+    # index.html
+    index_path = DOCS_DIR / "index.html"
     index_content = _build_index_content(reports_for_docs)
     index_path.write_text(index_content, encoding="utf-8")
     print(f"[MAG] MaxBits magazine index generated at: {index_path}")
+
+    # bye.html (pagina di cortesia per Exit)
+    bye_path = DOCS_DIR / "bye.html"
+    bye_content = _build_bye_page()
+    bye_path.write_text(bye_content, encoding="utf-8")
+    print(f"[MAG] Bye page generated at: {bye_path}")
 
 
 if __name__ == "__main__":
