@@ -741,12 +741,8 @@
           if (data && data.current_weather && typeof data.current_weather.temperature !== "undefined") {
             out.textContent = data.current_weather.temperature.toFixed(1) + "°C";
           }
-        }).catch(function() {
-          // silenzio in caso di errore
-        });
-      }, function() {
-        // se l'utente rifiuta la geolocalizzazione, non facciamo nulla
-      }, { timeout: 5000 });
+        }).catch(function() {});
+      }, function() {}, { timeout: 5000 });
     })();
 
     // "Today’s edition" = BACK HOME (sempre disponibile)
@@ -761,14 +757,14 @@
       });
     })();
 
-    // EXIT button: chiusura tab + redirect al profilo GitHub
+    // EXIT button: logout + pagina di cortesia
     (function() {
       const btn = document.getElementById("exit-btn");
       if (!btn) return;
       btn.addEventListener("click", function() {
-        try { window.close(); } catch(e) {}
+        try { localStorage.removeItem("maxbits_auth_ok_v1"); } catch(e) {}
         setTimeout(function() {
-          window.location.href = "https://github.com/MaxBertolo";
+          window.location.href = "bye.html";
         }, 150);
       });
     })();
