@@ -60,101 +60,106 @@
       padding: 8px 4px 22px;
     }
 
-    .brand {
+    .brand-left {
       display: flex;
-      align-items: center;
-      gap: 10px;
+      flex-direction: column;
+      gap: 4px;
     }
 
-    .brand-mark {
-      background:#ffffff;
-      padding:6px 12px;
+    .brand-pill {
+      display:inline-flex;
+      align-items:center;
+      padding:4px 10px;
       border-radius:999px;
-      box-shadow:0 12px 30px rgba(15,23,42,0.18);
-      font-weight:700;
-      letter-spacing:0.06em;
-      font-size:16px;
+      background:#ffffff;
+      box-shadow:0 6px 14px rgba(15,23,42,0.10);
     }
 
-    .brand-mark span:first-child { color:#111827; }
-    .brand-mark span:last-child { color:#0ea5e9; }
+    body[data-theme="dark"] .brand-pill {
+      background:#020617;
+      box-shadow:0 10px 24px rgba(0,0,0,0.85);
+    }
 
-    .brand-subtitle {
-      margin:0;
-      font-size:12px;
+    .brand-pill span:first-child {
+      font-weight:600;
+      padding-right:4px;
+    }
+    .brand-pill span:last-child {
+      font-weight:600;
+      color:var(--accent-dark);
+    }
+
+    .brand-tagline {
+      font-size:11px;
       color:var(--text-muted);
     }
 
-    .header-controls {
+    .header-right {
       display:flex;
       flex-direction:column;
       align-items:flex-end;
-      gap:6px;
+      gap:4px;
     }
 
-    .viewmode-pill {
-      font-size:11px;
-      text-transform:uppercase;
+    .view-mode-label {
+      font-size:10px;
       letter-spacing:0.16em;
-      padding:4px 10px;
-      border-radius:999px;
-      border:1px solid var(--border);
+      text-transform:uppercase;
       color:var(--text-muted);
-      background:rgba(255,255,255,0.9);
-      cursor:pointer;
-      display:inline-flex;
-      align-items:center;
-      gap:6px;
     }
 
-    body[data-theme="dark"] .viewmode-pill {
-      background:#020617;
+    .view-mode-row {
+      display:flex;
+      align-items:center;
+      gap:8px;
     }
 
     .theme-toggle {
-      width:36px;
-      height:18px;
-      padding:2px;
-      border-radius:999px;
-      border:1px solid var(--border);
-      display:flex;
-      align-items:center;
-      background:rgba(255,255,255,0.85);
-      cursor:pointer;
+      border-radius: 999px;
+      width: 40px;
+      height: 22px;
+      padding: 2px;
+      border: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      background: rgba(255,255,255,0.85);
+      cursor: pointer;
+      position: relative;
     }
 
     body[data-theme="dark"] .theme-toggle {
-      background:#020617;
+      background: #020617;
     }
 
     .theme-thumb {
-      width:13px;
-      height:13px;
-      border-radius:999px;
-      background:#020617;
-      transform:translateX(0);
-      transition:transform 0.22s ease, background 0.22s ease;
+      width: 16px;
+      height: 16px;
+      border-radius: 999px;
+      background: #020617;
+      transform: translateX(0);
+      transition: transform 0.22s ease, background 0.22s ease;
     }
 
     body[data-theme="dark"] .theme-thumb {
-      transform:translateX(16px);
-      background:#facc15;
+      transform: translateX(16px);
+      background: #facc15;
     }
 
     .exit-btn {
+      margin-top:2px;
       font-size:11px;
-      padding:4px 10px;
+      padding:3px 10px;
       border-radius:999px;
-      border:1px solid #ef4444;
+      border:1px solid #fecaca;
+      background:#fee2e2;
       color:#b91c1c;
-      background:rgba(254,242,242,0.95);
       cursor:pointer;
     }
 
     body[data-theme="dark"] .exit-btn {
-      background:rgba(127,29,29,0.85);
+      background:#7f1d1d;
+      border-color:#fecaca;
       color:#fee2e2;
-      border-color:#b91c1c;
     }
 
     .layout {
@@ -199,7 +204,7 @@
 
     .badge-today {
       font-size: 11px;
-      padding: 4px 8px;
+      padding: 4px 10px;
       border-radius: 999px;
       background: rgba(37,167,255,0.12);
       color: var(--accent-dark);
@@ -260,31 +265,21 @@
       color: var(--text-muted);
     }
 
-    /* Time & weather */
-    .time-row {
-      display:flex;
-      justify-content:space-between;
-      align-items:baseline;
-      font-size:13px;
-      margin-top:4px;
-      color:var(--text-main);
+    .clock-digital {
+      font-size: 20px;
+      font-weight: 600;
     }
 
-    .time-main {
-      font-size:20px;
-      font-weight:600;
-    }
-
-    .time-sub {
+    .clock-sub {
+      margin:2px 0 0;
       font-size:11px;
       color:var(--text-muted);
     }
 
-    .time-weather {
-      margin-top:6px;
+    .weather-temp {
+      margin-top:8px;
       font-size:12px;
       color:var(--text-muted);
-      text-align:right;
     }
 
     /* Previous reports */
@@ -423,7 +418,6 @@
     .market-price {
       font-weight: 500;
       color: var(--text-main);
-      margin-right:4px;
     }
 
     .market-change {
@@ -452,18 +446,6 @@
       color: #60a5fa;
     }
 
-    /* LOGIN OVERLAY */
-    #login-overlay {
-      position:fixed;
-      inset:0;
-      background:rgba(15,23,42,0.92);
-      display:flex;
-      align-items:center;
-      justify-content:center;
-      z-index:9999;
-      font-family:'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
-    }
-
     @media (max-width: 900px) {
       .layout {
         grid-template-columns: minmax(0, 1fr);
@@ -473,71 +455,24 @@
 </head>
 
 <body>
-
-  <!-- LOGIN OVERLAY (password: mix) -->
-  <div id="login-overlay">
-    <div style="
-         background:#020617;
-         border-radius:16px;
-         padding:24px 26px;
-         width:280px;
-         max-width:90%;
-         box-shadow:0 18px 40px rgba(0,0,0,0.85);
-         border:1px solid #1f2937;
-         color:#e5e7eb;
-    ">
-      <h1 style="margin:0 0 10px 0;font-size:18px;">MaxBits access</h1>
-      <p style="margin:0 0 14px 0;font-size:13px;color:#9ca3af;">
-        Enter access password to open the daily report.
-      </p>
-      <input id="login-password-input"
-             type="password"
-             placeholder="Password"
-             style="
-               width:100%;
-               padding:8px 10px;
-               border-radius:8px;
-               border:1px solid #4b5563;
-               background:#020617;
-               color:#f9fafb;
-               font-size:13px;
-               box-sizing:border-box;
-             " />
-      <button id="login-button"
-              style="
-                margin-top:10px;
-                width:100%;
-                padding:8px 10px;
-                border-radius:8px;
-                border:none;
-                cursor:pointer;
-                background:#2563eb;
-                color:#f9fafb;
-                font-size:13px;
-                font-weight:500;
-              ">
-        Enter
-      </button>
-      <p style="margin:8px 0 0 0;font-size:11px;color:#6b7280;">
-        Access is stored locally in this browser.
-      </p>
-    </div>
-  </div>
-
   <div class="page">
 
     <header>
-      <div class="brand">
-        <div class="brand-mark"><span>Max</span> <span>Bits</span></div>
-        <p class="brand-subtitle">Daily Tech Intelligence · Telco · Media · AI · Cloud · Space · Patents</p>
+      <div class="brand-left">
+        <div class="brand-pill">
+          <span>Max</span><span>Bits</span>
+        </div>
+        <div class="brand-tagline">
+          Daily Tech Intelligence · Telco · Media · AI · Cloud · Space · Patents
+        </div>
       </div>
 
-      <div class="header-controls">
-        <button class="viewmode-pill" id="viewmode-btn">
-          <span>View mode</span>
-        </button>
-        <div class="theme-toggle" id="theme-toggle">
-          <div class="theme-thumb"></div>
+      <div class="header-right">
+        <div class="view-mode-row">
+          <span class="view-mode-label">View mode</span>
+          <div class="theme-toggle" id="theme-toggle">
+            <div class="theme-thumb"></div>
+          </div>
         </div>
         <button class="exit-btn" id="exit-btn">Exit</button>
       </div>
@@ -553,7 +488,7 @@
               Curated news + deep-dives designed for busy tech leaders. Updated every morning.
             </p>
           </div>
-          <span class="badge-today" id="today-pill">Today’s edition</span>
+          <span class="badge-today" id="today-badge">Today’s edition</span>
         </div>
 
         <div class="iframe-wrapper">
@@ -564,18 +499,13 @@
       <!-- SIDEBAR -->
       <aside class="sidebar">
 
-        <!-- TIME & WEATHER -->
+        <!-- LOCAL TIME & WEATHER -->
         <section class="side-card">
-          <h2 class="side-title">Local time & weather</h2>
-          <div class="time-row">
-            <div>
-              <div class="time-main" id="clock-main">--:--:--</div>
-              <div class="time-sub" id="clock-sub">--</div>
-            </div>
-            <div class="time-weather">
-              <div>Your location</div>
-              <div id="weather-temp">--°C</div>
-            </div>
+          <h2 class="side-title">Local time &amp; weather</h2>
+          <div>
+            <div class="clock-digital" id="clock-digital">--:--:--</div>
+            <p class="clock-sub" id="clock-date"></p>
+            <p class="weather-temp" id="weather-text">Detecting your location…</p>
           </div>
         </section>
 
@@ -583,7 +513,48 @@
         <section class="side-card">
           <h2 class="side-title">Previous 6 reports</h2>
           <ul class="side-report-list">
-<p style="font-size:12px; color:#6b7280;">No previous reports yet.</p>
+
+        <li class="side-report-item">
+          <div class="side-report-main">
+            <span class="side-report-date">2025-12-10</span>
+            <span class="side-report-links"><a href="reports/html/report_2025-12-10.html" target="_blank" rel="noopener">HTML</a><span class="dot">·</span><a href="reports/pdf/report_2025-12-10.pdf" target="_blank" rel="noopener">PDF</a></span>
+          </div>
+        </li>
+
+        <li class="side-report-item">
+          <div class="side-report-main">
+            <span class="side-report-date">2025-12-09</span>
+            <span class="side-report-links"><a href="reports/html/report_2025-12-09.html" target="_blank" rel="noopener">HTML</a><span class="dot">·</span><a href="reports/pdf/report_2025-12-09.pdf" target="_blank" rel="noopener">PDF</a></span>
+          </div>
+        </li>
+
+        <li class="side-report-item">
+          <div class="side-report-main">
+            <span class="side-report-date">2025-12-08</span>
+            <span class="side-report-links"><a href="reports/html/report_2025-12-08.html" target="_blank" rel="noopener">HTML</a><span class="dot">·</span><a href="reports/pdf/report_2025-12-08.pdf" target="_blank" rel="noopener">PDF</a></span>
+          </div>
+        </li>
+
+        <li class="side-report-item">
+          <div class="side-report-main">
+            <span class="side-report-date">2025-12-07</span>
+            <span class="side-report-links"><a href="reports/html/report_2025-12-07.html" target="_blank" rel="noopener">HTML</a><span class="dot">·</span><a href="reports/pdf/report_2025-12-07.pdf" target="_blank" rel="noopener">PDF</a></span>
+          </div>
+        </li>
+
+        <li class="side-report-item">
+          <div class="side-report-main">
+            <span class="side-report-date">2025-12-06</span>
+            <span class="side-report-links"><a href="reports/html/report_2025-12-06.html" target="_blank" rel="noopener">HTML</a><span class="dot">·</span><a href="reports/pdf/report_2025-12-06.pdf" target="_blank" rel="noopener">PDF</a></span>
+          </div>
+        </li>
+
+        <li class="side-report-item">
+          <div class="side-report-main">
+            <span class="side-report-date">2025-12-05</span>
+            <span class="side-report-links"><a href="reports/html/report_2025-12-05.html" target="_blank" rel="noopener">HTML</a><span class="dot">·</span><a href="reports/pdf/report_2025-12-05.pdf" target="_blank" rel="noopener">PDF</a></span>
+          </div>
+        </li>
           </ul>
         </section>
 
@@ -670,7 +641,23 @@
   </div>
 
   <script>
-    // THEME TOGGLE (light / dark) + VIEW MODE BUTTON
+    // ---- Password gate (SESSION) ----
+    (function() {
+      const PASSWORD = "mix";
+      const KEY = "maxbits-auth";
+
+      if (!sessionStorage.getItem(KEY)) {
+        const userInput = prompt("Enter password to access MaxBits:");
+        if (userInput !== PASSWORD) {
+          alert("Incorrect password.");
+          window.location.href = "bye.html";
+          return;
+        }
+        sessionStorage.setItem(KEY, "1");
+      }
+    })();
+
+    // ---- View mode (light/dark) ----
     (function() {
       const key = "maxbits_theme";
       const root = document.body;
@@ -683,13 +670,6 @@
         }
       }
 
-      function toggleTheme() {
-        const current = root.getAttribute("data-theme") === "dark" ? "dark" : "light";
-        const next = current === "dark" ? "light" : "dark";
-        applyTheme(next);
-        try { localStorage.setItem(key, next); } catch(e) {}
-      }
-
       const stored = localStorage.getItem(key);
       if (stored === "light" || stored === "dark") {
         applyTheme(stored);
@@ -697,118 +677,97 @@
         applyTheme("light");
       }
 
-      const toggle = document.getElementById("theme-toggle");
-      if (toggle) {
-        toggle.addEventListener("click", toggleTheme);
-      }
-
-      const viewBtn = document.getElementById("viewmode-btn");
-      if (viewBtn) {
-        viewBtn.addEventListener("click", toggleTheme);
+      const btn = document.getElementById("theme-toggle");
+      if (btn) {
+        btn.addEventListener("click", () => {
+          const current = root.getAttribute("data-theme") === "dark" ? "dark" : "light";
+          const next = current === "dark" ? "light" : "dark";
+          applyTheme(next);
+          try { localStorage.setItem(key, next); } catch(e) {}
+        });
       }
     })();
 
-    // Digital clock (locale)
+    // ---- Today’s edition = back to home ----
+    (function() {
+      const btn = document.getElementById("today-badge");
+      if (!btn) return;
+      btn.addEventListener("click", function() {
+        // Torna sempre alla index (senza ripassare dalla password)
+        window.location.href = "index.html";
+      });
+    })();
+
+    // ---- Exit button ----
+    (function() {
+      const btn = document.getElementById("exit-btn");
+      if (!btn) return;
+      btn.addEventListener("click", function() {
+        try {
+          window.close();
+        } catch(e) {}
+        // se window.close non chiude la tab, vai a bye.html
+        window.location.href = "bye.html";
+      });
+    })();
+
+    // ---- Digital clock ----
     function updateClock() {
       const now = new Date();
-      const main = document.getElementById('clock-main');
-      const sub = document.getElementById('clock-sub');
-
-      if (main) {
-        main.textContent = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      const timeEl = document.getElementById("clock-digital");
+      const dateEl = document.getElementById("clock-date");
+      if (timeEl) {
+        timeEl.textContent = now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
       }
-      if (sub) {
-        sub.textContent = now.toLocaleDateString(undefined, { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' });
+      if (dateEl) {
+        dateEl.textContent = now.toLocaleDateString([], { weekday: "short", day: "2-digit", month: "short", year: "numeric" });
       }
     }
     setInterval(updateClock, 1000);
     updateClock();
 
-    // Weather: best effort (navigator.geolocation + open-meteo)
+    // ---- Weather via browser geolocation + Open-Meteo ----
     (function() {
-      const out = document.getElementById("weather-temp");
-      if (!navigator.geolocation || !out) return;
+      const el = document.getElementById("weather-text");
+      if (!el) return;
 
-      navigator.geolocation.getCurrentPosition(function(pos) {
-        const lat = pos.coords.latitude.toFixed(4);
-        const lon = pos.coords.longitude.toFixed(4);
-        const url = "https://api.open-meteo.com/v1/forecast?latitude=" + lat + "&longitude=" + lon + "&current_weather=true";
-
-        fetch(url).then(function(resp) {
-          if (!resp.ok) throw new Error("HTTP " + resp.status);
-          return resp.json();
-        }).then(function(data) {
-          if (data && data.current_weather && typeof data.current_weather.temperature !== "undefined") {
-            out.textContent = data.current_weather.temperature.toFixed(1) + "°C";
-          }
-        }).catch(function() {});
-      }, function() {}, { timeout: 5000 });
-    })();
-
-    // "Today’s edition" = BACK HOME (sempre disponibile)
-    (function() {
-      const pill = document.getElementById("today-pill");
-      if (!pill) return;
-      pill.addEventListener("click", function() {
-        var path = window.location.pathname || "/";
-        path = path.replace(/index\.html?$/i, "");
-        if (!path.endsWith("/")) path += "/";
-        window.location.href = path;
-      });
-    })();
-
-    // EXIT button: logout + pagina di cortesia
-    (function() {
-      const btn = document.getElementById("exit-btn");
-      if (!btn) return;
-      btn.addEventListener("click", function() {
-        try { localStorage.removeItem("maxbits_auth_ok_v1"); } catch(e) {}
-        setTimeout(function() {
-          window.location.href = "bye.html";
-        }, 150);
-      });
-    })();
-
-    // Simple password gate (password: "mix", ricordata in localStorage)
-    (function () {
-      const PASS = "mix";                  // <--- QUI cambi password quando vuoi
-      const KEY  = "maxbits_auth_ok_v1";   // chiave locale per ricordare l’accesso
-
-      const overlay = document.getElementById("login-overlay");
-      const input   = document.getElementById("login-password-input");
-      const button  = document.getElementById("login-button");
-
-      if (!overlay || !input || !button) return;
-
-      function unlock() {
-        overlay.style.display = "none";
-        try {
-          localStorage.setItem(KEY, "1");
-        } catch (e) {}
+      function show(msg) {
+        el.textContent = msg;
       }
 
-      // se già loggato in questo browser, non chiedo di nuovo
-      try {
-        if (localStorage.getItem(KEY) === "1") {
-          overlay.style.display = "none";
-          return;
-        }
-      } catch (e) {}
+      if (!navigator.geolocation) {
+        show("Location not available.");
+        return;
+      }
 
-      button.addEventListener("click", function () {
-        const val = input.value.trim();
-        if (val === PASS) {
-          unlock();
-        } else {
-          alert("Wrong password");
-        }
-      });
+      navigator.geolocation.getCurrentPosition(
+        function(pos) {
+          const lat = pos.coords.latitude.toFixed(3);
+          const lon = pos.coords.longitude.toFixed(3);
+          const url = "https://api.open-meteo.com/v1/forecast?latitude=" + lat +
+                      "&longitude=" + lon + "&current=temperature_2m&timezone=auto";
 
-      input.addEventListener("keyup", function (e) {
-        if (e.key === "Enter") {
-          button.click();
-        }
-      });
+          fetch(url)
+            .then(r => r.json())
+            .then(data => {
+              try {
+                const t = data.current.temperature_2m;
+                if (typeof t === "number") {
+                  show("Your location  ·  " + t.toFixed(1) + "°C");
+                } else {
+                  show("Your location  ·  temperature unavailable");
+                }
+              } catch (e) {
+                show("Weather unavailable.");
+              }
+            })
+            .catch(() => show("Weather unavailable."));
+        },
+        function() {
+          show("Location not shared.");
+        },
+        { timeout: 5000 }
+      );
     })();
   </script>
 
