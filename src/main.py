@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from pathlib import Path
 from datetime import datetime
 from typing import Dict, List, Any
@@ -11,7 +13,6 @@ from .report_builder import build_html_report
 from .pdf_export import html_to_pdf
 from .email_sender import send_report_email
 from .telegram_sender import send_telegram_pdf
-
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -47,10 +48,10 @@ WATCHLIST_TOPICS_ORDER = [
     "Satellite/Satcom",
 ]
 
-
-# -------------------------
+# -------------------------------------------------
 #   TOPIC + DEDUP HELPERS
-# -------------------------
+# -------------------------------------------------
+
 
 def _normalise_title(title: str) -> str:
     if not title:
@@ -95,7 +96,7 @@ def build_watchlist(
     ranked_articles,
     deep_dive_articles,
     max_per_topic: int = 5,
-) -> Dict[str, List[Dict]]:
+) -> Dict[str, List[Dict[str, Any]]]:
     """
     - Nessun articolo che sia già fra i deep-dives
     - Nessun titolo duplicato nello stesso topic
@@ -103,10 +104,15 @@ def build_watchlist(
     """
     deep_titles = {_normalise_title(a.title) for a in deep_dive_articles}
 
-    watchlist: Dict[str, List[Dict]] = {topic: [] for topic in WATCHLIST_TOPICS_ORDER}
-    seen_titles_per_topic: Dict[str, set] = {topic: set() for topic in WATCHLIST_TOPICS_ORDER}
+    watchlist: Dict[str, List[Dict[str, Any]]] = {
+        topic: [] for topic in WATCHLIST_TOPICS_ORDER
+    }
+    seen_titles_per_topic: Dict[str, set] = {
+        topic: set() for topic in WATCHLIST_TOPICS_ORDER
+    }
 
     for art in ranked_articles:
+        # salta se è già fra i deep-dives
         if art in deep_dive_articles:
             continue
 
@@ -118,12 +124,15 @@ def build_watchlist(
         if not norm_title:
             continue
 
+        # niente duplicati globali vs deep-dives
         if norm_title in deep_titles:
             continue
 
+        # niente duplicati nello stesso topic
         if norm_title in seen_titles_per_topic[topic]:
             continue
 
+        # rispetta limite per topic
         if len(watchlist[topic]) >= max_per_topic:
             continue
 
@@ -141,9 +150,9 @@ def build_watchlist(
 
 def build_deep_dives_payload(
     deep_dive_articles,
-    summaries: List[Dict],
-) -> List[Dict]:
-    payload: List[Dict] = []
+    summaries: List[Dict[str, Any]],
+) -> List[Dict[str, Any]]:
+    payload: List[Dict[str, Any]] = []
     for art, summ in zip(deep_dive_articles, summaries):
         topic = _article_topic(art)
         entry = {
@@ -163,84 +172,64 @@ def build_deep_dives_payload(
     return payload
 
 
-# -------------------------
-#  CEO POV (placeholder)
-# -------------------------
+# -------------------------------------------------
+#   CEO POV (placeholder robusto)
+# -------------------------------------------------
+
 
 def _collect_ceo_pov_items(date_str: str) -> List[Dict[str, Any]]:
     """
-    Legge config/ceo_pov.yaml e (per ora) restituisce una lista vuota
-    o una lista preconfigurata. La struttura è compatibile con report_builder.
+    Versione robusta ma semplice:
+    - legge config/ceo_pov.yaml (se esiste) solo per loggare quanti CEO sono configurati
+    - restituisce una lista (anche vuota) di item già pronti per il report_builder
     """
     cfg_path = BASE_DIR / "config" / "ceo_pov.yaml"
-    print("Collecting CEO POV items...")
-    print(f"[CEO_POV] Loading config from: {cfg_path}")
+    print("[CEO_POV] Loading config from:", cfg_path)
 
-    if not cfg_path.exists():
-        print(f"[CEO_POV] No ceo_pov.yaml found, skipping.")
-        return []
+    ceo_list: List[Dict[str, Any]] = []
+    if cfg_path.exists():
+        try:
+            data = yaml.safe_load(cfg_path.read_text(encoding="utf-8")) or {}
+            ceo_list = data.get("ceos", []) or []
+        except Exception as e:
+            print("[CEO_POV] Cannot parse ceo_pov.yaml:", repr(e))
+            ceo_list = []
+    else:
+        print("[CEO_POV] No ceo_pov.yaml found.")
 
-    try:
-        data = yaml.safe_load(cfg_path.read_text(encoding="utf-8")) or {}
-    except Exception as e:
-        print(f"[CEO_POV] Cannot parse ceo_pov.yaml: {e!r}")
-        return []
-
-    ceos = data.get("ceos", []) or data.get("ceo_list", []) or []
-    print(f"[CEO_POV] Loaded {len(ceos)} CEOs from {cfg_path}.")
-
-    # Qui potresti in futuro agganciare scraping / API Twitter / ecc.
-    # Per ora: ritorniamo lista vuota per non rompere nulla.
+    print(f"[CEO_POV] Loaded {len(ceo_list)} CEOs from config.")
+    # Placeholder: per ora non facciamo scraping, restituiamo lista vuota.
     items: List[Dict[str, Any]] = []
-
     print(f"[CEO_POV] Collected {len(items)} items.")
     return items
 
 
-# -------------------------
-#  PATENTS (placeholder + hooks)
-# -------------------------
-
-def _fetch_epo_patents(publication_date: str) -> List[Dict[str, Any]]:
-    """
-    Hook per EPO (EU). Per ora ritorna lista vuota ma mantiene le firme
-    e i log, così puoi sostituire l'implementazione in futuro.
-    """
-    print(f"[PATENTS][EPO] Fetching patents for date {publication_date} (placeholder)")
-    return []
-
-
-def _fetch_uspto_patents(publication_date: str) -> List[Dict[str, Any]]:
-    """
-    Hook per USPTO (US). Anche qui per ora ritorna lista vuota.
-    """
-    print(f"[PATENTS][USPTO] Fetching patents for date {publication_date} (placeholder)")
-    return []
+# -------------------------------------------------
+#   PATENTS (placeholder robusto)
+# -------------------------------------------------
 
 
 def _collect_patents(date_str: str) -> List[Dict[str, Any]]:
     """
-    Colleziona i brevetti EPO + USPTO del giorno precedente / corrente.
+    Placeholder per raccolta brevetti:
+    - logga le chiamate EPO/USPTO
+    - restituisce una lista vuota ma con struttura già adatta al report
     """
-    print("Collecting Patent publications (EU/US)...")
-    # per semplicità usiamo la stessa date_str; se vuoi il giorno prima usa
-    # una datetime e sottrai 1 giorno.
-    epo = _fetch_epo_patents(date_str)
-    us = _fetch_uspto_patents(date_str)
+    print("[PATENTS] Collecting Patent publications (EU/US)...")
+    print(f"[PATENTS][EPO] Fetching patents for date {date_str} (placeholder)")
+    print(f"[PATENTS][USPTO] Fetching patents for date {date_str} (placeholder)")
 
     items: List[Dict[str, Any]] = []
-    items.extend(epo)
-    items.extend(us)
-
     print(f"[PATENTS] Collected {len(items)} items.")
     return items
 
 
-# -----------
-#   MAIN
-# -----------
+# -------------------------------------------------
+#   MAIN PIPELINE
+# -------------------------------------------------
 
-def main():
+
+def main() -> None:
     cwd = Path.cwd()
     print("[DEBUG] CWD:", cwd)
     try:
@@ -287,6 +276,7 @@ def main():
     if not cleaned:
         print("[FATAL] Still no articles after fallback. Exiting.")
         return
+    # ---------------------------
 
     # 3) Ranking globale
     ranked = rank_articles(cleaned)
@@ -321,7 +311,7 @@ def main():
         summaries=deep_dives_summaries,
     )
 
-    # 7) Salva JSON deep-dives + CEO POV + Patents
+    # 7) Salva JSON deep-dives + CEO POV + patents
     json_dir = Path("reports/json")
     json_dir.mkdir(parents=True, exist_ok=True)
     date_str = today_str()
