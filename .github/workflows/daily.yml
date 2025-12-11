@@ -1,40 +1,46 @@
 name: Daily Report
 
 on:
+  # schedulato (esempio: 05:00 UTC tutti i giorni feriali)
   schedule:
-    - cron: "0 6 * * *"   # 08:00 CET
-    - cron: "0 18 * * *"  # 20:00 CET
-  workflow_dispatch:
+    - cron: '0 5 * * 1-5'
+  # lancio manuale da Actions → "Run workflow"
+  workflow_dispatch: {}
 
 jobs:
   build:
     runs-on: ubuntu-latest
 
+    permissions:
+      contents: read
+      pages: write       # necessario per GitHub Pages
+      id-token: write
+
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: '3.12'
 
       - name: Install dependencies
-        run: pip install -r requirements.txt
+        run: |
+          python -m pip install --upgrade pip
+          if [ -f requirements.txt ]; then
+            pip install -r requirements.txt
+          fi
 
-      - name: Run MaxBits daily content builder
-        run: python -m src.main
+      - name: Run MaxBits daily report script
+        run: |
+          echo "[DAILY] Running src.main..."
+          python -m src.main
+          echo "[DAILY] Building magazine index..."
+          python -m src.magazine_builder
 
-      # 🔵 Market snapshot JSON (usato dal magazine)
-      - name: Build market snapshot (08:00 + 20:00)
-        run: python -m src.market_snapshot
-
-      # 🔵 Costruisce la homepage + archivio ultimi 7 report
-      - name: Build MaxBits Magazine
-        run: python -m src.magazine_builder
-
-      # 🔵 Pubblica su GitHub Pages
-      - name: Upload docs to GitHub Pages
-        uses: actions/upload-pages-artifact@v2
+      # 👉 QUI la parte che prima era v2 e ti faceva fallire il job
+      - name: Upload GitHub Pages artifact
+        uses: actions/upload-pages-artifact@v3
         with:
-          path: docs/
+          path: ./docs
