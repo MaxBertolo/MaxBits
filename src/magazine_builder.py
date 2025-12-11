@@ -7,7 +7,6 @@ from typing import List, Dict
 from datetime import datetime, timedelta
 import yaml
 import json
-import glob
 
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -21,6 +20,7 @@ DOCS_DIR = BASE_DIR / "docs"
 HTML_DST_DIR = DOCS_DIR / "reports" / "html"
 PDF_DST_DIR = DOCS_DIR / "reports" / "pdf"
 
+# Cartella per JSON (market snapshot, ecc.)
 JSON_REPORTS_DIR = BASE_DIR / "reports" / "json"
 
 
@@ -32,6 +32,13 @@ def _find_reports() -> List[Dict]:
     """
     Cerca tutti i report HTML in reports/html, estrae la data dal nome file,
     e costruisce una lista ordinata per data (desc).
+
+    Ritorna una lista di dict:
+      {
+        "date": "YYYY-MM-DD",
+        "html_file": Path(...),
+        "pdf_file": Path(...) or None,
+      }
     """
     reports: List[Dict] = []
     if not HTML_SRC_DIR.exists():
@@ -63,10 +70,15 @@ def _copy_last_reports_to_docs(reports: List[Dict], max_reports: int = 7) -> Lis
     """
     Copia gli ultimi max_reports report in docs/reports/html e docs/reports/pdf.
 
-    Se il file sorgente e destinazione coincidono, non copia (evita SameFileError).
+    Se il file sorgente e destinazione coincidono (stesso path), NON copia
+    per evitare shutil.SameFileError (run successivi).
 
-    Ritorna una lista riferita ai file di destinazione:
-      { "date": "YYYY-MM-DD", "html_file": Path(...), "pdf_file": Path(...) or None }
+    Ritorna una lista di dict riferiti ai FILE DI DESTINAZIONE:
+      {
+        "date": "YYYY-MM-DD",
+        "html_file": Path(...),  # sotto docs/reports/html
+        "pdf_file": Path(...) or None,  # sotto docs/reports/pdf
+      }
     """
     HTML_DST_DIR.mkdir(parents=True, exist_ok=True)
     PDF_DST_DIR.mkdir(parents=True, exist_ok=True)
@@ -124,7 +136,8 @@ def _build_previous_reports_list(reports_for_docs: List[Dict]) -> str:
 
     items: List[str] = []
 
-    for r in reports_for_docs[1:7]:  # max 6 giorni precedenti
+    # salta il primo (latest) e mostra max 6 precedenti
+    for r in reports_for_docs[1:7]:
         date = r["date"]
         html_rel = f"reports/html/{r['html_file'].name}"
         pdf_rel = f"reports/pdf/{r['pdf_file'].name}" if r["pdf_file"] else None
@@ -156,8 +169,14 @@ def _build_previous_reports_list(reports_for_docs: List[Dict]) -> str:
 
 def _load_extra_reports() -> List[Dict]:
     """
-    Legge config/extra_reports.yaml e restituisce solo i report con data
-    negli ultimi 30 giorni.
+    Legge config/extra_reports.yaml e restituisce solo i report
+    con data negli ultimi 30 giorni.
+
+    YAML atteso:
+      extra_reports:
+        - title: "..."
+          url: "https://..."
+          date: "YYYY-MM-DD"
     """
     cfg_path = BASE_DIR / "config" / "extra_reports.yaml"
     if not cfg_path.exists():
@@ -195,6 +214,7 @@ def _load_extra_reports() -> List[Dict]:
             continue
 
         if d < cutoff or d > today:
+            # fuori finestra 30 giorni o nel futuro
             continue
 
         age_days = (today - d).days
@@ -216,7 +236,7 @@ def _load_extra_reports() -> List[Dict]:
 
 def _build_extra_reports_sidebar_html(extra_reports: List[Dict]) -> str:
     """
-    HTML per la sezione "Extra reports (30 days)".
+    Costruisce la mini-UI per la sezione "Extra reports (30 days)".
     """
     if not extra_reports:
         return '<p style="font-size:12px; color:#6b7280;">No extra reports (last 30 days).</p>'
@@ -254,7 +274,7 @@ def _build_extra_reports_sidebar_html(extra_reports: List[Dict]) -> str:
 
 
 # -------------------------------------------------------------------
-#  MARKET SNAPSHOT (static JSON, es. 10:00 e 20:00)
+#  MARKET SNAPSHOT (statico da JSON)
 # -------------------------------------------------------------------
 
 def _load_market_snapshot() -> Dict | None:
@@ -275,7 +295,7 @@ def _load_market_snapshot() -> Dict | None:
     if not JSON_REPORTS_DIR.exists():
         return None
 
-    # prima prova con pattern market_snapshot_*.json
+    # primo: market_snapshot_YYYY-MM-DD.json
     candidates = sorted(JSON_REPORTS_DIR.glob("market_snapshot_*.json"))
     target = None
     if candidates:
@@ -347,7 +367,6 @@ def _build_market_snapshot_html(snapshot: Dict | None) -> (str, str):
     items = snapshot.get("items") or []
     updated_at = snapshot.get("updated_at", "n/a")
 
-    # mantieni l'ordine fisso dei titoli principali se possibile
     desired_order = [
         "GOOGL", "TSLA", "AAPL", "NVDA", "META", "MSFT", "AMZN", "BTC", "ETH",
     ]
@@ -383,6 +402,7 @@ def _build_market_snapshot_html(snapshot: Dict | None) -> (str, str):
         else:
             cls = "market-change"
             pct_str = ""
+
         html_items.append(
             f"""
         <li class="market-item">
@@ -399,7 +419,7 @@ def _build_market_snapshot_html(snapshot: Dict | None) -> (str, str):
 
 
 # -------------------------------------------------------------------
-#  INDEX.HTML TEMPLATE
+#  INDEX.HTML TEMPLATE (con password "mix")
 # -------------------------------------------------------------------
 
 def _build_index_content(reports_for_docs: List[Dict]) -> str:
@@ -695,7 +715,7 @@ def _build_index_content(reports_for_docs: List[Dict]) -> str:
       color: var(--text-muted);
     }
 
-    /* Clock + weather */
+    /* Time & weather */
     .time-row {
       display:flex;
       justify-content:space-between;
@@ -703,13 +723,6 @@ def _build_index_content(reports_for_docs: List[Dict]) -> str:
       font-size:13px;
       margin-top:4px;
       color:var(--text-main);
-    }
-
-    .time-label {
-      font-size:11px;
-      text-transform:uppercase;
-      letter-spacing:0.14em;
-      color:var(--text-muted);
     }
 
     .time-main {
@@ -726,6 +739,7 @@ def _build_index_content(reports_for_docs: List[Dict]) -> str:
       margin-top:6px;
       font-size:12px;
       color:var(--text-muted);
+      text-align:right;
     }
 
     /* Previous reports */
@@ -893,6 +907,18 @@ def _build_index_content(reports_for_docs: List[Dict]) -> str:
       color: #60a5fa;
     }
 
+    /* LOGIN OVERLAY */
+    #login-overlay {
+      position:fixed;
+      inset:0;
+      background:rgba(15,23,42,0.92);
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      z-index:9999;
+      font-family:'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    }
+
     @media (max-width: 900px) {
       .layout {
         grid-template-columns: minmax(0, 1fr);
@@ -902,6 +928,57 @@ def _build_index_content(reports_for_docs: List[Dict]) -> str:
 </head>
 
 <body>
+
+  <!-- LOGIN OVERLAY (password: mix) -->
+  <div id="login-overlay">
+    <div style="
+         background:#020617;
+         border-radius:16px;
+         padding:24px 26px;
+         width:280px;
+         max-width:90%;
+         box-shadow:0 18px 40px rgba(0,0,0,0.85);
+         border:1px solid #1f2937;
+         color:#e5e7eb;
+    ">
+      <h1 style="margin:0 0 10px 0;font-size:18px;">MaxBits access</h1>
+      <p style="margin:0 0 14px 0;font-size:13px;color:#9ca3af;">
+        Enter access password to open the daily report.
+      </p>
+      <input id="login-password-input"
+             type="password"
+             placeholder="Password"
+             style="
+               width:100%;
+               padding:8px 10px;
+               border-radius:8px;
+               border:1px solid #4b5563;
+               background:#020617;
+               color:#f9fafb;
+               font-size:13px;
+               box-sizing:border-box;
+             " />
+      <button id="login-button"
+              style="
+                margin-top:10px;
+                width:100%;
+                padding:8px 10px;
+                border-radius:8px;
+                border:none;
+                cursor:pointer;
+                background:#2563eb;
+                color:#f9fafb;
+                font-size:13px;
+                font-weight:500;
+              ">
+        Enter
+      </button>
+      <p style="margin:8px 0 0 0;font-size:11px;color:#6b7280;">
+        Access is stored locally in this browser.
+      </p>
+    </div>
+  </div>
+
   <div class="page">
 
     <header>
@@ -942,7 +1019,7 @@ def _build_index_content(reports_for_docs: List[Dict]) -> str:
       <!-- SIDEBAR -->
       <aside class="sidebar">
 
-        <!-- TIME & WEATHER (time locale + placeholder meteo) -->
+        <!-- TIME & WEATHER -->
         <section class="side-card">
           <h2 class="side-title">Local time & weather</h2>
           <div class="time-row">
@@ -1032,7 +1109,7 @@ __MARKET_ITEMS__
       }
     })();
 
-    // Digital clock (locale) + simple weather placeholder
+    // Digital clock (locale)
     function updateClock() {
       const now = new Date();
       const main = document.getElementById('clock-main');
@@ -1048,7 +1125,7 @@ __MARKET_ITEMS__
     setInterval(updateClock, 1000);
     updateClock();
 
-    // Weather: best effort (navigator.geolocation required + open-meteo)
+    // Weather: best effort (navigator.geolocation + open-meteo)
     (function() {
       const out = document.getElementById("weather-temp");
       if (!navigator.geolocation || !out) return;
@@ -1078,7 +1155,6 @@ __MARKET_ITEMS__
       const pill = document.getElementById("today-pill");
       if (!pill) return;
       pill.addEventListener("click", function() {
-        // torna sempre alla home del sito (index.html) senza password
         var path = window.location.pathname || "/";
         path = path.replace(/index\\.html?$/i, "");
         if (!path.endsWith("/")) path += "/";
@@ -1086,7 +1162,7 @@ __MARKET_ITEMS__
       });
     })();
 
-    // EXIT button: prova a chiudere la tab, poi redirect al profilo GitHub
+    // EXIT button: chiusura tab + redirect al profilo GitHub
     (function() {
       const btn = document.getElementById("exit-btn");
       if (!btn) return;
@@ -1095,6 +1171,48 @@ __MARKET_ITEMS__
         setTimeout(function() {
           window.location.href = "https://github.com/MaxBertolo";
         }, 150);
+      });
+    })();
+
+    // Simple password gate (password: "mix", ricordata in localStorage)
+    (function () {
+      const PASS = "mix";                  // <--- QUI cambi password quando vuoi
+      const KEY  = "maxbits_auth_ok_v1";   // chiave locale per ricordare l’accesso
+
+      const overlay = document.getElementById("login-overlay");
+      const input   = document.getElementById("login-password-input");
+      const button  = document.getElementById("login-button");
+
+      if (!overlay || !input || !button) return;
+
+      function unlock() {
+        overlay.style.display = "none";
+        try {
+          localStorage.setItem(KEY, "1");
+        } catch (e) {}
+      }
+
+      // se già loggato in questo browser, non chiedo di nuovo
+      try {
+        if (localStorage.getItem(KEY) === "1") {
+          overlay.style.display = "none";
+          return;
+        }
+      } catch (e) {}
+
+      button.addEventListener("click", function () {
+        const val = input.value.trim();
+        if (val === PASS) {
+          unlock();
+        } else {
+          alert("Wrong password");
+        }
+      });
+
+      input.addEventListener("keyup", function (e) {
+        if (e.key === "Enter") {
+          button.click();
+        }
       });
     })();
   </script>
@@ -1119,7 +1237,7 @@ def build_magazine(max_reports: int = 7) -> None:
     Entry point:
       - legge i report sorgente
       - copia gli ultimi N in docs/reports
-      - genera docs/index.html con layout moderno + sidebar
+      - genera docs/index.html con layout moderno + sidebar + extra reports
     """
     raw_reports = _find_reports()
     DOCS_DIR.mkdir(parents=True, exist_ok=True)
