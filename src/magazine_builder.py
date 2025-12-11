@@ -1041,7 +1041,6 @@ __MARKET_ITEMS__
       const btn = document.getElementById("today-badge");
       if (!btn) return;
       btn.addEventListener("click", function() {
-        // Torna sempre alla index (senza ripassare dalla password)
         window.location.href = "index.html";
       });
     })();
@@ -1054,7 +1053,6 @@ __MARKET_ITEMS__
         try {
           window.close();
         } catch(e) {}
-        // se window.close non chiude la tab, vai a bye.html
         window.location.href = "bye.html";
       });
     })();
