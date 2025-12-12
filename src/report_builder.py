@@ -3,34 +3,21 @@
 from __future__ import annotations
 
 from html import escape
-from typing import List, Dict
+from typing import List, Dict, Any
 
 
 # -------------------------------------------------------
-# HEADER + STORICO 7 GIORNI + WEEKLY + TODAY EDITION
+# HEADER + STORICO 7 GIORNI + PULSANTE WEEKLY
 # -------------------------------------------------------
 
 def _render_header(date_str: str) -> str:
     return f"""
 <header style="margin-bottom: 24px;">
-  <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:12px; flex-wrap:wrap;">
-    <div>
-      <h1 style="margin:0; font-size:26px;">MaxBits · Daily Tech Watch</h1>
-      <p style="margin:2px 0 0 0; color:#666; font-size:13px;">
-        High-quality technology news from around the world.
-      </p>
-      <p style="margin:4px 0 0 0; color:#555;">Daily brief · {escape(date_str)}</p>
-    </div>
-
-    <!-- PILL "Today's edition" usata come back button verso la home MaxBits -->
-    <button id="today-edition-btn"
-            type="button"
-            style="margin-top:4px; padding:6px 12px; border-radius:999px;
-                   border:1px solid #e5e7eb; background:#0f172a; color:#e5e7eb;
-                   font-size:12px; cursor:pointer; white-space:nowrap;">
-      Today’s edition
-    </button>
-  </div>
+  <h1 style="margin:0; font-size:26px;">MaxBits · Daily Tech Watch</h1>
+  <p style="margin:2px 0 0 0; color:#666; font-size:13px;">
+    High-quality technology news from around the world.
+  </p>
+  <p style="margin:4px 0 0 0; color:#555;">Daily brief · {escape(date_str)}</p>
 
   <div style="margin-top:10px; display:flex; gap:8px; flex-wrap:wrap;">
     <button id="open-weekly-btn"
@@ -105,6 +92,276 @@ def _render_deep_dives(deep_dives: List[Dict]) -> str:
 
 
 # -------------------------------------------------------
+# CEO POV SECTION
+# -------------------------------------------------------
+
+def _render_ceo_pov(ceo_items: List[Dict[str, Any]]) -> str:
+    """
+    Mostra le dichiarazioni dei CEO su AI / Space / Tech in modo compatto ma leggibile.
+    """
+    if not ceo_items:
+        return """
+<section style="margin-top:30px;">
+  <h2 style="margin:0 0 8px 0; font-size:20px;">CEO POV · AI &amp; Space Economy</h2>
+  <p style="margin:4px 0 0 0; font-size:13px; color:#777;">
+    No CEO statements collected for today.
+  </p>
+</section>
+"""
+
+    blocks: List[str] = []
+
+    for idx, item in enumerate(ceo_items):
+        cid = escape(str(item.get("id") or f"ceo_{idx+1}"))
+
+        name = (
+            item.get("ceo_name")
+            or item.get("name")
+            or item.get("person")
+            or "Unnamed executive"
+        )
+        company = item.get("company") or ""
+        role = item.get("role") or ""
+        topic = item.get("topic") or ""
+        quote = item.get("quote") or ""
+        source = item.get("source") or ""
+        url = item.get("url") or ""
+        date = item.get("date") or ""
+
+        name_html = escape(name)
+        company_html = escape(company)
+        role_html = escape(role)
+        topic_html = escape(topic or "Tech / Strategy")
+        source_html = escape(source)
+        date_html = escape(date)
+
+        # se quote è lunga, accorcia a ~260 char
+        q = quote.strip()
+        if len(q) > 260:
+            q = q[:257] + "…"
+        quote_html = escape(q)
+
+        meta_parts = []
+        if company_html:
+            meta_parts.append(company_html)
+        if role_html:
+            meta_parts.append(role_html)
+        if date_html:
+            meta_parts.append(date_html)
+        meta_str = " · ".join(meta_parts)
+
+        link_html = ""
+        if url:
+            link_html = f"""<a href="{url}" target="_blank" rel="noopener"
+                             style="font-size:12px; color:#0052CC; text-decoration:none;">
+                             Source</a>"""
+
+        blocks.append(f"""
+<article id="{cid}"
+         style="margin-bottom:14px; padding:10px 12px;
+                border-radius:8px; background:#f9fafb; border:1px solid #e5e7eb;">
+  <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:8px;">
+    <div style="flex:1;">
+      <p style="margin:0; font-size:13px; color:#374151;">
+        <span style="font-weight:600;">{name_html}</span>
+        <span style="color:#6b7280;"> — {meta_str}</span>
+      </p>
+      <p style="margin:6px 0 0 0; font-size:13px; color:#111827;">
+        “{quote_html}”
+      </p>
+    </div>
+    <div style="padding-left:8px; text-align:right;">
+      <span style="display:inline-block; padding:2px 8px; border-radius:999px;
+                   background:#e0f2fe; color:#0369a1; font-size:11px;">
+        {topic_html}
+      </span>
+    </div>
+  </div>
+  <div style="margin-top:6px; display:flex; justify-content:space-between; align-items:center;">
+    <span style="font-size:11px; color:#6b7280;">{source_html}</span>
+    {link_html}
+  </div>
+</article>
+""")
+
+    return f"""
+<section style="margin-top:30px;">
+  <h2 style="margin:0 0 8px 0; font-size:20px;">CEO POV · AI &amp; Space Economy</h2>
+  <p style="margin:2px 0 10px 0; font-size:13px; color:#777;">
+    Selected statements from top tech and space CEOs about AI, cloud and orbital infrastructure.
+  </p>
+  {''.join(blocks)}
+</section>
+"""
+
+
+# -------------------------------------------------------
+# PATENT WATCH SECTION (COMPUTE / VIDEO / DATA / CLOUD)
+# -------------------------------------------------------
+
+def _patent_area(pat: Dict[str, Any]) -> str:
+    """
+    Classifica un brevetto in una macro area: Compute, Cloud, Video, Data, Other.
+    Usa title+abstract in modo euristico.
+    """
+    text = " ".join(
+        [
+            str(pat.get("title") or ""),
+            str(pat.get("abstract") or ""),
+        ]
+    ).lower()
+
+    # Semplici euristiche (ordine di priorità)
+    if any(k in text for k in ["codec", "encoding", "decoding", "transcoding", "video", "streaming", "abr", "av1", "hevc", "vvc", "h.264", "h.265"]):
+        return "Video"
+
+    if any(k in text for k in ["database", "data lake", "data warehouse", "analytics", "big data", "olap", "oltp", "data pipeline", "data processing"]):
+        return "Data"
+
+    if any(k in text for k in ["cloud", "saas", "paas", "iaas", "kubernetes", "serverless", "object storage", "block storage", "edge computing"]):
+        return "Cloud"
+
+    if any(k in text for k in ["gpu", "accelerator", "cpu", "processor", "asic", "inference", "neural network accelerator", "compute", "computing", "tensor core"]):
+        return "Compute"
+
+    return "Other"
+
+
+def _patent_area_badge(area: str) -> str:
+    """
+    Badge colorata per l'area.
+    """
+    area = area or "Other"
+    label = area
+
+    bg = "#e5e7eb"
+    fg = "#374151"
+
+    if area == "Compute":
+        bg, fg = "#dbeafe", "#1d4ed8"   # light indigo
+    elif area == "Cloud":
+        bg, fg = "#e0f2fe", "#0369a1"   # light sky
+    elif area == "Video":
+        bg, fg = "#ccfbf1", "#0f766e"   # teal
+    elif area == "Data":
+        bg, fg = "#fef3c7", "#b45309"   # amber
+
+    return f"""
+<span style="display:inline-block; padding:2px 8px; border-radius:999px;
+             background:{bg}; color:{fg}; font-size:11px; font-weight:500;">
+  {escape(label)}
+</span>
+"""
+
+
+def _render_patent_watch(patents: List[Dict[str, Any]]) -> str:
+    if not patents:
+        return """
+<section style="margin-top:30px;">
+  <h2 style="margin:0 0 8px 0; font-size:20px;">Patent watch · Compute / Video / Data / Cloud</h2>
+  <p style="margin:4px 0 0 0; font-size:13px; color:#777;">
+    No relevant patent publications detected for today (EPO / USPTO).
+  </p>
+</section>
+"""
+
+    # arricchisci ogni patente con area
+    enriched = []
+    for p in patents:
+        area = _patent_area(p)
+        enriched.append((area, p))
+
+    # ordina per area poi per data
+    def _sort_key(item):
+        area, p = item
+        date_str = p.get("publication_date") or ""
+        return (area, date_str)
+
+    enriched.sort(key=_sort_key, reverse=True)
+
+    rows: List[str] = []
+    for area, p in enriched:
+        badge = _patent_area_badge(area)
+
+        title = escape(p.get("title") or "Untitled patent")
+        url = p.get("source_url") or ""
+        office = escape(p.get("office") or "")
+        pubno = escape(p.get("publication_number") or "")
+        date = escape(p.get("publication_date") or "")
+        applicants = p.get("applicants") or []
+        if isinstance(applicants, str):
+            applicants_str = applicants
+        else:
+            applicants_str = ", ".join(str(a) for a in applicants)
+        applicants_html = escape(applicants_str)
+
+        assignee_html = escape(p.get("assignee") or "")
+        abstract = (p.get("abstract") or "").strip()
+        if len(abstract) > 220:
+            abstract = abstract[:217] + "…"
+        abstract_html = escape(abstract)
+
+        if url:
+            title_html = f'<a href="{url}" target="_blank" rel="noopener" style="color:#0052CC; text-decoration:none;">{title}</a>'
+        else:
+            title_html = title
+
+        meta_line_parts = []
+        if office:
+            meta_line_parts.append(office)
+        if pubno:
+            meta_line_parts.append(pubno)
+        if date:
+            meta_line_parts.append(date)
+        meta_line = " · ".join(meta_line_parts)
+
+        applicant_line_parts = []
+        if applicants_html:
+            applicant_line_parts.append(applicants_html)
+        if assignee_html:
+            applicant_line_parts.append(assignee_html)
+        applicant_line = " — ".join(applicant_line_parts)
+
+        rows.append(f"""
+<tr style="border-bottom:1px solid #f3f4f6;">
+  <td style="vertical-align:top; padding:8px 8px 8px 0; width:110px;">
+    {badge}
+    <div style="margin-top:4px; font-size:11px; color:#6b7280;">{meta_line}</div>
+  </td>
+  <td style="vertical-align:top; padding:8px 0 8px 0;">
+    <div style="font-size:13px; font-weight:600; margin-bottom:2px;">
+      {title_html}
+    </div>
+    <div style="font-size:12px; color:#6b7280; margin-bottom:4px;">
+      {applicant_line}
+    </div>
+    <div style="font-size:12px; color:#374151;">
+      {abstract_html}
+    </div>
+  </td>
+</tr>
+""")
+
+    table_html = f"""
+<table style="width:100%; border-collapse:collapse; margin-top:6px;">
+  <tbody>
+    {''.join(rows)}
+  </tbody>
+</table>
+"""
+
+    return f"""
+<section style="margin-top:30px;">
+  <h2 style="margin:0 0 8px 0; font-size:20px;">Patent watch · Compute / Video / Data / Cloud</h2>
+  <p style="margin:2px 0 6px 0; font-size:13px; color:#777;">
+    Selected patent publications from EPO / USPTO relevant to computation, video, data platforms and cloud infrastructure.
+  </p>
+  {table_html}
+</section>
+"""
+
+
+# -------------------------------------------------------
 # WATCHLIST
 # -------------------------------------------------------
 
@@ -141,6 +398,10 @@ def _pretty_topic_name(topic: str) -> str:
 
 
 def _render_watchlist_section(topic: str, items: List[Dict]) -> str:
+    """
+    Se items è vuoto, mostra comunque la sezione con il messaggio:
+    "No notable articles for this topic today."
+    """
     title = escape(_pretty_topic_name(topic))
 
     if not items:
@@ -188,6 +449,10 @@ def _render_watchlist_section(topic: str, items: List[Dict]) -> str:
 
 
 def _render_watchlist(watchlist: Dict[str, List[Dict]]) -> str:
+    """
+    Mostra SEMPRE tutte le categorie in WATCHLIST_TOPICS_ORDER.
+    Se una categoria non ha articoli, mostra un messaggio esplicito.
+    """
     sections = []
     for topic in WATCHLIST_TOPICS_ORDER:
         items = watchlist.get(topic, []) or []
@@ -197,152 +462,29 @@ def _render_watchlist(watchlist: Dict[str, List[Dict]]) -> str:
 
 
 # -------------------------------------------------------
-# CEO POV
-# -------------------------------------------------------
-
-def _render_ceo_pov(ceo_pov: List[Dict]) -> str:
-    if not ceo_pov:
-        return """
-<section style="margin-top:32px;">
-  <h2 style="margin:0 0 10px 0; font-size:20px;">CEO POV · AI & Space Economy</h2>
-  <p style="margin:0; font-size:13px; color:#777;">
-    No CEO statements collected today.
-  </p>
-</section>
-"""
-
-    rows = []
-    for item in ceo_pov:
-        ceo = escape(item.get("ceo") or "")
-        role = escape(item.get("role") or "")
-        company = escape(item.get("company") or "")
-        date = escape(item.get("date") or "")
-        quote = escape(item.get("quote") or "")
-        topic = escape(item.get("topic") or "")
-        src = escape(item.get("source") or "")
-        url = item.get("url") or "#"
-
-        meta = " · ".join(x for x in [company, topic, date] if x)
-
-        rows.append(f"""
-<article style="margin-bottom:14px; padding-bottom:10px; border-bottom:1px solid #eee;">
-  <p style="margin:0; font-size:13px; color:#555;">
-    <strong>{ceo}</strong> – {role}
-  </p>
-  <p style="margin:4px 0 0 0; font-size:14px; color:#111;">
-    “{quote}”
-  </p>
-  <p style="margin:4px 0 0 0; font-size:12px; color:#777;">
-    {meta}
-    {' · ' if meta and src else ''}<a href="{url}" style="color:#0052CC; text-decoration:none;" target="_blank" rel="noopener">{src}</a>
-  </p>
-</article>
-""")
-
-    return f"""
-<section style="margin-top:32px;">
-  <h2 style="margin:0 0 10px 0; font-size:20px;">CEO POV · AI &amp; Space Economy</h2>
-  {''.join(rows)}
-</section>
-"""
-
-
-# -------------------------------------------------------
-# PATENTS (Compute / Cloud / Video / Data)
-# -------------------------------------------------------
-
-def _patent_area_slug(area: str) -> str:
-    a = (area or "").lower()
-    if "compute" in a or "cpu" in a or "gpu" in a:
-        return "compute"
-    if "cloud" in a or "saas" in a or "iaas" in a:
-        return "cloud"
-    if "video" in a or "codec" in a or "stream" in a:
-        return "video"
-    if "data" in a or "database" in a or "analytics" in a:
-        return "data"
-    return "other"
-
-
-def _render_patents(patents: List[Dict]) -> str:
-    if not patents:
-        return """
-<section style="margin-top:32px;">
-  <h2 style="margin:0 0 8px 0; font-size:20px;">Patents · Compute / Cloud / Video / Data</h2>
-  <p style="margin:0; font-size:13px; color:#777;">
-    No patent publications collected today.
-  </p>
-</section>
-"""
-
-    legend = """
-<div style="margin:4px 0 10px 0; font-size:11px; color:#555;">
-  <span class="patent-pill patent-pill-compute">Compute</span>
-  <span class="patent-pill patent-pill-cloud">Cloud</span>
-  <span class="patent-pill patent-pill-video">Video</span>
-  <span class="patent-pill patent-pill-data">Data</span>
-  <span class="patent-pill patent-pill-other">Other</span>
-</div>
-"""
-
-    rows = []
-    for p in patents:
-        title = escape(p.get("title") or "")
-        url = p.get("url") or "#"
-        office = escape(p.get("office") or "")
-        pub_date = escape(p.get("publication_date") or "")
-        area = escape(p.get("area") or "")
-        slug = _patent_area_slug(p.get("area") or "")
-        assignee = escape(p.get("assignee") or p.get("applicant") or "")
-        src = escape(p.get("source") or "")
-        abstract = escape(p.get("abstract") or "")
-
-        meta_parts = [office, pub_date]
-        meta = " · ".join(x for x in meta_parts if x)
-
-        rows.append(f"""
-<li class="patent-item">
-  <div class="patent-header">
-    <a href="{url}" target="_blank" rel="noopener" class="patent-title">{title}</a>
-    <span class="patent-pill patent-pill-{slug}">{area or 'Other'}</span>
-  </div>
-  <div class="patent-meta">
-    <span>{meta}</span>
-    {f'<span>Assignee: {assignee}</span>' if assignee else ''}
-    {f'<span>Source: {src}</span>' if src else ''}
-  </div>
-  {f'<p class="patent-abstract">{abstract}</p>' if abstract else ''}
-</li>
-""")
-
-    return f"""
-<section style="margin-top:32px;">
-  <h2 style="margin:0 0 6px 0; font-size:20px;">Patents · Compute / Cloud / Video / Data</h2>
-  {legend}
-  <ul class="patent-list">
-    {''.join(rows)}
-  </ul>
-</section>
-"""
-
-
-# -------------------------------------------------------
 # HTML GENERATION
 # -------------------------------------------------------
 
 def build_html_report(
     *,
-    deep_dives: List[Dict],
-    watchlist: Dict[str, List[Dict]],
-    ceo_pov: List[Dict],
-    patents: List[Dict],
+    deep_dives,
+    watchlist,
     date_str: str,
+    ceo_pov: List[Dict[str, Any]] | None = None,
+    patents: List[Dict[str, Any]] | None = None,
 ) -> str:
+    """
+    Genera l'HTML del daily report.
+
+    Parametri nuovi (opzionali, backward compatible):
+      - ceo_pov: lista di dict con dichiarazioni dei CEO
+      - patents: lista di brevetti rilevanti
+    """
     header = _render_header(date_str)
     deep_html = _render_deep_dives(deep_dives)
+    ceo_html = _render_ceo_pov(ceo_pov or [])
+    patent_html = _render_patent_watch(patents or [])
     wl_html = _render_watchlist(watchlist)
-    ceo_html = _render_ceo_pov(ceo_pov)
-    pat_html = _render_patents(patents)
 
     return f"""<!DOCTYPE html>
 <html lang="en">
@@ -351,130 +493,10 @@ def build_html_report(
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="report-date" content="{escape(date_str)}" />
   <title>MaxBits · Daily Tech Watch · {escape(date_str)}</title>
-
-  <style>
-    body {{
-      font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;
-      background:#fafafa;
-      margin:0;
-      padding:24px;
-      color:#111;
-    }}
-
-    .patent-list {{
-      list-style:none;
-      margin:8px 0 0 0;
-      padding:0;
-      font-size:13px;
-    }}
-    .patent-item {{
-      padding:8px 10px;
-      border-radius:6px;
-      border:1px solid #e5e7eb;
-      background:#fff;
-      margin-bottom:6px;
-    }}
-    .patent-header {{
-      display:flex;
-      justify-content:space-between;
-      align-items:flex-start;
-      gap:8px;
-    }}
-    .patent-title {{
-      color:#0052CC;
-      text-decoration:none;
-      font-weight:600;
-      font-size:13px;
-    }}
-    .patent-meta {{
-      margin-top:4px;
-      font-size:11px;
-      color:#6b7280;
-      display:flex;
-      gap:8px;
-      flex-wrap:wrap;
-    }}
-    .patent-abstract {{
-      margin:4px 0 0 0;
-      font-size:12px;
-      color:#374151;
-    }}
-    .patent-pill {{
-      display:inline-block;
-      padding:2px 8px;
-      border-radius:999px;
-      font-size:10px;
-      border:1px solid transparent;
-      white-space:nowrap;
-    }}
-    .patent-pill-compute {{
-      background:rgba(59,130,246,0.1);
-      border-color:rgba(59,130,246,0.5);
-      color:#1d4ed8;
-    }}
-    .patent-pill-cloud {{
-      background:rgba(56,189,248,0.1);
-      border-color:rgba(56,189,248,0.5);
-      color:#0284c7;
-    }}
-    .patent-pill-video {{
-      background:rgba(251,191,36,0.1);
-      border-color:rgba(251,191,36,0.5);
-      color:#b45309;
-    }}
-    .patent-pill-data {{
-      background:rgba(34,197,94,0.1);
-      border-color:rgba(34,197,94,0.5);
-      color:#15803d;
-    }}
-    .patent-pill-other {{
-      background:rgba(148,163,184,0.1);
-      border-color:rgba(148,163,184,0.5);
-      color:#4b5563;
-    }}
-
-    /* Bottone fisso per tornare a MaxBits */
-    #maxbits-back-btn {{
-      position:fixed;
-      bottom:12px;
-      left:12px;
-      z-index:9999;
-      padding:7px 12px;
-      border-radius:999px;
-      border:1px solid #e5e7eb;
-      background:rgba(15,23,42,0.96);
-      color:#e5e7eb;
-      font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;
-      font-size:12px;
-      display:inline-flex;
-      align-items:center;
-      gap:6px;
-      cursor:pointer;
-      box-shadow:0 6px 18px rgba(15,23,42,0.45);
-    }}
-    #maxbits-back-btn span.icon {{
-      font-size:14px;
-    }}
-    #maxbits-back-btn:hover {{
-      background:#0b1120;
-    }}
-    @media (max-width:640px) {{
-      #maxbits-back-btn {{
-        bottom:8px;
-        left:8px;
-        font-size:11px;
-        padding:6px 10px;
-      }}
-    }}
-  </style>
 </head>
 
-<body>
-
-<button id="maxbits-back-btn" type="button">
-  <span class="icon">←</span>
-  <span>Back to MaxBits</span>
-</button>
+<body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;
+             background:#fafafa; margin:0; padding:24px; color:#111;">
 
 <div style="max-width:900px; margin:0 auto; background:white;
             padding:24px 32px; border-radius:8px; box-shadow:0 0 12px rgba(0,0,0,0.05);">
@@ -486,14 +508,14 @@ def build_html_report(
     {deep_html}
   </section>
 
+  {ceo_html}
+
+  {patent_html}
+
   <section style="margin-top:30px;">
     <h2 style="margin:0 0 12px 0; font-size:20px;">Curated watchlist · 3–5 links per topic</h2>
     {wl_html}
   </section>
-
-  {ceo_html}
-
-  {pat_html}
 
 </div>
 
@@ -503,7 +525,7 @@ def build_html_report(
 
   function loadSel() {{
     try {{
-      return JSON.parse(localStorage.getItem(KEY) || "{{}}");
+      return JSON.parse(localStorage.getItem(KEY) || "{{}}" );
     }} catch (e) {{
       return {{}};
     }}
@@ -618,40 +640,10 @@ def build_html_report(
     ).join("");
   }}
 
-  // back verso la home MaxBits (usato da bottone flottante + Today’s edition)
-  function initBackButton() {{
-    const HOME = "https://maxbertolo.github.io/MaxBits/";
-
-    function goHome() {{
-      try {{
-        if (window.history.length > 1) {{
-          window.history.back();
-        }} else if (window.top && window.top !== window) {{
-          window.top.location.href = HOME;
-        }} else {{
-          window.location.href = HOME;
-        }}
-      }} catch (e) {{
-        window.location.href = HOME;
-      }}
-    }}
-
-    const btnFloating = document.getElementById("maxbits-back-btn");
-    if (btnFloating) {{
-      btnFloating.addEventListener("click", goHome);
-    }}
-
-    const pillToday = document.getElementById("today-edition-btn");
-    if (pillToday) {{
-      pillToday.addEventListener("click", goHome);
-    }}
-  }}
-
   document.addEventListener("DOMContentLoaded", () => {{
     setupCheckboxes();
     initWeeklyBtn();
     initHistory();
-    initBackButton();
   }});
 }})();
 </script>
