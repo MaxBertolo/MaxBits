@@ -1,33 +1,137 @@
+# ================================================================
+# MaxBits RSS Sources
+# ---------------------------------------------------------------
+# Ogni feed è classificato per topic e ha un "weight"
+# che influenza il ranking delle news.
+# ================================================================
+
 feeds:
-  - name: GigaOM – Telco
-    url: https://gigaom.com/tag/telco/feed/
 
-  - name: Technology Magazine – AI
-    url: https://technologymagazine.com/rss
+  # ------------------------------
+  # TELCO / NETWORKING
+  # ------------------------------
+  - name: "GigaOM – Telco"
+    url: "https://gigaom.com/tag/telco/feed/"
+    topic: "Telco/5G"
+    weight: 1.0
+    enabled: true
 
-  - name: VentureBeat – AI
-    url: https://venturebeat.com/feed/
 
-  - name: "TechCrunch AI"
+  # ------------------------------
+  # AI / CLOUD / QUANTUM
+  # ------------------------------
+  - name: "Technology Magazine – AI"
+    url: "https://technologymagazine.com/rss"
+    topic: "AI/Cloud/Quantum"
+    weight: 1.0
+    enabled: true
+
+  - name: "VentureBeat – AI"
+    url: "https://venturebeat.com/feed/"
+    topic: "AI/Cloud/Quantum"
+    weight: 1.1
+    enabled: true
+
+  - name: "TechCrunch – AI"
     url: "https://techcrunch.com/tag/artificial-intelligence/feed/"
-
-  - name: "TechCrunch Mobility"
-    url: "https://techcrunch.com/tag/mobility/feed/"
-
-  - name: "The Verge – Tech"
-    url: "https://www.theverge.com/tech/rss/index.xml"
+    topic: "AI/Cloud/Quantum"
+    weight: 1.0
+    enabled: true
 
   - name: "Ars Technica – AI"
     url: "http://feeds.arstechnica.com/arstechnica/technology-lab"
+    topic: "AI/Cloud/Quantum"
+    weight: 1.1
+    enabled: true
+
+  - name: "MIT Technology Review – Tech"
+    url: "https://www.technologyreview.com/feed/"
+    topic: "AI/Cloud/Quantum"
+    weight: 1.3
+    enabled: true
+
+  - name: "IEEE Spectrum – Emerging Tech"
+    url: "https://spectrum.ieee.org/feed"
+    topic: "AI/Cloud/Quantum"
+    weight: 1.2
+    enabled: true
+
+
+  # ------------------------------
+  # MOBILITY / AUTONOMOUS / ROBOTICS
+  # ------------------------------
+  - name: "TechCrunch – Mobility"
+    url: "https://techcrunch.com/tag/mobility/feed/"
+    topic: "Robotics/Automation"
+    weight: 1.0
+    enabled: true
+
+
+  # ------------------------------
+  # MEDIA / PLATFORMS / TECH INDUSTRY
+  # ------------------------------
+  - name: "The Verge – Tech"
+    url: "https://www.theverge.com/tech/rss/index.xml"
+    topic: "Media/Platforms"
+    weight: 1.0
+    enabled: true
 
   - name: "Wired – Tech"
     url: "https://www.wired.com/feed/category/tech/latest/rss"
+    topic: "Media/Platforms"
+    weight: 1.1
+    enabled: true
 
   - name: "Wired – Business"
     url: "https://www.wired.com/feed/category/business/latest/rss"
+    topic: "Media/Platforms"
+    weight: 1.1
+    enabled: true
 
-  - name: "The Information (Tech)"
+  - name: "The Information – Tech"
     url: "https://www.theinformation.com/subscriber_feed"
+    topic: "Media/Platforms"
+    weight: 1.2
+    enabled: true
 
-  - name: "McKinsey MGI – Tech & Markets of the Future"
-    url: "https://www.mckinsey.com/mgi/our-research/technology-and-markets-of-the-future"
+
+  # ------------------------------
+  # SPACE / SATELLITE / INFRASTRUCTURE
+  # ------------------------------
+  - name: "NASA – Breaking News"
+    url: "https://www.nasa.gov/rss/dyn/breaking_news.rss"
+    topic: "Space/Infrastructure"
+    weight: 1.1
+    enabled: true
+
+  - name: "ESA – European Space Agency"
+    url: "https://www.esa.int/rssfeed/Our_Activities"
+    topic: "Satellite/Satcom"
+    weight: 1.0
+    enabled: true
+
+
+  # ------------------------------
+  # STRATEGY / GLOBAL TECH TRENDS
+  # ------------------------------
+  - name: "The Economist – Tech/Science"
+    url: "https://www.economist.com/technology/rss.xml"
+    topic: "Strategy/Tech"
+    weight: 1.3
+    enabled: true
+
+  - name: "WEF – Future of Technology"
+    url: "https://www.weforum.org/agenda/technology/feed"
+    topic: "Strategy/Tech"
+    weight: 1.2
+    enabled: true
+
+
+  # ---------------------------------------------------------------
+  # (RIMOSSO) McKinsey MGI – NON FUNZIONA (no RSS, blocchi anti-bot)
+  # ---------------------------------------------------------------
+  # - name: "McKinsey MGI – Tech & Markets of the Future"
+  #   url: "https://www.mckinsey.com/mgi/our-research/technology-and-markets-of-the-future"
+  #   topic: "Strategy/Tech"
+  #   weight: 1.0
+  #   enabled: false
