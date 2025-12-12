@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 import re
 import shutil
-from typing import List, Dict
+from typing import List, Dict, Optional, Tuple
 from datetime import datetime, timedelta
 import yaml
 import json
@@ -33,7 +33,7 @@ JSON_REPORTS_DIR = BASE_DIR / "reports" / "json"
 
 def _scan_reports(html_dir: Path, pdf_dir: Path) -> List[Dict]:
     """
-    Scansiona una coppia (html_dir, pdf_dir) e ritorna lista di report trovati:
+    Scansiona (html_dir, pdf_dir) e ritorna lista:
     {
       "date": "YYYY-MM-DD",
       "html_file": Path(...),
@@ -69,8 +69,6 @@ def _find_reports() -> List[Dict]:
     Unisce i report trovati in:
       - reports/html + reports/pdf
       - docs/reports/html + docs/reports/pdf
-
-    In questo modo la colonna "Previous 6 reports" resta sempre popolata.
     """
     combined: Dict[str, Dict] = {}
 
@@ -89,8 +87,6 @@ def _find_reports() -> List[Dict]:
 def _copy_last_reports_to_docs(reports: List[Dict], max_reports: int = 7) -> List[Dict]:
     """
     Copia gli ultimi max_reports report in docs/reports/html e docs/reports/pdf.
-    Evita SameFileError se sorgente e destinazione coincidono.
-
     Ritorna lista riferita ai file DI DESTINAZIONE.
     """
     HTML_DST_DIR.mkdir(parents=True, exist_ok=True)
@@ -274,16 +270,27 @@ def _build_extra_reports_sidebar_html(extra_reports: List[Dict]) -> str:
 #  MARKET SNAPSHOT (STATICO DA JSON 08:00 / 20:00)
 # -------------------------------------------------------------------
 
-def _load_market_snapshot() -> Dict | None:
+def _load_market_snapshot() -> Optional[Dict]:
     """
-    Legge l'ULTIMO file JSON in reports/json (per data di modifica).
-    Qualunque nome abbia, es: market_snapshot_2025-12-11_08-00.json
+    Robust:
+    1) se esiste reports/json/market_snapshot_latest.json -> usa quello
+    2) altrimenti usa l'ultimo *.json per mtime
     """
     if not JSON_REPORTS_DIR.exists():
         print("[MAG] JSON_REPORTS_DIR does not exist:", JSON_REPORTS_DIR)
         return None
 
-    candidates = list(JSON_REPORTS_DIR.glob("*.json"))
+    latest = JSON_REPORTS_DIR / "market_snapshot_latest.json"
+    if latest.exists():
+        try:
+            data = json.loads(latest.read_text(encoding="utf-8"))
+            if isinstance(data, dict):
+                print(f"[MAG] Using market snapshot JSON: {latest}")
+                return data
+        except Exception as e:
+            print(f"[MAG] Cannot parse {latest}: {e!r}")
+
+    candidates = [p for p in JSON_REPORTS_DIR.glob("*.json") if p.name != "market_snapshot_latest.json"]
     if not candidates:
         print("[MAG] No market snapshot JSON in", JSON_REPORTS_DIR)
         return None
@@ -307,77 +314,68 @@ def _load_market_snapshot() -> Dict | None:
         return None
 
 
-def _build_market_snapshot_html(snapshot: Dict | None) -> (str, str):
+def _market_link(symbol: str, instrument_type: str) -> str:
     """
-    Ritorna:
-      - html <li>...</li> per ciascun titolo
-      - stringa updated_at da mostrare nel footer della card
+    Link “safe” e semplice:
+    - equity -> Yahoo Finance
+    - crypto -> CoinMarketCap (btc/eth)
+    """
+    sym = str(symbol).upper().strip()
+    t = (instrument_type or "").lower().strip()
+
+    if t == "crypto":
+        slug = "bitcoin" if sym == "BTC" else "ethereum" if sym == "ETH" else sym.lower()
+        return f"https://coinmarketcap.com/currencies/{slug}/"
+    # equity
+    return f"https://finance.yahoo.com/quote/{sym}/"
+
+
+def _build_market_snapshot_html(snapshot: Optional[Dict]) -> Tuple[str, str]:
+    """
+    Compatibilità:
+    - supporta snapshot["as_of_label"] (nuovo)
+    - supporta snapshot["updated_at"] (vecchio)
+    - supporta items con chiavi: label/name
     """
     if not snapshot:
         html = """
-        <li class="market-item">
-          <div class="market-left">Google<span class="market-symbol">GOOGL</span></div>
-          <div><span class="market-price">—</span><span class="market-change"></span></div>
-        </li>
-        <li class="market-item">
-          <div class="market-left">Tesla<span class="market-symbol">TSLA</span></div>
-          <div><span class="market-price">—</span><span class="market-change"></span></div>
-        </li>
-        <li class="market-item">
-          <div class="market-left">Apple<span class="market-symbol">AAPL</span></div>
-          <div><span class="market-price">—</span><span class="market-change"></span></div>
-        </li>
-        <li class="market-item">
-          <div class="market-left">NVIDIA<span class="market-symbol">NVDA</span></div>
-          <div><span class="market-price">—</span><span class="market-change"></span></div>
-        </li>
-        <li class="market-item">
-          <div class="market-left">Meta<span class="market-symbol">META</span></div>
-          <div><span class="market-price">—</span><span class="market-change"></span></div>
-        </li>
-        <li class="market-item">
-          <div class="market-left">Microsoft<span class="market-symbol">MSFT</span></div>
-          <div><span class="market-price">—</span><span class="market-change"></span></div>
-        </li>
-        <li class="market-item">
-          <div class="market-left">Amazon<span class="market-symbol">AMZN</span></div>
-          <div><span class="market-price">—</span><span class="market-change"></span></div>
-        </li>
-        <li class="market-item">
-          <div class="market-left">Bitcoin<span class="market-symbol">BTC</span></div>
-          <div><span class="market-price">—</span><span class="market-change"></span></div>
-        </li>
-        <li class="market-item">
-          <div class="market-left">Ethereum<span class="market-symbol">ETH</span></div>
-          <div><span class="market-price">—</span><span class="market-change"></span></div>
-        </li>
+        <li class="market-item"><div class="market-left">Google<span class="market-symbol">GOOGL</span></div><div><span class="market-price">—</span><span class="market-change"></span></div></li>
+        <li class="market-item"><div class="market-left">Tesla<span class="market-symbol">TSLA</span></div><div><span class="market-price">—</span><span class="market-change"></span></div></li>
+        <li class="market-item"><div class="market-left">Apple<span class="market-symbol">AAPL</span></div><div><span class="market-price">—</span><span class="market-change"></span></div></li>
+        <li class="market-item"><div class="market-left">NVIDIA<span class="market-symbol">NVDA</span></div><div><span class="market-price">—</span><span class="market-change"></span></div></li>
+        <li class="market-item"><div class="market-left">Meta<span class="market-symbol">META</span></div><div><span class="market-price">—</span><span class="market-change"></span></div></li>
+        <li class="market-item"><div class="market-left">Microsoft<span class="market-symbol">MSFT</span></div><div><span class="market-price">—</span><span class="market-change"></span></div></li>
+        <li class="market-item"><div class="market-left">Amazon<span class="market-symbol">AMZN</span></div><div><span class="market-price">—</span><span class="market-change"></span></div></li>
+        <li class="market-item"><div class="market-left">Bitcoin<span class="market-symbol">BTC</span></div><div><span class="market-price">—</span><span class="market-change"></span></div></li>
+        <li class="market-item"><div class="market-left">Ethereum<span class="market-symbol">ETH</span></div><div><span class="market-price">—</span><span class="market-change"></span></div></li>
         """
         return html, "not available"
 
     items = snapshot.get("items") or []
-    updated_at = snapshot.get("updated_at", "n/a")
+    updated_at = (
+        snapshot.get("as_of_label")
+        or snapshot.get("updated_at")
+        or snapshot.get("updatedAt")
+        or "n/a"
+    )
 
-    desired_order = [
-        "GOOGL", "TSLA", "AAPL", "NVDA", "META", "MSFT", "AMZN", "BTC", "ETH",
-    ]
-    lookup = {str(it.get("symbol")): it for it in items}
-
-    ordered_items: List[Dict] = []
-    for sym in desired_order:
-        if sym in lookup:
-            ordered_items.append(lookup[sym])
+    desired_order = ["GOOGL", "TSLA", "AAPL", "NVDA", "META", "MSFT", "AMZN", "BTC", "ETH"]
+    lookup = {str(it.get("symbol")).upper(): it for it in items if isinstance(it, dict)}
 
     html_items: List[str] = []
-    for it in ordered_items:
-        name = it.get("name", "")
-        sym = it.get("symbol", "")
+    for sym in desired_order:
+        it = lookup.get(sym)
+        if not it:
+            continue
+
+        label = it.get("label") or it.get("name") or it.get("title") or sym
+        symbol = it.get("symbol", sym)
+        instrument_type = it.get("type", "equity")
+
         price = it.get("price", None)
         pct = it.get("change_pct", None)
 
-        if isinstance(price, (int, float)):
-            price_str = f"{price:.2f}"
-        else:
-            price_str = "—"
+        price_str = f"{price:,.2f}" if isinstance(price, (int, float)) else "—"
 
         if isinstance(pct, (int, float)):
             if pct > 0:
@@ -393,10 +391,15 @@ def _build_market_snapshot_html(snapshot: Dict | None) -> (str, str):
             cls = "market-change"
             pct_str = ""
 
+        link = _market_link(str(symbol), str(instrument_type))
+
         html_items.append(
             f"""
         <li class="market-item">
-          <div class="market-left">{name}<span class="market-symbol">{sym}</span></div>
+          <div class="market-left">
+            <a class="market-link" href="{link}" target="_blank" rel="noopener">{label}</a>
+            <span class="market-symbol">{symbol}</span>
+          </div>
           <div>
             <span class="market-price">{price_str}</span>
             <span class="{cls}">{pct_str}</span>
@@ -405,7 +408,7 @@ def _build_market_snapshot_html(snapshot: Dict | None) -> (str, str):
         """
         )
 
-    return "\n".join(html_items), updated_at
+    return "\n".join(html_items) if html_items else "<li class='market-item'>No market data.</li>", str(updated_at)
 
 
 # -------------------------------------------------------------------
@@ -850,6 +853,14 @@ def _build_index_content(reports_for_docs: List[Dict]) -> str:
       color: var(--text-main);
     }
 
+    .market-link {
+      color: inherit;
+      text-decoration: none;
+    }
+    .market-link:hover {
+      text-decoration: underline;
+    }
+
     .market-symbol {
       font-size: 10px;
       color: var(--text-muted);
@@ -878,15 +889,6 @@ def _build_index_content(reports_for_docs: List[Dict]) -> str:
       font-size: 11px;
       color: var(--text-muted);
       text-align: left;
-    }
-
-    footer a {
-      color: var(--accent-dark);
-      text-decoration: none;
-    }
-
-    body[data-theme="dark"] footer a {
-      color: #60a5fa;
     }
 
     @media (max-width: 900px) {
@@ -922,7 +924,6 @@ def _build_index_content(reports_for_docs: List[Dict]) -> str:
     </header>
 
     <div class="layout">
-      <!-- MAIN COLUMN -->
       <main class="main-card">
         <div class="main-header">
           <div>
@@ -939,10 +940,8 @@ def _build_index_content(reports_for_docs: List[Dict]) -> str:
         </div>
       </main>
 
-      <!-- SIDEBAR -->
       <aside class="sidebar">
 
-        <!-- LOCAL TIME & WEATHER -->
         <section class="side-card">
           <h2 class="side-title">Local time &amp; weather</h2>
           <div>
@@ -952,7 +951,6 @@ def _build_index_content(reports_for_docs: List[Dict]) -> str:
           </div>
         </section>
 
-        <!-- PREVIOUS REPORTS -->
         <section class="side-card">
           <h2 class="side-title">Previous 6 reports</h2>
           <ul class="side-report-list">
@@ -960,7 +958,6 @@ __PREVIOUS_LIST__
           </ul>
         </section>
 
-        <!-- EXTRA REPORTS -->
         <section class="side-card">
           <h2 class="side-title">Extra reports (30 days)</h2>
           <ul class="extra-report-list">
@@ -968,7 +965,6 @@ __EXTRA_REPORTS__
           </ul>
         </section>
 
-        <!-- MARKET SNAPSHOT -->
         <section class="side-card">
           <h2 class="side-title">Market snapshot*</h2>
           <ul class="market-list">
@@ -1011,19 +1007,11 @@ __MARKET_ITEMS__
       const root = document.body;
 
       function applyTheme(t) {
-        if (t === "dark") {
-          root.setAttribute("data-theme", "dark");
-        } else {
-          root.setAttribute("data-theme", "light");
-        }
+        root.setAttribute("data-theme", (t === "dark") ? "dark" : "light");
       }
 
       const stored = localStorage.getItem(key);
-      if (stored === "light" || stored === "dark") {
-        applyTheme(stored);
-      } else {
-        applyTheme("light");
-      }
+      applyTheme((stored === "dark" || stored === "light") ? stored : "light");
 
       const btn = document.getElementById("theme-toggle");
       if (btn) {
@@ -1050,9 +1038,7 @@ __MARKET_ITEMS__
       const btn = document.getElementById("exit-btn");
       if (!btn) return;
       btn.addEventListener("click", function() {
-        try {
-          window.close();
-        } catch(e) {}
+        try { window.close(); } catch(e) {}
         window.location.href = "bye.html";
       });
     })();
@@ -1077,9 +1063,7 @@ __MARKET_ITEMS__
       const el = document.getElementById("weather-text");
       if (!el) return;
 
-      function show(msg) {
-        el.textContent = msg;
-      }
+      function show(msg) { el.textContent = msg; }
 
       if (!navigator.geolocation) {
         show("Location not available.");
@@ -1096,22 +1080,13 @@ __MARKET_ITEMS__
           fetch(url)
             .then(r => r.json())
             .then(data => {
-              try {
-                const t = data.current.temperature_2m;
-                if (typeof t === "number") {
-                  show("Your location  ·  " + t.toFixed(1) + "°C");
-                } else {
-                  show("Your location  ·  temperature unavailable");
-                }
-              } catch (e) {
-                show("Weather unavailable.");
-              }
+              const t = data && data.current ? data.current.temperature_2m : null;
+              if (typeof t === "number") show("Your location  ·  " + t.toFixed(1) + "°C");
+              else show("Your location  ·  temperature unavailable");
             })
             .catch(() => show("Weather unavailable."));
         },
-        function() {
-          show("Location not shared.");
-        },
+        function() { show("Location not shared."); },
         { timeout: 5000 }
       );
     })();
@@ -1131,10 +1106,6 @@ __MARKET_ITEMS__
         .replace("__MARKET_UPDATED__", market_updated)
     )
 
-
-# -------------------------------------------------------------------
-#  BYE PAGE (EXIT)
-# -------------------------------------------------------------------
 
 def _build_bye_page() -> str:
     return """<!DOCTYPE html>
@@ -1163,15 +1134,8 @@ def _build_bye_page() -> str:
       box-shadow:0 18px 40px rgba(0,0,0,0.9);
       text-align:center;
     }
-    h1 {
-      margin:0 0 8px;
-      font-size:20px;
-    }
-    p {
-      margin:4px 0;
-      font-size:13px;
-      color:#9ca3af;
-    }
+    h1 { margin:0 0 8px; font-size:20px; }
+    p { margin:4px 0; font-size:13px; color:#9ca3af; }
     button {
       margin-top:12px;
       padding:8px 16px;
@@ -1194,9 +1158,7 @@ def _build_bye_page() -> str:
 
   <script>
     document.getElementById("back-btn").addEventListener("click", function() {
-      try {
-        sessionStorage.removeItem("maxbits-auth");
-      } catch(e) {}
+      try { sessionStorage.removeItem("maxbits-auth"); } catch(e) {}
       window.location.href = "index.html";
     });
   </script>
@@ -1205,30 +1167,18 @@ def _build_bye_page() -> str:
 """
 
 
-# -------------------------------------------------------------------
-#  ENTRY POINT
-# -------------------------------------------------------------------
-
 def build_magazine(max_reports: int = 7) -> None:
-    """
-    - Legge i report sorgente (reports/ + docs/)
-    - Copia gli ultimi N in docs/reports
-    - Genera docs/index.html con layout moderno
-    - Genera docs/bye.html (exit page)
-    """
     raw_reports = _find_reports()
     DOCS_DIR.mkdir(parents=True, exist_ok=True)
 
     reports_for_docs = _copy_last_reports_to_docs(raw_reports, max_reports=max_reports)
 
     index_path = DOCS_DIR / "index.html"
-    index_content = _build_index_content(reports_for_docs)
-    index_path.write_text(index_content, encoding="utf-8")
+    index_path.write_text(_build_index_content(reports_for_docs), encoding="utf-8")
     print(f"[MAG] MaxBits magazine index generated at: {index_path}")
 
     bye_path = DOCS_DIR / "bye.html"
-    bye_content = _build_bye_page()
-    bye_path.write_text(bye_content, encoding="utf-8")
+    bye_path.write_text(_build_bye_page(), encoding="utf-8")
     print(f"[MAG] Bye page generated at: {bye_path}")
 
 
