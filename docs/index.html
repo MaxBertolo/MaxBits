@@ -482,13 +482,27 @@
           <img src="assets/maxbits-logo.svg" alt="MaxBits">
         </div>
 
-        <div style="display:flex; align-items:center; gap:10px;">
-          <div class="tagline">View mode</div>
-          <div class="theme-toggle" id="theme-toggle">
-            <div class="theme-thumb"></div>
-          </div>
-        </div>
-      </header>
+ <div style="display:flex; flex-direction:column; align-items:flex-end; gap:6px;">
+  <div style="display:flex; align-items:center; gap:10px;">
+    <div class="tagline">View mode</div>
+    <div class="theme-toggle" id="theme-toggle">
+      <div class="theme-thumb"></div>
+    </div>
+  </div>
+
+  <button id="exit-btn" style="
+    font-size:11px;
+    padding:3px 10px;
+    border-radius:999px;
+    border:1px solid #fecaca;
+    background:#fee2e2;
+    color:#b91c1c;
+    cursor:pointer;
+  ">
+    Exit
+  </button>
+</div>
+
 
       <div class="layout">
         <main class="main-card">
