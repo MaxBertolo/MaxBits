@@ -28,17 +28,7 @@ PDF_DST_DIR = DOCS_DIR / "reports" / "pdf"
 
 # Market snapshot JSON
 JSON_DIR = BASE_DIR / "reports" / "json"
-
-# Cartella JSON pubblica per GitHub Pages
-JSON_DST_DIR = DOCS_DIR / "reports" / "json"
-JSON_DST_DIR.mkdir(parents=True, exist_ok=True)
-
 MARKET_LATEST = JSON_DIR / "market_snapshot_latest.json"
-
-def _copy_market_snapshot():
-    src = JSON_REPORTS_DIR / "market_snapshot_latest.json"
-    if src.exists():
-        shutil.copy2(src, JSON_DST_DIR / src.name)
 
 
 def _safe_copy(src: Path, dst: Path) -> None:
@@ -955,9 +945,7 @@ def build_magazine(max_reports: int = 7) -> None:
     DOCS_DIR.mkdir(parents=True, exist_ok=True)
 
     reports = _find_reports_merged()
-    reports_for_docs = _copy_last_reports_to_docs(raw_reports, max_reports=max_reports)
-_copy_market_snapshot()
-
+    reports_for_docs = _copy_last_reports_to_docs(reports, max_reports=max_reports)
 
     (DOCS_DIR / "index.html").write_text(_build_index_content(reports_for_docs), encoding="utf-8")
     (DOCS_DIR / "bye.html").write_text(_build_bye_page(), encoding="utf-8")
