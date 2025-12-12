@@ -54,22 +54,10 @@
 
     header {
       display: flex;
-      align-items: flex-start;
+      align-items: center;
       justify-content: space-between;
       gap: 16px;
       padding: 8px 4px 22px;
-    }
-
-    .brand-left {
-      display:flex;
-      flex-direction:column;
-      gap:6px;
-    }
-
-    .brand {
-      display:flex;
-      align-items:center;
-      gap:10px;
     }
 
     .brand img {
@@ -78,29 +66,15 @@
       display: block;
     }
 
-    .brand-tagline {
-      font-size:11px;
+    .tagline {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.16em;
+      padding: 4px 9px;
+      border-radius: 999px;
+      border: 1px solid var(--border);
       color: var(--text-muted);
-    }
-
-    .header-right {
-      display:flex;
-      flex-direction:column;
-      align-items:flex-end;
-      gap:6px;
-    }
-
-    .view-mode-label {
-      font-size:10px;
-      letter-spacing:0.16em;
-      text-transform:uppercase;
-      color: var(--text-muted);
-    }
-
-    .view-mode-row {
-      display:flex;
-      align-items:center;
-      gap:10px;
+      white-space: nowrap;
     }
 
     .theme-toggle {
@@ -116,7 +90,9 @@
       position: relative;
     }
 
-    body[data-theme="dark"] .theme-toggle { background: #020617; }
+    body[data-theme="dark"] .theme-toggle {
+      background: #020617;
+    }
 
     .theme-thumb {
       width: 16px;
@@ -130,21 +106,6 @@
     body[data-theme="dark"] .theme-thumb {
       transform: translateX(16px);
       background: #facc15;
-    }
-
-    .exit-btn {
-      font-size:11px;
-      padding:4px 10px;
-      border-radius:999px;
-      border:1px solid #fecaca;
-      background:#fee2e2;
-      color:#b91c1c;
-      cursor:pointer;
-    }
-    body[data-theme="dark"] .exit-btn {
-      background:#7f1d1d;
-      border-color:#fecaca;
-      color:#fee2e2;
     }
 
     .layout {
@@ -161,6 +122,7 @@
       border: 1px solid rgba(255,255,255,0.4);
       backdrop-filter: blur(10px);
     }
+
     body[data-theme="dark"] .main-card {
       background: radial-gradient(circle at top left, rgba(15,118,255,0.35), #020617);
       border-color: #1f2937;
@@ -174,19 +136,28 @@
       margin-bottom: 12px;
     }
 
-    .main-title { margin: 0; font-size: 20px; letter-spacing: 0.02em; }
-    .main-meta { margin: 3px 0 0; font-size: 12px; color: var(--text-muted); }
+    .main-title {
+      margin: 0;
+      font-size: 20px;
+      letter-spacing: 0.02em;
+    }
+
+    .main-meta {
+      margin: 3px 0 0;
+      font-size: 12px;
+      color: var(--text-muted);
+    }
 
     .badge-today {
       font-size: 11px;
-      padding: 4px 10px;
+      padding: 4px 8px;
       border-radius: 999px;
       background: rgba(37,167,255,0.12);
       color: var(--accent-dark);
       border: 1px solid rgba(37,167,255,0.4);
       white-space: nowrap;
-      cursor:pointer;
     }
+
     body[data-theme="dark"] .badge-today {
       background: rgba(37,167,255,0.15);
       color: #e0f2fe;
@@ -200,14 +171,23 @@
       border: 1px solid rgba(148,163,184,0.5);
       background: #ffffff;
     }
+
     body[data-theme="dark"] .iframe-wrapper {
       background: #020617;
       border-color: #1f2937;
     }
 
-    .iframe-wrapper iframe { width: 100%; height: 78vh; border: none; }
+    .iframe-wrapper iframe {
+      width: 100%;
+      height: 78vh;
+      border: none;
+    }
 
-    .sidebar { display: flex; flex-direction: column; gap: 14px; }
+    .sidebar {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
 
     .side-card {
       background: var(--card-bg);
@@ -216,6 +196,7 @@
       border: 1px solid var(--border);
       box-shadow: 0 10px 26px rgba(15,23,42,0.08);
     }
+
     body[data-theme="dark"] .side-card {
       box-shadow: 0 16px 40px rgba(0,0,0,0.85);
     }
@@ -228,15 +209,164 @@
       color: var(--text-muted);
     }
 
-    .clock-digital { font-size: 20px; font-weight: 600; }
-    .clock-sub { margin:2px 0 0; font-size:11px; color:var(--text-muted); }
-    .weather-temp { margin-top:8px; font-size:12px; color:var(--text-muted); }
+    .clock-digital {
+      font-size: 24px;
+      font-weight: 600;
+      letter-spacing: 0.06em;
+      text-align: center;
+      margin-bottom: 4px;
+    }
 
-    .side-report-list, .extra-report-list, .market-list {
+    .clock-label {
+      margin: 0;
+      font-size: 11px;
+      color: var(--text-muted);
+      text-align: center;
+    }
+
+    .weather-row {
+      margin-top: 10px;
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+
+    .weather-temp-strong {
+      font-weight: 600;
+      color: var(--text-main);
+    }
+
+    .side-report-list {
       list-style: none;
       padding-left: 0;
       margin: 6px 0 0 0;
     }
+
+    .side-report-item + .side-report-item {
+      margin-top: 4px;
+    }
+
+    .side-report-date {
+      font-size: 12px;
+      font-weight: 500;
+    }
+
+    .side-report-links {
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+
+    .side-report-links a {
+      color: var(--accent-dark);
+      text-decoration: none;
+      font-weight: 500;
+    }
+
+    body[data-theme="dark"] .side-report-links a {
+      color: #60a5fa;
+    }
+
+    .side-report-links .dot {
+      color: #d1d5db;
+      margin: 0 4px;
+    }
+
+    .extra-report-list {
+      list-style: none;
+      padding-left: 0;
+      margin: 8px 0 0 0;
+    }
+
+    .extra-report-item {
+      margin-bottom: 8px;
+    }
+
+    .extra-report-link {
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--accent-dark);
+      text-decoration: none;
+    }
+
+    .extra-report-link:hover {
+      text-decoration: underline;
+    }
+
+    body[data-theme="dark"] .extra-report-link {
+      color: #60a5fa;
+    }
+
+    .extra-report-meta {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      gap: 6px;
+      margin-top: 2px;
+      font-size: 10px;
+      color: var(--text-muted);
+    }
+
+    .extra-report-pill {
+      padding: 1px 6px;
+      border-radius: 999px;
+      border: 1px solid #e5e7eb;
+      font-size: 10px;
+      white-space: nowrap;
+    }
+
+    .extra-report-pill-ok {
+      background: rgba(22, 163, 74, 0.08);
+      border-color: rgba(22, 163, 74, 0.35);
+      color: #166534;
+    }
+
+    .extra-report-pill-expiring {
+      background: rgba(234, 179, 8, 0.1);
+      border-color: rgba(234, 179, 8, 0.45);
+      color: #92400e;
+    }
+
+    .market-list {
+      list-style: none;
+      padding-left: 0;
+      margin: 6px 0 0 0;
+    }
+
+    .market-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      gap: 6px;
+      font-size: 12px;
+      padding: 2px 0;
+    }
+
+    .market-left {
+      font-weight: 500;
+      color: var(--text-main);
+    }
+
+    .market-symbol {
+      font-size: 10px;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      margin-left: 4px;
+    }
+
+    .market-price {
+      font-weight: 500;
+      color: var(--text-main);
+    }
+
+    .market-change {
+      font-size: 11px;
+    }
+
+    .market-change.up { color: #16a34a; }
+    .market-change.down { color: #dc2626; }
 
     footer {
       margin-top: 22px;
@@ -245,7 +375,17 @@
       text-align: left;
     }
 
-    /* LOGIN OVERLAY */
+    footer a {
+      color: var(--accent-dark);
+      text-decoration: none;
+    }
+
+    @media (max-width: 900px) {
+      .layout {
+        grid-template-columns: minmax(0, 1fr);
+      }
+    }
+
     #login-screen {
       position: fixed;
       inset: 0;
@@ -255,6 +395,7 @@
       background: radial-gradient(circle at top, #0b1120, #020617);
       z-index: 9999;
     }
+
     #login-card {
       background: #020617;
       border-radius: 16px;
@@ -265,9 +406,25 @@
       text-align: left;
       border: 1px solid #1f2937;
     }
-    #login-card h1 { margin: 0 0 8px 0; font-size: 20px; }
-    #login-card p { margin: 0 0 16px 0; font-size: 13px; color: #9ca3af; }
-    #login-card label { display: block; font-size: 12px; margin-bottom: 4px; color: #cbd5f5; }
+
+    #login-card h1 {
+      margin: 0 0 8px 0;
+      font-size: 20px;
+    }
+
+    #login-card p {
+      margin: 0 0 16px 0;
+      font-size: 13px;
+      color: #9ca3af;
+    }
+
+    #login-card label {
+      display: block;
+      font-size: 12px;
+      margin-bottom: 4px;
+      color: #cbd5f5;
+    }
+
     #login-password {
       width: 100%;
       padding: 8px 10px;
@@ -278,6 +435,7 @@
       font-size: 13px;
       margin-bottom: 10px;
     }
+
     #login-btn {
       width: 100%;
       padding: 8px 10px;
@@ -289,11 +447,16 @@
       font-size: 13px;
       cursor: pointer;
     }
-    #login-error { margin-top: 8px; font-size: 12px; color: #fca5a5; min-height: 16px; }
-    #protected-root { display: none; }
 
-    @media (max-width: 900px) {
-      .layout { grid-template-columns: minmax(0, 1fr); }
+    #login-error {
+      margin-top: 8px;
+      font-size: 12px;
+      color: #fca5a5;
+      min-height: 16px;
+    }
+
+    #protected-root {
+      display: none;
     }
   </style>
 </head>
@@ -315,21 +478,15 @@
     <div class="page">
 
       <header>
-        <div class="brand-left">
-          <div class="brand">
-            <img src="assets/maxbits-logo.svg" alt="MaxBits">
-          </div>
-          <div class="brand-tagline">Daily Tech Intelligence · Telco · Media · AI · Cloud · Space · Patents</div>
+        <div class="brand">
+          <img src="assets/maxbits-logo.svg" alt="MaxBits">
         </div>
 
-        <div class="header-right">
-          <div class="view-mode-row">
-            <span class="view-mode-label">View mode</span>
-            <div class="theme-toggle" id="theme-toggle" title="Toggle light/dark">
-              <div class="theme-thumb"></div>
-            </div>
+        <div style="display:flex; align-items:center; gap:10px;">
+          <div class="tagline">Daily briefing</div>
+          <div class="theme-toggle" id="theme-toggle">
+            <div class="theme-thumb"></div>
           </div>
-          <button class="exit-btn" id="exit-btn">Exit</button>
         </div>
       </header>
 
@@ -337,47 +494,160 @@
         <main class="main-card">
           <div class="main-header">
             <div>
-              <h1 class="main-title">Latest report · __LATEST_DATE__</h1>
+              <h1 class="main-title">Latest report · 2025-12-12</h1>
               <p class="main-meta">
                 Curated news + deep-dives designed for busy tech leaders. Updated every morning.
               </p>
             </div>
-            <span class="badge-today" id="today-badge">Today’s edition</span>
+            <span class="badge-today">Today’s edition</span>
           </div>
 
           <div class="iframe-wrapper">
-            <iframe src="__LATEST_HTML__" loading="lazy"></iframe>
+            <iframe src="reports/html/report_2025-12-12.html" loading="lazy"></iframe>
           </div>
         </main>
 
         <aside class="sidebar">
+
           <section class="side-card">
-            <h2 class="side-title">Local time &amp; weather</h2>
-            <div>
-              <div class="clock-digital" id="clock-digital">--:--:--</div>
-              <p class="clock-sub" id="clock-date"></p>
-              <p class="weather-temp" id="weather-text">Detecting your location…</p>
+            <h2 class="side-title">Local time & weather</h2>
+            <div class="clock-digital" id="clock-digital">--:--</div>
+            <p class="clock-label" id="clock-label-text"></p>
+            <div class="weather-row" id="weather-row">
+              <span id="weather-location">Detecting location…</span>
+              <span id="weather-temp"></span>
             </div>
           </section>
 
           <section class="side-card">
             <h2 class="side-title">Previous 6 reports</h2>
             <ul class="side-report-list">
-__PREVIOUS_LIST__
+
+        <li class="side-report-item">
+          <div class="side-report-main">
+            <span class="side-report-date">2025-12-11</span>
+            <span class="side-report-links"><a href="reports/html/report_2025-12-11.html" target="_blank">HTML</a><span class="dot"> · </span><a href="reports/pdf/report_2025-12-11.pdf" target="_blank">PDF</a></span>
+          </div>
+        </li>
+        
+
+        <li class="side-report-item">
+          <div class="side-report-main">
+            <span class="side-report-date">2025-12-10</span>
+            <span class="side-report-links"><a href="reports/html/report_2025-12-10.html" target="_blank">HTML</a><span class="dot"> · </span><a href="reports/pdf/report_2025-12-10.pdf" target="_blank">PDF</a></span>
+          </div>
+        </li>
+        
+
+        <li class="side-report-item">
+          <div class="side-report-main">
+            <span class="side-report-date">2025-12-09</span>
+            <span class="side-report-links"><a href="reports/html/report_2025-12-09.html" target="_blank">HTML</a><span class="dot"> · </span><a href="reports/pdf/report_2025-12-09.pdf" target="_blank">PDF</a></span>
+          </div>
+        </li>
+        
+
+        <li class="side-report-item">
+          <div class="side-report-main">
+            <span class="side-report-date">2025-12-08</span>
+            <span class="side-report-links"><a href="reports/html/report_2025-12-08.html" target="_blank">HTML</a><span class="dot"> · </span><a href="reports/pdf/report_2025-12-08.pdf" target="_blank">PDF</a></span>
+          </div>
+        </li>
+        
+
+        <li class="side-report-item">
+          <div class="side-report-main">
+            <span class="side-report-date">2025-12-07</span>
+            <span class="side-report-links"><a href="reports/html/report_2025-12-07.html" target="_blank">HTML</a><span class="dot"> · </span><a href="reports/pdf/report_2025-12-07.pdf" target="_blank">PDF</a></span>
+          </div>
+        </li>
+        
+
+        <li class="side-report-item">
+          <div class="side-report-main">
+            <span class="side-report-date">2025-12-06</span>
+            <span class="side-report-links"><a href="reports/html/report_2025-12-06.html" target="_blank">HTML</a><span class="dot"> · </span><a href="reports/pdf/report_2025-12-06.pdf" target="_blank">PDF</a></span>
+          </div>
+        </li>
+        
             </ul>
           </section>
 
           <section class="side-card">
             <h2 class="side-title">Extra reports (30 days)</h2>
             <ul class="extra-report-list">
-__EXTRA_REPORTS__
+
+        <li class="extra-report-item">
+          <a href="https://openknowledge.worldbank.org/server/api/core/bitstreams/dccd113e-3ce6-4442-ac35-bc4a5a205ee2/content" target="_blank" rel="noopener" class="extra-report-link">Digital Progress and Inclusive Growth – World Bank 2025</a>
+          <div class="extra-report-meta">
+            <span class="extra-report-date">2025-12-10</span>
+            <span class="extra-report-pill extra-report-pill-ok">28 days left</span>
+          </div>
+        </li>
+        
+
+        <li class="extra-report-item">
+          <a href="https://ai.stanford.edu/wp-content/uploads/2025/01/stanford_ai_horizon_2025.pdf" target="_blank" rel="noopener" class="extra-report-link">2025 AI Horizon Report – Stanford</a>
+          <div class="extra-report-meta">
+            <span class="extra-report-date">2025-12-08</span>
+            <span class="extra-report-pill extra-report-pill-ok">26 days left</span>
+          </div>
+        </li>
+        
+
+        <li class="extra-report-item">
+          <a href="https://www.accenture.com/content/dam/accenture/future_cloud_trends_2025.pdf" target="_blank" rel="noopener" class="extra-report-link">Global Cloud Trends 2025 – Accenture</a>
+          <div class="extra-report-meta">
+            <span class="extra-report-date">2025-12-05</span>
+            <span class="extra-report-pill extra-report-pill-ok">23 days left</span>
+          </div>
+        </li>
+        
+
+        <li class="extra-report-item">
+          <a href="https://www.nasa.gov/wp-content/uploads/2025/01/mit_space_systems_2025.pdf" target="_blank" rel="noopener" class="extra-report-link">2025 Space Systems Outlook – MIT</a>
+          <div class="extra-report-meta">
+            <span class="extra-report-date">2025-12-03</span>
+            <span class="extra-report-pill extra-report-pill-ok">21 days left</span>
+          </div>
+        </li>
+        
+
+        <li class="extra-report-item">
+          <a href="https://research.ibm.com/publications/2025_quantum_outlook.pdf" target="_blank" rel="noopener" class="extra-report-link">Quantum Computing Industry Outlook – IBM Research 2025</a>
+          <div class="extra-report-meta">
+            <span class="extra-report-date">2025-12-02</span>
+            <span class="extra-report-pill extra-report-pill-ok">20 days left</span>
+          </div>
+        </li>
+        
+
+        <li class="extra-report-item">
+          <a href="https://www.oecd.org/ai/policy/oecd_ai_safety_governance_2025.pdf" target="_blank" rel="noopener" class="extra-report-link">AI Safety & Governance – OECD Brief 2025</a>
+          <div class="extra-report-meta">
+            <span class="extra-report-date">2025-12-01</span>
+            <span class="extra-report-pill extra-report-pill-ok">19 days left</span>
+          </div>
+        </li>
+        
             </ul>
           </section>
 
           <section class="side-card">
             <h2 class="side-title">Market snapshot*</h2>
-__MARKET_HTML__
+
+<ul class="market-list">
+  <li class="market-item">
+    <div class="market-left">No data</div>
+    <div><span class="market-price">n/a</span></div>
+  </li>
+</ul>
+<p style="margin:6px 0 0; font-size:10px; color:#9ca3af;">
+  *No market snapshot available.
+</p>
+
           </section>
+
         </aside>
       </div>
 
@@ -390,42 +660,22 @@ __MARKET_HTML__
   </div>
 
   <script>
-    // ---- AUTH (SESSION) ----
+    // LOGIN (password lato client)
     (function() {
-      const PASSWORD = "mix";
-      const KEY = "maxbits-auth";
-
+      const PASSWORD = "mix";   // <--- PUOI CAMBIARLA QUI
       const loginScreen = document.getElementById("login-screen");
       const root = document.getElementById("protected-root");
       const input = document.getElementById("login-password");
       const btn = document.getElementById("login-btn");
       const errorBox = document.getElementById("login-error");
 
-      function showApp() {
-        loginScreen.style.display = "none";
-        root.style.display = "block";
-        try { input.value = ""; } catch(e) {}
-        if (errorBox) errorBox.textContent = "";
-      }
-
-      function showLogin() {
-        loginScreen.style.display = "flex";
-        root.style.display = "none";
-      }
-
-      // already authed in this tab session
-      if (sessionStorage.getItem(KEY) === "1") {
-        showApp();
-        return;
-      }
-
       function unlock() {
         const val = (input.value || "").trim();
         if (val === PASSWORD) {
-          try { sessionStorage.setItem(KEY, "1"); } catch(e) {}
-          showApp();
+          loginScreen.style.display = "none";
+          root.style.display = "block";
         } else {
-          if (errorBox) errorBox.textContent = "Wrong password. Please try again.";
+          errorBox.textContent = "Wrong password. Please try again.";
         }
       }
 
@@ -433,23 +683,29 @@ __MARKET_HTML__
       input.addEventListener("keydown", function(ev) {
         if (ev.key === "Enter") unlock();
       });
-
-      showLogin();
     })();
   </script>
 
   <script>
-    // ---- View mode (light/dark) ----
+    // THEME TOGGLE
     (function() {
       const key = "maxbits_theme";
       const root = document.body;
 
       function applyTheme(t) {
-        root.setAttribute("data-theme", (t === "dark") ? "dark" : "light");
+        if (t === "dark") {
+          root.setAttribute("data-theme", "dark");
+        } else {
+          root.setAttribute("data-theme", "light");
+        }
       }
 
       const stored = localStorage.getItem(key);
-      applyTheme((stored === "dark") ? "dark" : "light");
+      if (stored === "light" || stored === "dark") {
+        applyTheme(stored);
+      } else {
+        applyTheme("light");
+      }
 
       const btn = document.getElementById("theme-toggle");
       if (btn) {
@@ -462,72 +718,76 @@ __MARKET_HTML__
       }
     })();
 
-    // ---- Exit button ----
-    (function() {
-      const KEY = "maxbits-auth";
-      const btn = document.getElementById("exit-btn");
-      if (!btn) return;
-      btn.addEventListener("click", function() {
-        try { sessionStorage.removeItem(KEY); } catch(e) {}
-        window.location.href = "bye.html";
-      });
-    })();
-
-    // ---- Today’s edition = reload home ----
-    (function() {
-      const btn = document.getElementById("today-badge");
-      if (!btn) return;
-      btn.addEventListener("click", function() {
-        window.location.href = "index.html";
-      });
-    })();
-
-    // ---- Digital clock ----
+    // CLOCK DIGITALE
     function updateClock() {
       const now = new Date();
-      const timeEl = document.getElementById("clock-digital");
-      const dateEl = document.getElementById("clock-date");
-      if (timeEl) {
-        timeEl.textContent = now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
-      }
-      if (dateEl) {
-        dateEl.textContent = now.toLocaleDateString([], { weekday: "short", day: "2-digit", month: "short", year: "numeric" });
+      const hh = String(now.getHours()).padStart(2, "0");
+      const mm = String(now.getMinutes()).padStart(2, "0");
+      const ss = String(now.getSeconds()).padStart(2, "0");
+
+      const clockMain = document.getElementById("clock-digital");
+      const clockLabel = document.getElementById("clock-label-text");
+      if (clockMain) clockMain.textContent = hh + ":" + mm + ":" + ss;
+      if (clockLabel) {
+        clockLabel.textContent = now.toLocaleDateString(undefined, {
+          weekday: "short",
+          year: "numeric",
+          month: "short",
+          day: "numeric"
+        });
       }
     }
     setInterval(updateClock, 1000);
     updateClock();
 
-    // ---- Weather via browser geolocation + Open-Meteo ----
-    (function() {
-      const el = document.getElementById("weather-text");
-      if (!el) return;
+    // METEO (Open-Meteo)
+    async function loadWeather() {
+      const locEl = document.getElementById("weather-location");
+      const tempEl = document.getElementById("weather-temp");
+      if (!locEl || !tempEl) return;
 
-      function show(msg) { el.textContent = msg; }
+      if (!navigator.geolocation) {
+        locEl.textContent = "Location not available";
+        tempEl.textContent = "";
+        return;
+      }
 
-      if (!navigator.geolocation) { show("Location not available."); return; }
+      function setError(msg) {
+        locEl.textContent = msg;
+        tempEl.textContent = "";
+      }
 
-      navigator.geolocation.getCurrentPosition(
-        function(pos) {
-          const lat = pos.coords.latitude.toFixed(3);
-          const lon = pos.coords.longitude.toFixed(3);
-          const url = "https://api.open-meteo.com/v1/forecast?latitude=" + lat +
-                      "&longitude=" + lon + "&current=temperature_2m&timezone=auto";
+      navigator.geolocation.getCurrentPosition(async (pos) => {
+        try {
+          const lat = pos.coords.latitude;
+          const lon = pos.coords.longitude;
 
-          fetch(url)
-            .then(r => r.json())
-            .then(data => {
-              try {
-                const t = data.current.temperature_2m;
-                if (typeof t === "number") show("Your location  ·  " + t.toFixed(1) + "°C");
-                else show("Your location  ·  temperature unavailable");
-              } catch (e) { show("Weather unavailable."); }
-            })
-            .catch(() => show("Weather unavailable."));
-        },
-        function() { show("Location not shared."); },
-        { timeout: 5000 }
-      );
-    })();
+          const url = "https://api.open-meteo.com/v1/forecast?latitude="
+                      + encodeURIComponent(lat)
+                      + "&longitude=" + encodeURIComponent(lon)
+                      + "&current_weather=true";
+
+          const resp = await fetch(url);
+          if (!resp.ok) throw new Error("HTTP " + resp.status);
+          const data = await resp.json();
+          const cw = data.current_weather;
+          if (!cw) {
+            setError("Weather unavailable");
+            return;
+          }
+
+          const t = cw.temperature;
+          locEl.textContent = "Your location";
+          tempEl.innerHTML = "<span class='weather-temp-strong'>" + t.toFixed(1) + "°C</span>";
+        } catch (e) {
+          console.warn("[Weather] failed:", e);
+          setError("Weather unavailable");
+        }
+      }, () => {
+        setError("Enable location to see weather");
+      }, { timeout: 8000 });
+    }
+    loadWeather();
   </script>
 
 </body>
