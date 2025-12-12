@@ -28,7 +28,17 @@ PDF_DST_DIR = DOCS_DIR / "reports" / "pdf"
 
 # Market snapshot JSON
 JSON_DIR = BASE_DIR / "reports" / "json"
+
+# Cartella JSON pubblica per GitHub Pages
+JSON_DST_DIR = DOCS_DIR / "reports" / "json"
+JSON_DST_DIR.mkdir(parents=True, exist_ok=True)
+
 MARKET_LATEST = JSON_DIR / "market_snapshot_latest.json"
+
+def _copy_market_snapshot():
+    src = JSON_REPORTS_DIR / "market_snapshot_latest.json"
+    if src.exists():
+        shutil.copy2(src, JSON_DST_DIR / src.name)
 
 
 def _safe_copy(src: Path, dst: Path) -> None:
