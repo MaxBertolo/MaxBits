@@ -18,3 +18,7 @@ extra_reports:
   - title: "Quantum Computing Industry Outlook – IBM Research 2025"
     url: "https://research.ibm.com/publications/2025_quantum_outlook.pdf"
     date: "2025-12-02"
+
+  - title: "Digital Progress and Inclusive Growth – World Bank 2025"
+    url: "https://openknowledge.worldbank.org/server/api/core/bitstreams/dccd113e-3ce6-4442-ac35-bc4a5a205ee2/content"
+    date: "2025-12-10"
