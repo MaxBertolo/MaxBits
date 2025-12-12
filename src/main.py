@@ -17,11 +17,16 @@ from .telegram_sender import send_telegram_pdf
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 
+# -------------------------------------------------
+#   UTILS
+# -------------------------------------------------
+
+
 def today_str() -> str:
     return datetime.now().strftime("%Y-%m-%d")
 
 
-def load_config() -> dict:
+def load_config() -> Dict[str, Any]:
     config_path = BASE_DIR / "config" / "config.yaml"
     print("[DEBUG] Loading config from:", config_path)
     with open(config_path, "r", encoding="utf-8") as f:
@@ -29,11 +34,15 @@ def load_config() -> dict:
     return data or {}
 
 
-def load_rss_sources() -> list:
+def load_rss_sources() -> List[Dict[str, Any]]:
+    """
+    Carica config/sources_rss.yaml se serve alla versione
+    di collect_from_rss che accetta i feed come parametro.
+    """
     rss_path = BASE_DIR / "config" / "sources_rss.yaml"
     print("[DEBUG] Loading RSS sources from:", rss_path)
     with open(rss_path, "r", encoding="utf-8") as f:
-        data = yaml.safe_load(f)
+        data = yaml.safe_load(f) or {}
     return data.get("feeds", [])
 
 
@@ -42,7 +51,7 @@ WATCHLIST_TOPICS_ORDER = [
     "Telco/5G",
     "Media/Platforms",
     "AI/Cloud/Quantum",
-    "Space/Infra",
+    "Space/Infrastructure",
     "Robotics/Automation",
     "Broadcast/Video",
     "Satellite/Satcom",
@@ -87,8 +96,9 @@ def _article_topic(article) -> str:
     if any(k in t for k in ("satcom", "satellite")):
         return "Satellite/Satcom"
     if any(k in t for k in ("space", "orbital", "launch", "rocket")):
-        return "Space/Infra"
+        return "Space/Infrastructure"
 
+    # default
     return "AI/Cloud/Quantum"
 
 
@@ -161,7 +171,9 @@ def build_deep_dives_payload(
             "url": art.url,
             "source": art.source,
             "topic": topic,
-            "published_at": art.published_at.isoformat(),
+            "published_at": art.published_at.isoformat()
+            if getattr(art, "published_at", None)
+            else "",
             "what_it_is": summ.get("what_it_is", ""),
             "who": summ.get("who", ""),
             "what_it_does": summ.get("what_it_does", ""),
@@ -173,7 +185,7 @@ def build_deep_dives_payload(
 
 
 # -------------------------------------------------
-#   CEO POV (placeholder robusto)
+#   CEO POV  (placeholder robusto)
 # -------------------------------------------------
 
 
@@ -198,7 +210,8 @@ def _collect_ceo_pov_items(date_str: str) -> List[Dict[str, Any]]:
         print("[CEO_POV] No ceo_pov.yaml found.")
 
     print(f"[CEO_POV] Loaded {len(ceo_list)} CEOs from config.")
-    # Placeholder: per ora non facciamo scraping, restituiamo lista vuota.
+
+    # Placeholder: nessun item finché non facciamo scraping vero
     items: List[Dict[str, Any]] = []
     print(f"[CEO_POV] Collected {len(items)} items.")
     return items
@@ -252,9 +265,23 @@ def main() -> None:
 
     max_articles_for_cleaning = int(cfg.get("max_articles_per_day", 50))
 
-    # 1) RSS
+    # 1) RSS – chiamata robusta (versione con / senza argomento)
     print("Collecting RSS...")
-    raw_articles = collect_from_rss(feeds)
+    try:
+        try:
+            # nuova versione che prende i feed da config
+            raw_articles = collect_from_rss(feeds)
+        except TypeError:
+            # vecchia versione che legge lei stessa il YAML
+            print(
+                "[RSS] collect_from_rss(...) non accetta argomenti, "
+                "uso versione senza parametri."
+            )
+            raw_articles = collect_from_rss()
+    except Exception as e:
+        print("[FATAL] Unexpected error in collect_from_rss:", repr(e))
+        return
+
     print(f"[RSS] Total raw articles collected: {len(raw_articles)}")
     if not raw_articles:
         print("[FATAL] No articles collected from RSS. Exiting.")
@@ -262,7 +289,7 @@ def main() -> None:
 
     # 2) Cleaning (finestra temporale, dedup, limite massimo)
     cleaned = clean_articles(raw_articles, max_articles=max_articles_for_cleaning)
-    print(f"After cleaning: {len(cleaned)} articles")
+    print(f"[CLEAN] After cleaning: {len(cleaned)} articles")
 
     # ---- FALLBACK ROBUSTO ----
     if not cleaned:
@@ -295,8 +322,7 @@ def main() -> None:
         deep_dive_articles=deep_dive_articles,
         max_per_topic=5,
     )
-    print("[SELECT] Watchlist built with topics:", list(watchlist_group.keys())
-    )
+    print("[SELECT] Watchlist built with topics:", list(watchlist_grouped.keys()))
 
     # 6) Summarization con LLM
     print("Summarizing deep-dive articles with LLM...")
@@ -308,7 +334,7 @@ def main() -> None:
     )
 
     deep_dives_payload = build_deep_dives_payload(
-        deep_dives_articles=deep_dive_articles,
+        deep_dive_articles=deep_dive_articles,
         summaries=deep_dives_summaries,
     )
 
@@ -364,9 +390,6 @@ def main() -> None:
     except Exception as e:
         print("[PDF] Error while converting HTML to PDF:", repr(e))
         print("[PDF] Skipping PDF generation, continuing pipeline.")
-        # opzionale: potresti settare pdf_path = None, ma le sezioni sotto
-        # sono già protette da try/except.
-    # -------------------------------------------
 
     print("Done. HTML report:", html_path)
 
