@@ -955,7 +955,9 @@ def build_magazine(max_reports: int = 7) -> None:
     DOCS_DIR.mkdir(parents=True, exist_ok=True)
 
     reports = _find_reports_merged()
-    reports_for_docs = _copy_last_reports_to_docs(reports, max_reports=max_reports)
+    reports_for_docs = _copy_last_reports_to_docs(raw_reports, max_reports=max_reports)
+_copy_market_snapshot()
+
 
     (DOCS_DIR / "index.html").write_text(_build_index_content(reports_for_docs), encoding="utf-8")
     (DOCS_DIR / "bye.html").write_text(_build_bye_page(), encoding="utf-8")
