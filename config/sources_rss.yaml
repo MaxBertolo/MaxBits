@@ -120,11 +120,6 @@ feeds:
     weight: 1.3
     enabled: true
 
-  - name: "WEF – Future of Technology"
-    url: "https://www.weforum.org/agenda/technology/feed"
-    topic: "Strategy/Tech"
-    weight: 1.2
-    enabled: true
 
 
   # ---------------------------------------------------------------
