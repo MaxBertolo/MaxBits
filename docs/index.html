@@ -60,58 +60,21 @@
       padding: 8px 4px 22px;
     }
 
-    .brand-left {
-      display: flex;
-      flex-direction: column;
-      gap: 4px;
+    .brand img {
+      height: 36px;
+      width: auto;
+      display: block;
     }
 
-    .brand-pill {
-      display:inline-flex;
-      align-items:center;
-      padding:4px 10px;
-      border-radius:999px;
-      background:#ffffff;
-      box-shadow:0 6px 14px rgba(15,23,42,0.10);
-    }
-
-    body[data-theme="dark"] .brand-pill {
-      background:#020617;
-      box-shadow:0 10px 24px rgba(0,0,0,0.85);
-    }
-
-    .brand-pill span:first-child {
-      font-weight:600;
-      padding-right:4px;
-    }
-    .brand-pill span:last-child {
-      font-weight:600;
-      color:var(--accent-dark);
-    }
-
-    .brand-tagline {
-      font-size:11px;
-      color:var(--text-muted);
-    }
-
-    .header-right {
-      display:flex;
-      flex-direction:column;
-      align-items:flex-end;
-      gap:4px;
-    }
-
-    .view-mode-label {
-      font-size:10px;
-      letter-spacing:0.16em;
-      text-transform:uppercase;
-      color:var(--text-muted);
-    }
-
-    .view-mode-row {
-      display:flex;
-      align-items:center;
-      gap:8px;
+    .tagline {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.16em;
+      padding: 4px 9px;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+      white-space: nowrap;
     }
 
     .theme-toggle {
@@ -143,23 +106,6 @@
     body[data-theme="dark"] .theme-thumb {
       transform: translateX(16px);
       background: #facc15;
-    }
-
-    .exit-btn {
-      margin-top:2px;
-      font-size:11px;
-      padding:3px 10px;
-      border-radius:999px;
-      border:1px solid #fecaca;
-      background:#fee2e2;
-      color:#b91c1c;
-      cursor:pointer;
-    }
-
-    body[data-theme="dark"] .exit-btn {
-      background:#7f1d1d;
-      border-color:#fecaca;
-      color:#fee2e2;
     }
 
     .layout {
@@ -204,13 +150,12 @@
 
     .badge-today {
       font-size: 11px;
-      padding: 4px 10px;
+      padding: 4px 8px;
       border-radius: 999px;
       background: rgba(37,167,255,0.12);
       color: var(--accent-dark);
       border: 1px solid rgba(37,167,255,0.4);
       white-space: nowrap;
-      cursor:pointer;
     }
 
     body[data-theme="dark"] .badge-today {
@@ -238,7 +183,6 @@
       border: none;
     }
 
-    /* Sidebar */
     .sidebar {
       display: flex;
       flex-direction: column;
@@ -266,23 +210,34 @@
     }
 
     .clock-digital {
-      font-size: 20px;
+      font-size: 24px;
       font-weight: 600;
+      letter-spacing: 0.06em;
+      text-align: center;
+      margin-bottom: 4px;
     }
 
-    .clock-sub {
-      margin:2px 0 0;
-      font-size:11px;
-      color:var(--text-muted);
+    .clock-label {
+      margin: 0;
+      font-size: 11px;
+      color: var(--text-muted);
+      text-align: center;
     }
 
-    .weather-temp {
-      margin-top:8px;
-      font-size:12px;
-      color:var(--text-muted);
+    .weather-row {
+      margin-top: 10px;
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      font-size: 11px;
+      color: var(--text-muted);
     }
 
-    /* Previous reports */
+    .weather-temp-strong {
+      font-weight: 600;
+      color: var(--text-main);
+    }
+
     .side-report-list {
       list-style: none;
       padding-left: 0;
@@ -318,7 +273,6 @@
       margin: 0 4px;
     }
 
-    /* Extra reports */
     .extra-report-list {
       list-style: none;
       padding-left: 0;
@@ -374,19 +328,6 @@
       color: #92400e;
     }
 
-    body[data-theme="dark"] .extra-report-pill-ok {
-      background: rgba(34,197,94,0.15);
-      border-color: rgba(34,197,94,0.6);
-      color: #bbf7d0;
-    }
-
-    body[data-theme="dark"] .extra-report-pill-expiring {
-      background: rgba(250,204,21,0.1);
-      border-color: rgba(250,204,21,0.6);
-      color: #facc15;
-    }
-
-    /* Market snapshot */
     .market-list {
       list-style: none;
       padding-left: 0;
@@ -427,9 +368,6 @@
     .market-change.up { color: #16a34a; }
     .market-change.down { color: #dc2626; }
 
-    body[data-theme="dark"] .market-change.up { color: #4ade80; }
-    body[data-theme="dark"] .market-change.down { color: #f97373; }
-
     footer {
       margin-top: 22px;
       font-size: 11px;
@@ -442,222 +380,314 @@
       text-decoration: none;
     }
 
-    body[data-theme="dark"] footer a {
-      color: #60a5fa;
-    }
-
     @media (max-width: 900px) {
       .layout {
         grid-template-columns: minmax(0, 1fr);
       }
     }
+
+    #login-screen {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: radial-gradient(circle at top, #0b1120, #020617);
+      z-index: 9999;
+    }
+
+    #login-card {
+      background: #020617;
+      border-radius: 16px;
+      padding: 24px 22px 20px;
+      width: 320px;
+      box-shadow: 0 20px 50px rgba(0,0,0,0.7);
+      color: #e5e7eb;
+      text-align: left;
+      border: 1px solid #1f2937;
+    }
+
+    #login-card h1 {
+      margin: 0 0 8px 0;
+      font-size: 20px;
+    }
+
+    #login-card p {
+      margin: 0 0 16px 0;
+      font-size: 13px;
+      color: #9ca3af;
+    }
+
+    #login-card label {
+      display: block;
+      font-size: 12px;
+      margin-bottom: 4px;
+      color: #cbd5f5;
+    }
+
+    #login-password {
+      width: 100%;
+      padding: 8px 10px;
+      border-radius: 8px;
+      border: 1px solid #4b5563;
+      background: #020617;
+      color: #e5e7eb;
+      font-size: 13px;
+      margin-bottom: 10px;
+    }
+
+    #login-btn {
+      width: 100%;
+      padding: 8px 10px;
+      border: none;
+      border-radius: 999px;
+      background: #25A7FF;
+      color: #0b1120;
+      font-weight: 600;
+      font-size: 13px;
+      cursor: pointer;
+    }
+
+    #login-error {
+      margin-top: 8px;
+      font-size: 12px;
+      color: #fca5a5;
+      min-height: 16px;
+    }
+
+    #protected-root {
+      display: none;
+    }
   </style>
 </head>
 
 <body>
-  <div class="page">
 
-    <header>
-      <div class="brand-left">
-        <div class="brand-pill">
-          <span>Max</span><span>Bits</span>
-        </div>
-        <div class="brand-tagline">
-          Daily Tech Intelligence · Telco · Media · AI · Cloud · Space · Patents
-        </div>
-      </div>
+  <div id="login-screen">
+    <div id="login-card">
+      <h1>MaxBits</h1>
+      <p>Private daily tech report. Enter access password to continue.</p>
+      <label for="login-password">Access password</label>
+      <input type="password" id="login-password" placeholder="Password" />
+      <button id="login-btn">Enter</button>
+      <div id="login-error"></div>
+    </div>
+  </div>
 
-      <div class="header-right">
-        <div class="view-mode-row">
-          <span class="view-mode-label">View mode</span>
+  <div id="protected-root">
+    <div class="page">
+
+      <header>
+        <div class="brand">
+          <img src="assets/maxbits-logo.svg" alt="MaxBits">
+        </div>
+
+        <div style="display:flex; align-items:center; gap:10px;">
+          <div class="tagline">Daily briefing</div>
           <div class="theme-toggle" id="theme-toggle">
             <div class="theme-thumb"></div>
           </div>
         </div>
-        <button class="exit-btn" id="exit-btn">Exit</button>
-      </div>
-    </header>
+      </header>
 
-    <div class="layout">
-      <!-- MAIN COLUMN -->
-      <main class="main-card">
-        <div class="main-header">
-          <div>
-            <h1 class="main-title">Latest report · 2025-12-11</h1>
-            <p class="main-meta">
-              Curated news + deep-dives designed for busy tech leaders. Updated every morning.
-            </p>
+      <div class="layout">
+        <main class="main-card">
+          <div class="main-header">
+            <div>
+              <h1 class="main-title">Latest report · 2025-12-12</h1>
+              <p class="main-meta">
+                Curated news + deep-dives designed for busy tech leaders. Updated every morning.
+              </p>
+            </div>
+            <span class="badge-today">Today’s edition</span>
           </div>
-          <span class="badge-today" id="today-badge">Today’s edition</span>
-        </div>
 
-        <div class="iframe-wrapper">
-          <iframe src="reports/html/report_2025-12-11.html" loading="lazy"></iframe>
-        </div>
-      </main>
-
-      <!-- SIDEBAR -->
-      <aside class="sidebar">
-
-        <!-- LOCAL TIME & WEATHER -->
-        <section class="side-card">
-          <h2 class="side-title">Local time &amp; weather</h2>
-          <div>
-            <div class="clock-digital" id="clock-digital">--:--:--</div>
-            <p class="clock-sub" id="clock-date"></p>
-            <p class="weather-temp" id="weather-text">Detecting your location…</p>
+          <div class="iframe-wrapper">
+            <iframe src="reports/html/report_2025-12-12.html" loading="lazy"></iframe>
           </div>
-        </section>
+        </main>
 
-        <!-- PREVIOUS REPORTS -->
-        <section class="side-card">
-          <h2 class="side-title">Previous 6 reports</h2>
-          <ul class="side-report-list">
+        <aside class="sidebar">
+
+          <section class="side-card">
+            <h2 class="side-title">Local time & weather</h2>
+            <div class="clock-digital" id="clock-digital">--:--</div>
+            <p class="clock-label" id="clock-label-text"></p>
+            <div class="weather-row" id="weather-row">
+              <span id="weather-location">Detecting location…</span>
+              <span id="weather-temp"></span>
+            </div>
+          </section>
+
+          <section class="side-card">
+            <h2 class="side-title">Previous 6 reports</h2>
+            <ul class="side-report-list">
+
+        <li class="side-report-item">
+          <div class="side-report-main">
+            <span class="side-report-date">2025-12-11</span>
+            <span class="side-report-links"><a href="reports/html/report_2025-12-11.html" target="_blank">HTML</a><span class="dot"> · </span><a href="reports/pdf/report_2025-12-11.pdf" target="_blank">PDF</a></span>
+          </div>
+        </li>
+        
 
         <li class="side-report-item">
           <div class="side-report-main">
             <span class="side-report-date">2025-12-10</span>
-            <span class="side-report-links"><a href="reports/html/report_2025-12-10.html" target="_blank" rel="noopener">HTML</a><span class="dot">·</span><a href="reports/pdf/report_2025-12-10.pdf" target="_blank" rel="noopener">PDF</a></span>
+            <span class="side-report-links"><a href="reports/html/report_2025-12-10.html" target="_blank">HTML</a><span class="dot"> · </span><a href="reports/pdf/report_2025-12-10.pdf" target="_blank">PDF</a></span>
           </div>
         </li>
+        
 
         <li class="side-report-item">
           <div class="side-report-main">
             <span class="side-report-date">2025-12-09</span>
-            <span class="side-report-links"><a href="reports/html/report_2025-12-09.html" target="_blank" rel="noopener">HTML</a><span class="dot">·</span><a href="reports/pdf/report_2025-12-09.pdf" target="_blank" rel="noopener">PDF</a></span>
+            <span class="side-report-links"><a href="reports/html/report_2025-12-09.html" target="_blank">HTML</a><span class="dot"> · </span><a href="reports/pdf/report_2025-12-09.pdf" target="_blank">PDF</a></span>
           </div>
         </li>
+        
 
         <li class="side-report-item">
           <div class="side-report-main">
             <span class="side-report-date">2025-12-08</span>
-            <span class="side-report-links"><a href="reports/html/report_2025-12-08.html" target="_blank" rel="noopener">HTML</a><span class="dot">·</span><a href="reports/pdf/report_2025-12-08.pdf" target="_blank" rel="noopener">PDF</a></span>
+            <span class="side-report-links"><a href="reports/html/report_2025-12-08.html" target="_blank">HTML</a><span class="dot"> · </span><a href="reports/pdf/report_2025-12-08.pdf" target="_blank">PDF</a></span>
           </div>
         </li>
+        
 
         <li class="side-report-item">
           <div class="side-report-main">
             <span class="side-report-date">2025-12-07</span>
-            <span class="side-report-links"><a href="reports/html/report_2025-12-07.html" target="_blank" rel="noopener">HTML</a><span class="dot">·</span><a href="reports/pdf/report_2025-12-07.pdf" target="_blank" rel="noopener">PDF</a></span>
+            <span class="side-report-links"><a href="reports/html/report_2025-12-07.html" target="_blank">HTML</a><span class="dot"> · </span><a href="reports/pdf/report_2025-12-07.pdf" target="_blank">PDF</a></span>
           </div>
         </li>
+        
 
         <li class="side-report-item">
           <div class="side-report-main">
             <span class="side-report-date">2025-12-06</span>
-            <span class="side-report-links"><a href="reports/html/report_2025-12-06.html" target="_blank" rel="noopener">HTML</a><span class="dot">·</span><a href="reports/pdf/report_2025-12-06.pdf" target="_blank" rel="noopener">PDF</a></span>
+            <span class="side-report-links"><a href="reports/html/report_2025-12-06.html" target="_blank">HTML</a><span class="dot"> · </span><a href="reports/pdf/report_2025-12-06.pdf" target="_blank">PDF</a></span>
           </div>
         </li>
+        
+            </ul>
+          </section>
 
-        <li class="side-report-item">
-          <div class="side-report-main">
-            <span class="side-report-date">2025-12-05</span>
-            <span class="side-report-links"><a href="reports/html/report_2025-12-05.html" target="_blank" rel="noopener">HTML</a><span class="dot">·</span><a href="reports/pdf/report_2025-12-05.pdf" target="_blank" rel="noopener">PDF</a></span>
-          </div>
-        </li>
-          </ul>
-        </section>
-
-        <!-- EXTRA REPORTS -->
-        <section class="side-card">
-          <h2 class="side-title">Extra reports (30 days)</h2>
-          <ul class="extra-report-list">
+          <section class="side-card">
+            <h2 class="side-title">Extra reports (30 days)</h2>
+            <ul class="extra-report-list">
 
         <li class="extra-report-item">
-          <a href="https://aiindex.stanford.edu/wp-content/uploads/2025/03/ai-index-report-2025.pdf" target="_blank" rel="noopener" class="extra-report-link">2025 AI Horizon Report – Stanford</a>
+          <a href="https://openknowledge.worldbank.org/server/api/core/bitstreams/dccd113e-3ce6-4442-ac35-bc4a5a205ee2/content" target="_blank" rel="noopener" class="extra-report-link">Digital Progress and Inclusive Growth – World Bank 2025</a>
+          <div class="extra-report-meta">
+            <span class="extra-report-date">2025-12-10</span>
+            <span class="extra-report-pill extra-report-pill-ok">28 days left</span>
+          </div>
+        </li>
+        
+
+        <li class="extra-report-item">
+          <a href="https://ai.stanford.edu/wp-content/uploads/2025/01/stanford_ai_horizon_2025.pdf" target="_blank" rel="noopener" class="extra-report-link">2025 AI Horizon Report – Stanford</a>
           <div class="extra-report-meta">
             <span class="extra-report-date">2025-12-08</span>
-            <span class="extra-report-pill extra-report-pill-ok">27 days left</span>
+            <span class="extra-report-pill extra-report-pill-ok">26 days left</span>
           </div>
         </li>
         
 
         <li class="extra-report-item">
-          <a href="https://www.spacex.com/media/starlink-next-gen-architecture.pdf" target="_blank" rel="noopener" class="extra-report-link">SpaceX Next-Gen Starlink Architecture</a>
+          <a href="https://www.accenture.com/content/dam/accenture/future_cloud_trends_2025.pdf" target="_blank" rel="noopener" class="extra-report-link">Global Cloud Trends 2025 – Accenture</a>
           <div class="extra-report-meta">
-            <span class="extra-report-date">2025-12-03</span>
-            <span class="extra-report-pill extra-report-pill-ok">22 days left</span>
+            <span class="extra-report-date">2025-12-05</span>
+            <span class="extra-report-pill extra-report-pill-ok">23 days left</span>
           </div>
         </li>
         
-          </ul>
-        </section>
 
-        <!-- MARKET SNAPSHOT -->
-        <section class="side-card">
-          <h2 class="side-title">Market snapshot*</h2>
-          <ul class="market-list">
-
-        <li class="market-item">
-          <div class="market-left">Google<span class="market-symbol">GOOGL</span></div>
-          <div><span class="market-price">—</span><span class="market-change"></span></div>
-        </li>
-        <li class="market-item">
-          <div class="market-left">Tesla<span class="market-symbol">TSLA</span></div>
-          <div><span class="market-price">—</span><span class="market-change"></span></div>
-        </li>
-        <li class="market-item">
-          <div class="market-left">Apple<span class="market-symbol">AAPL</span></div>
-          <div><span class="market-price">—</span><span class="market-change"></span></div>
-        </li>
-        <li class="market-item">
-          <div class="market-left">NVIDIA<span class="market-symbol">NVDA</span></div>
-          <div><span class="market-price">—</span><span class="market-change"></span></div>
-        </li>
-        <li class="market-item">
-          <div class="market-left">Meta<span class="market-symbol">META</span></div>
-          <div><span class="market-price">—</span><span class="market-change"></span></div>
-        </li>
-        <li class="market-item">
-          <div class="market-left">Microsoft<span class="market-symbol">MSFT</span></div>
-          <div><span class="market-price">—</span><span class="market-change"></span></div>
-        </li>
-        <li class="market-item">
-          <div class="market-left">Amazon<span class="market-symbol">AMZN</span></div>
-          <div><span class="market-price">—</span><span class="market-change"></span></div>
-        </li>
-        <li class="market-item">
-          <div class="market-left">Bitcoin<span class="market-symbol">BTC</span></div>
-          <div><span class="market-price">—</span><span class="market-change"></span></div>
-        </li>
-        <li class="market-item">
-          <div class="market-left">Ethereum<span class="market-symbol">ETH</span></div>
-          <div><span class="market-price">—</span><span class="market-change"></span></div>
+        <li class="extra-report-item">
+          <a href="https://www.nasa.gov/wp-content/uploads/2025/01/mit_space_systems_2025.pdf" target="_blank" rel="noopener" class="extra-report-link">2025 Space Systems Outlook – MIT</a>
+          <div class="extra-report-meta">
+            <span class="extra-report-date">2025-12-03</span>
+            <span class="extra-report-pill extra-report-pill-ok">21 days left</span>
+          </div>
         </li>
         
-          </ul>
-          <p style="margin:6px 0 0; font-size:10px; color:#9ca3af;">
-            *Static snapshot updated at not available. Values are indicative only.
-          </p>
-        </section>
 
-      </aside>
+        <li class="extra-report-item">
+          <a href="https://research.ibm.com/publications/2025_quantum_outlook.pdf" target="_blank" rel="noopener" class="extra-report-link">Quantum Computing Industry Outlook – IBM Research 2025</a>
+          <div class="extra-report-meta">
+            <span class="extra-report-date">2025-12-02</span>
+            <span class="extra-report-pill extra-report-pill-ok">20 days left</span>
+          </div>
+        </li>
+        
+
+        <li class="extra-report-item">
+          <a href="https://www.oecd.org/ai/policy/oecd_ai_safety_governance_2025.pdf" target="_blank" rel="noopener" class="extra-report-link">AI Safety & Governance – OECD Brief 2025</a>
+          <div class="extra-report-meta">
+            <span class="extra-report-date">2025-12-01</span>
+            <span class="extra-report-pill extra-report-pill-ok">19 days left</span>
+          </div>
+        </li>
+        
+            </ul>
+          </section>
+
+          <section class="side-card">
+            <h2 class="side-title">Market snapshot*</h2>
+
+<ul class="market-list">
+  <li class="market-item">
+    <div class="market-left">No data</div>
+    <div><span class="market-price">n/a</span></div>
+  </li>
+</ul>
+<p style="margin:6px 0 0; font-size:10px; color:#9ca3af;">
+  *No market snapshot available.
+</p>
+
+          </section>
+
+        </aside>
+      </div>
+
+      <footer>
+        MaxBits is generated automatically from curated RSS sources, CEO statements, patents and external reports.
+        Reports are published as static HTML &amp; PDF via GitHub Pages.
+      </footer>
+
     </div>
-
-    <footer>
-      MaxBits is generated automatically from curated RSS sources, CEO statements, patents and external reports.
-      Reports are published as static HTML &amp; PDF via GitHub Pages.
-    </footer>
   </div>
 
   <script>
-    // ---- Password gate (SESSION) ----
+    // LOGIN (password lato client)
     (function() {
-      const PASSWORD = "mix";
-      const KEY = "maxbits-auth";
+      const PASSWORD = "mix";   // <--- PUOI CAMBIARLA QUI
+      const loginScreen = document.getElementById("login-screen");
+      const root = document.getElementById("protected-root");
+      const input = document.getElementById("login-password");
+      const btn = document.getElementById("login-btn");
+      const errorBox = document.getElementById("login-error");
 
-      if (!sessionStorage.getItem(KEY)) {
-        const userInput = prompt("Enter password to access MaxBits:");
-        if (userInput !== PASSWORD) {
-          alert("Incorrect password.");
-          window.location.href = "bye.html";
-          return;
+      function unlock() {
+        const val = (input.value || "").trim();
+        if (val === PASSWORD) {
+          loginScreen.style.display = "none";
+          root.style.display = "block";
+        } else {
+          errorBox.textContent = "Wrong password. Please try again.";
         }
-        sessionStorage.setItem(KEY, "1");
       }
-    })();
 
-    // ---- View mode (light/dark) ----
+      btn.addEventListener("click", unlock);
+      input.addEventListener("keydown", function(ev) {
+        if (ev.key === "Enter") unlock();
+      });
+    })();
+  </script>
+
+  <script>
+    // THEME TOGGLE
     (function() {
       const key = "maxbits_theme";
       const root = document.body;
@@ -688,87 +718,76 @@
       }
     })();
 
-    // ---- Today’s edition = back to home ----
-    (function() {
-      const btn = document.getElementById("today-badge");
-      if (!btn) return;
-      btn.addEventListener("click", function() {
-        // Torna sempre alla index (senza ripassare dalla password)
-        window.location.href = "index.html";
-      });
-    })();
-
-    // ---- Exit button ----
-    (function() {
-      const btn = document.getElementById("exit-btn");
-      if (!btn) return;
-      btn.addEventListener("click", function() {
-        try {
-          window.close();
-        } catch(e) {}
-        // se window.close non chiude la tab, vai a bye.html
-        window.location.href = "bye.html";
-      });
-    })();
-
-    // ---- Digital clock ----
+    // CLOCK DIGITALE
     function updateClock() {
       const now = new Date();
-      const timeEl = document.getElementById("clock-digital");
-      const dateEl = document.getElementById("clock-date");
-      if (timeEl) {
-        timeEl.textContent = now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
-      }
-      if (dateEl) {
-        dateEl.textContent = now.toLocaleDateString([], { weekday: "short", day: "2-digit", month: "short", year: "numeric" });
+      const hh = String(now.getHours()).padStart(2, "0");
+      const mm = String(now.getMinutes()).padStart(2, "0");
+      const ss = String(now.getSeconds()).padStart(2, "0");
+
+      const clockMain = document.getElementById("clock-digital");
+      const clockLabel = document.getElementById("clock-label-text");
+      if (clockMain) clockMain.textContent = hh + ":" + mm + ":" + ss;
+      if (clockLabel) {
+        clockLabel.textContent = now.toLocaleDateString(undefined, {
+          weekday: "short",
+          year: "numeric",
+          month: "short",
+          day: "numeric"
+        });
       }
     }
     setInterval(updateClock, 1000);
     updateClock();
 
-    // ---- Weather via browser geolocation + Open-Meteo ----
-    (function() {
-      const el = document.getElementById("weather-text");
-      if (!el) return;
-
-      function show(msg) {
-        el.textContent = msg;
-      }
+    // METEO (Open-Meteo)
+    async function loadWeather() {
+      const locEl = document.getElementById("weather-location");
+      const tempEl = document.getElementById("weather-temp");
+      if (!locEl || !tempEl) return;
 
       if (!navigator.geolocation) {
-        show("Location not available.");
+        locEl.textContent = "Location not available";
+        tempEl.textContent = "";
         return;
       }
 
-      navigator.geolocation.getCurrentPosition(
-        function(pos) {
-          const lat = pos.coords.latitude.toFixed(3);
-          const lon = pos.coords.longitude.toFixed(3);
-          const url = "https://api.open-meteo.com/v1/forecast?latitude=" + lat +
-                      "&longitude=" + lon + "&current=temperature_2m&timezone=auto";
+      function setError(msg) {
+        locEl.textContent = msg;
+        tempEl.textContent = "";
+      }
 
-          fetch(url)
-            .then(r => r.json())
-            .then(data => {
-              try {
-                const t = data.current.temperature_2m;
-                if (typeof t === "number") {
-                  show("Your location  ·  " + t.toFixed(1) + "°C");
-                } else {
-                  show("Your location  ·  temperature unavailable");
-                }
-              } catch (e) {
-                show("Weather unavailable.");
-              }
-            })
-            .catch(() => show("Weather unavailable."));
-        },
-        function() {
-          show("Location not shared.");
-        },
-        { timeout: 5000 }
-      );
-    })();
+      navigator.geolocation.getCurrentPosition(async (pos) => {
+        try {
+          const lat = pos.coords.latitude;
+          const lon = pos.coords.longitude;
+
+          const url = "https://api.open-meteo.com/v1/forecast?latitude="
+                      + encodeURIComponent(lat)
+                      + "&longitude=" + encodeURIComponent(lon)
+                      + "&current_weather=true";
+
+          const resp = await fetch(url);
+          if (!resp.ok) throw new Error("HTTP " + resp.status);
+          const data = await resp.json();
+          const cw = data.current_weather;
+          if (!cw) {
+            setError("Weather unavailable");
+            return;
+          }
+
+          const t = cw.temperature;
+          locEl.textContent = "Your location";
+          tempEl.innerHTML = "<span class='weather-temp-strong'>" + t.toFixed(1) + "°C</span>";
+        } catch (e) {
+          console.warn("[Weather] failed:", e);
+          setError("Weather unavailable");
+        }
+      }, () => {
+        setError("Enable location to see weather");
+      }, { timeout: 8000 });
+    }
+    loadWeather();
   </script>
 
 </body>
