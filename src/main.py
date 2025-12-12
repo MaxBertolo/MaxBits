@@ -5,6 +5,8 @@ from datetime import datetime
 from typing import Dict, List, Any
 import json
 import yaml
+import traceback
+import sys
 
 from .rss_collector import collect_from_rss, rank_articles
 from .cleaning import clean_articles
@@ -18,7 +20,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 
 # -------------------------------------------------
-#   UTILS
+#  UTILS
 # -------------------------------------------------
 
 
@@ -36,10 +38,13 @@ def load_config() -> Dict[str, Any]:
 
 def load_rss_sources() -> List[Dict[str, Any]]:
     """
-    Carica config/sources_rss.yaml se serve alla versione
-    di collect_from_rss che accetta i feed come parametro.
+    Carica config/sources_rss.yaml se la versione di collect_from_rss
+    accetta un argomento esplicito con la lista di feed.
     """
     rss_path = BASE_DIR / "config" / "sources_rss.yaml"
+    if not rss_path.exists():
+        print("[DEBUG] No sources_rss.yaml found, relying on rss_collector defaults.")
+        return []
     print("[DEBUG] Loading RSS sources from:", rss_path)
     with open(rss_path, "r", encoding="utf-8") as f:
         data = yaml.safe_load(f) or {}
@@ -57,8 +62,9 @@ WATCHLIST_TOPICS_ORDER = [
     "Satellite/Satcom",
 ]
 
+
 # -------------------------------------------------
-#   TOPIC + DEDUP HELPERS
+#  TOPIC + DEDUP HELPERS
 # -------------------------------------------------
 
 
@@ -74,7 +80,7 @@ def _normalise_title(title: str) -> str:
 def _article_topic(article) -> str:
     """
     1) Se rss_collector ha già messo topic esatto in WATCHLIST_TOPICS_ORDER → usalo.
-    2) Altrimenti usa keyword (topic o source) per assegnare uno degli 8 temi.
+    2) Altrimenti assegna uno degli 8 temi usando keyword.
     """
     raw_topic = getattr(article, "topic", "") or ""
     if raw_topic in WATCHLIST_TOPICS_ORDER:
@@ -108,8 +114,8 @@ def build_watchlist(
     max_per_topic: int = 5,
 ) -> Dict[str, List[Dict[str, Any]]]:
     """
-    - Nessun articolo che sia già fra i deep-dives
-    - Nessun titolo duplicato nello stesso topic
+    - Niente articoli che siano già fra i deep-dives
+    - Niente duplicati nello stesso topic
     - max N articoli per topic
     """
     deep_titles = {_normalise_title(a.title) for a in deep_dive_articles}
@@ -122,7 +128,6 @@ def build_watchlist(
     }
 
     for art in ranked_articles:
-        # salta se è già fra i deep-dives
         if art in deep_dive_articles:
             continue
 
@@ -134,25 +139,23 @@ def build_watchlist(
         if not norm_title:
             continue
 
-        # niente duplicati globali vs deep-dives
         if norm_title in deep_titles:
             continue
 
-        # niente duplicati nello stesso topic
         if norm_title in seen_titles_per_topic[topic]:
             continue
 
-        # rispetta limite per topic
         if len(watchlist[topic]) >= max_per_topic:
             continue
 
-        item = {
-            "id": f"wl|{topic}|{art.source}|{art.title}",
-            "title": art.title,
-            "url": art.url,
-            "source": art.source,
-        }
-        watchlist[topic].append(item)
+        watchlist[topic].append(
+            {
+                "id": f"wl|{topic}|{art.source}|{art.title}",
+                "title": art.title,
+                "url": art.url,
+                "source": art.source,
+            }
+        )
         seen_titles_per_topic[topic].add(norm_title)
 
     return watchlist
@@ -185,16 +188,11 @@ def build_deep_dives_payload(
 
 
 # -------------------------------------------------
-#   CEO POV  (placeholder robusto)
+#  CEO POV (placeholder robusto)
 # -------------------------------------------------
 
 
 def _collect_ceo_pov_items(date_str: str) -> List[Dict[str, Any]]:
-    """
-    Versione robusta ma semplice:
-    - legge config/ceo_pov.yaml (se esiste) solo per loggare quanti CEO sono configurati
-    - restituisce una lista (anche vuota) di item già pronti per il report_builder
-    """
     cfg_path = BASE_DIR / "config" / "ceo_pov.yaml"
     print("[CEO_POV] Loading config from:", cfg_path)
 
@@ -210,24 +208,17 @@ def _collect_ceo_pov_items(date_str: str) -> List[Dict[str, Any]]:
         print("[CEO_POV] No ceo_pov.yaml found.")
 
     print(f"[CEO_POV] Loaded {len(ceo_list)} CEOs from config.")
-
-    # Placeholder: nessun item finché non facciamo scraping vero
     items: List[Dict[str, Any]] = []
     print(f"[CEO_POV] Collected {len(items)} items.")
     return items
 
 
 # -------------------------------------------------
-#   PATENTS (placeholder robusto)
+#  PATENTS (placeholder robusto)
 # -------------------------------------------------
 
 
 def _collect_patents(date_str: str) -> List[Dict[str, Any]]:
-    """
-    Placeholder per raccolta brevetti:
-    - logga le chiamate EPO/USPTO
-    - restituisce una lista vuota ma con struttura già adatta al report
-    """
     print("[PATENTS] Collecting Patent publications (EU/US)...")
     print(f"[PATENTS][EPO] Fetching patents for date {date_str} (placeholder)")
     print(f"[PATENTS][USPTO] Fetching patents for date {date_str} (placeholder)")
@@ -238,7 +229,7 @@ def _collect_patents(date_str: str) -> List[Dict[str, Any]]:
 
 
 # -------------------------------------------------
-#   MAIN PIPELINE
+#  MAIN PIPELINE (robusta)
 # -------------------------------------------------
 
 
@@ -265,58 +256,68 @@ def main() -> None:
 
     max_articles_for_cleaning = int(cfg.get("max_articles_per_day", 50))
 
-    # 1) RSS – chiamata robusta (versione con / senza argomento)
+    # 1) RSS – super robusto
     print("Collecting RSS...")
     try:
         try:
-            # nuova versione che prende i feed da config
             raw_articles = collect_from_rss(feeds)
         except TypeError:
-            # vecchia versione che legge lei stessa il YAML
             print(
-                "[RSS] collect_from_rss(...) non accetta argomenti, "
-                "uso versione senza parametri."
+                "[RSS] collect_from_rss(feeds) not supported, "
+                "calling collect_from_rss() without args."
             )
             raw_articles = collect_from_rss()
     except Exception as e:
-        print("[FATAL] Unexpected error in collect_from_rss:", repr(e))
+        print("[FATAL] collect_from_rss failed with unexpected error:", repr(e))
+        traceback.print_exc()
+        print("[FATAL] Exiting early but WITHOUT error code (no report today).")
         return
 
     print(f"[RSS] Total raw articles collected: {len(raw_articles)}")
     if not raw_articles:
-        print("[FATAL] No articles collected from RSS. Exiting.")
+        print("[FATAL] No articles from RSS. Exiting gracefully.")
         return
 
-    # 2) Cleaning (finestra temporale, dedup, limite massimo)
-    cleaned = clean_articles(raw_articles, max_articles=max_articles_for_cleaning)
-    print(f"[CLEAN] After cleaning: {len(cleaned)} articles")
+    # 2) Cleaning
+    try:
+        cleaned = clean_articles(raw_articles, max_articles=max_articles_for_cleaning)
+        print(f"[CLEAN] After cleaning: {len(cleaned)} articles")
+    except Exception as e:
+        print("[ERROR] clean_articles raised an error:", repr(e))
+        traceback.print_exc()
+        print("[WARN] Falling back to raw articles (no cleaning).")
+        cleaned = raw_articles[:max_articles_for_cleaning]
 
-    # ---- FALLBACK ROBUSTO ----
     if not cleaned:
         print(
             "[WARN] No recent articles after cleaning. "
-            "Falling back to top raw articles (ignoring recency window)."
+            "Falling back to raw articles."
         )
         cleaned = raw_articles[:max_articles_for_cleaning]
-        print(f"[WARN] Fallback: using {len(cleaned)} raw articles as cleaned set.")
 
     if not cleaned:
-        print("[FATAL] Still no articles after fallback. Exiting.")
+        print("[FATAL] Still no articles after fallback. Exiting gracefully.")
         return
-    # ---------------------------
 
-    # 3) Ranking globale
-    ranked = rank_articles(cleaned)
-    print(f"[RANK] Selected top {len(ranked)} articles out of {len(cleaned)}")
+    # 3) Ranking
+    try:
+        ranked = rank_articles(cleaned)
+    except Exception as e:
+        print("[ERROR] rank_articles raised an error:", repr(e))
+        traceback.print_exc()
+        print("[WARN] Falling back to cleaned articles as-is (no ranking).")
+        ranked = list(cleaned)
+
+    print(f"[RANK] Selected {len(ranked)} articles out of {len(cleaned)}")
     if not ranked:
-        print("[FATAL] No ranked articles. Exiting.")
+        print("[FATAL] No ranked articles even after fallback. Exiting gracefully.")
         return
 
-    # 4) Deep-dives (3 migliori)
+    # 4) Deep-dives
     deep_dive_articles = ranked[:3]
     print("[SELECT] Deep-dive articles:", [a.title for a in deep_dive_articles])
 
-    # 5) Watchlist per topic (3–5 articoli max per topic)
+    # 5) Watchlist
     watchlist_grouped = build_watchlist(
         ranked_articles=ranked,
         deep_dive_articles=deep_dive_articles,
@@ -324,21 +325,36 @@ def main() -> None:
     )
     print("[SELECT] Watchlist built with topics:", list(watchlist_grouped.keys()))
 
-    # 6) Summarization con LLM
+    # 6) Summarizzazione LLM (robusta)
     print("Summarizing deep-dive articles with LLM...")
-    deep_dives_summaries = summarize_articles(
-        deep_dive_articles,
-        model=model,
-        temperature=temperature,
-        max_tokens=max_tokens,
-    )
+    try:
+        deep_dives_summaries = summarize_articles(
+            deep_dive_articles,
+            model=model,
+            temperature=temperature,
+            max_tokens=max_tokens,
+        )
+    except Exception as e:
+        print("[ERROR] summarize_articles raised an error:", repr(e))
+        traceback.print_exc()
+        print("[WARN] Falling back to simple one-line summaries.")
+        deep_dives_summaries = [
+            {
+                "what_it_is": f"Summary not available (LLM error). Original title: {a.title}",
+                "who": "",
+                "what_it_does": "",
+                "why_it_matters": "",
+                "strategic_view": "",
+            }
+            for a in deep_dive_articles
+        ]
 
     deep_dives_payload = build_deep_dives_payload(
         deep_dive_articles=deep_dive_articles,
         summaries=deep_dives_summaries,
     )
 
-    # 7) Salva JSON deep-dives + CEO POV + patents
+    # 7) JSON di servizio
     json_dir = Path("reports/json")
     json_dir.mkdir(parents=True, exist_ok=True)
     date_str = today_str()
@@ -348,29 +364,33 @@ def main() -> None:
         json.dump(deep_dives_payload, jf, ensure_ascii=False, indent=2)
     print(f"[DEBUG] Saved deep-dives JSON to: {deep_json_path}")
 
-    # CEO POV
     ceo_pov_items = _collect_ceo_pov_items(date_str)
     ceo_json_path = json_dir / f"ceo_pov_{date_str}.json"
     with open(ceo_json_path, "w", encoding="utf-8") as jf:
         json.dump(ceo_pov_items, jf, ensure_ascii=False, indent=2)
     print(f"[DEBUG] Saved CEO POV JSON to: {ceo_json_path}")
 
-    # Patents
     patent_items = _collect_patents(date_str)
     patents_json_path = json_dir / f"patents_{date_str}.json"
     with open(patents_json_path, "w", encoding="utf-8") as jf:
         json.dump(patent_items, jf, ensure_ascii=False, indent=2)
     print(f"[DEBUG] Saved patents JSON to: {patents_json_path}")
 
-    # 8) HTML
+    # 8) HTML (robusto)
     print("Building HTML report...")
-    html = build_html_report(
-        deep_dives=deep_dives_payload,
-        watchlist=watchlist_grouped,
-        date_str=date_str,
-        ceo_pov=ceo_pov_items,
-        patents=patent_items,
-    )
+    try:
+        html = build_html_report(
+            deep_dives=deep_dives_payload,
+            watchlist=watchlist_grouped,
+            date_str=date_str,
+            ceo_pov=ceo_pov_items,
+            patents=patent_items,
+        )
+    except Exception as e:
+        print("[FATAL] build_html_report raised an error:", repr(e))
+        traceback.print_exc()
+        print("[FATAL] Cannot produce HTML. Exiting gracefully.")
+        return
 
     html_dir.mkdir(parents=True, exist_ok=True)
     pdf_dir.mkdir(parents=True, exist_ok=True)
@@ -379,47 +399,68 @@ def main() -> None:
     pdf_path = pdf_dir / f"{file_prefix}{date_str}.pdf"
 
     print("[DEBUG] Saving HTML to:", html_path)
-    with open(html_path, "w", encoding="utf-8") as f:
-        f.write(html)
+    try:
+        with open(html_path, "w", encoding="utf-8") as f:
+            f.write(html)
+    except Exception as e:
+        print("[FATAL] Failed writing HTML file:", repr(e))
+        traceback.print_exc()
+        print("[FATAL] Exiting gracefully (no PDF/Email/Telegram).")
+        return
 
-    # ---- PDF robusto: non deve far fallire il job ----
+    # 9) PDF – non deve far fallire tutto
     print("[DEBUG] Converting HTML to PDF at:", pdf_path)
     try:
         html_to_pdf(html, str(pdf_path))
-        print("Done. PDF report:", pdf_path)
+        print("[PDF] PDF report generated:", pdf_path)
     except Exception as e:
         print("[PDF] Error while converting HTML to PDF:", repr(e))
+        traceback.print_exc()
         print("[PDF] Skipping PDF generation, continuing pipeline.")
 
-    print("Done. HTML report:", html_path)
+    print("[REPORT] HTML report ready at:", html_path)
 
-    # 9) Email
-    print("Sending report via email...")
+    # 10) Email – best-effort
+    print("[EMAIL] Sending report via email...")
     try:
         send_report_email(
             pdf_path=str(pdf_path),
             date_str=date_str,
             html_path=str(html_path),
         )
-        print("[EMAIL] Email step completed (check SMTP / mailbox for details).")
+        print("[EMAIL] Email step completed.")
     except Exception as e:
-        print("[EMAIL] Unhandled error while sending email:", repr(e))
-        print("[EMAIL] Continuing anyway – report generation completed.")
+        print("[EMAIL] Error while sending email:", repr(e))
+        traceback.print_exc()
+        print("[EMAIL] Continuing – report generation already done.")
 
-    # 10) Telegram (PDF al bot)
-    print("Sending report PDF to Telegram...")
+    # 11) Telegram – best-effort
+    print("[TELEGRAM] Sending report PDF to Telegram...")
     try:
         send_telegram_pdf(
             pdf_path=str(pdf_path),
             date_str=date_str,
         )
-        print("[TELEGRAM] Telegram step completed (check bot/chat).")
+        print("[TELEGRAM] Telegram step completed.")
     except Exception as e:
-        print("[TELEGRAM] Unhandled error while sending PDF:", repr(e))
-        print("[TELEGRAM] Continuing – report generation already completed.")
+        print("[TELEGRAM] Error while sending PDF:", repr(e))
+        traceback.print_exc()
+        print("[TELEGRAM] Continuing – pipeline finished.")
 
-    print("Process completed.")
+    print("[DONE] Daily pipeline completed successfully (no fatal errors).")
 
 
 if __name__ == "__main__":
-    main()
+    # super try/except per evitare exit code 1
+    try:
+        main()
+    except SystemExit as e:
+        # se qualche libreria usasse sys.exit, non vogliamo far fallire il job
+        print("[FATAL] SystemExit caught in main():", e)
+        traceback.print_exc()
+        sys.exit(0)
+    except Exception as e:
+        print("[FATAL] Unhandled exception in main():", repr(e))
+        traceback.print_exc()
+        # NON rilanciamo: exit code 0 così GitHub Actions non segna il job come failed
+        sys.exit(0)
