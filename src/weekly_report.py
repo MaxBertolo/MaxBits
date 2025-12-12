@@ -1,188 +1,391 @@
-# src/weekly_report.py
-
 from __future__ import annotations
 
-from pathlib import Path
-from typing import Dict, List
 import json
-from datetime import datetime
-
-from .models import RawArticle
-from .summarizer import summarize_article
-from .weekly_report_builder import build_weekly_html_report
-from .pdf_export import html_to_pdf
+import re
+from dataclasses import dataclass
+from datetime import datetime, timedelta
+from pathlib import Path
+from typing import Any, Dict, List, Optional
 
 
 BASE_DIR = Path(__file__).resolve().parent.parent
-DATA_DIR = BASE_DIR / "data"
-WEEKLY_JSON = DATA_DIR / "weekly_votes.json"
+JSON_DIR = BASE_DIR / "reports" / "json"
+DOCS_DIR = BASE_DIR / "docs"
+WEEKLY_DIR = DOCS_DIR / "weekly"
 
 
-def _load_weekly_votes() -> Dict[str, Dict]:
-    """
-    Legge data/weekly_votes.json che contiene tutti gli articoli flaggati
-    durante la settimana, con struttura tipo:
-
-    {
-      "some-id": {
-        "id": "...",
-        "title": "...",
-        "url": "...",
-        "source": "...",
-        "topic": "...",
-        "votes": 5,
-        "content": "...",
-        "what_it_is": "... (opzionale)",
-        "who": "...",
-        "what_it_does": "...",
-        "why_it_matters": "...",
-        "strategic_view": "..."
-      },
-      ...
-    }
-    """
-    if not WEEKLY_JSON.exists():
-        print(f"[WEEKLY] No weekly_votes.json found at {WEEKLY_JSON}")
-        return {}
-    with open(WEEKLY_JSON, "r", encoding="utf-8") as f:
-        data = json.load(f)
-    if not isinstance(data, dict):
-        print("[WEEKLY] weekly_votes.json is not a dict, ignoring.")
-        return {}
-    return data
+@dataclass
+class WeeklyItem:
+    date: str
+    title: str
+    url: str
+    source: Optional[str] = None
+    topic: Optional[str] = None
+    why: Optional[str] = None
 
 
-def _select_top15(votes_dict: Dict[str, Dict]) -> List[Dict]:
-    """
-    Prende tutti i candidati dal JSON, li ordina per numero di voti
-    e ritorna i migliori 15 (o meno se ce ne sono meno).
-    """
-    articles: List[Dict] = []
-    for art_id, payload in votes_dict.items():
-        v = payload.get("votes", 0)
-        try:
-            v = int(v)
-        except Exception:
-            v = 0
-
-        payload["votes"] = v
-        payload["id"] = payload.get("id", art_id)
-        articles.append(payload)
-
-    # ordina per votes desc, poi per titolo
-    articles.sort(key=lambda a: (-a["votes"], a.get("title", "")))
-    top_15 = articles[:15]
-
-    print(f"[WEEKLY] Selected {len(top_15)} articles for weekly (top by votes).")
-    return top_15
-
-
-def _raw_article_from_candidate(c: Dict) -> RawArticle:
-    """
-    Costruisce un RawArticle minimo per poter usare summarize_article.
-    """
-    published = datetime.now()
+def _parse_deep_dives_json(path: Path, date_str: str) -> List[WeeklyItem]:
+    """Parsa un singolo JSON di deep-dives in modo super robusto."""
     try:
-        if "published_at" in c:
-            published = datetime.fromisoformat(c["published_at"])
-    except Exception:
-        pass
+        raw = json.loads(path.read_text(encoding="utf-8"))
+    except Exception as e:
+        print(f"[WEEKLY] Cannot parse JSON {path}: {e!r}")
+        return []
 
-    return RawArticle(
-        title=c.get("title", ""),
-        url=c.get("url", ""),
-        source=c.get("source", ""),
-        content=c.get("content", "") or (c.get("title", "") + " " + c.get("url", "")),
-        published_at=published,
-    )
+    # flessibile: list diretta, o dizionari con chiavi diverse
+    if isinstance(raw, list):
+        articles = raw
+    elif isinstance(raw, dict):
+        articles = (
+            raw.get("deep_dives")
+            or raw.get("items")
+            or raw.get("articles")
+            or []
+        )
+    else:
+        print(f"[WEEKLY] Unexpected JSON structure in {path}")
+        return []
+
+    if not isinstance(articles, list):
+        print(f"[WEEKLY] 'articles' in {path} is not a list, skipping")
+        return []
+
+    out: List[WeeklyItem] = []
+    for a in articles:
+        if not isinstance(a, dict):
+            continue
+
+        title = str(a.get("title") or "").strip()
+        url = (
+            a.get("url")
+            or a.get("link")
+            or a.get("source_url")
+            or ""
+        )
+        url = str(url).strip()
+
+        if not title or not url:
+            continue
+
+        source = str(a.get("source") or a.get("site") or "").strip() or None
+        topic = (
+            a.get("topic")
+            or a.get("category")
+            or a.get("section")
+        )
+        topic = str(topic).strip() if topic else None
+
+        why = (
+            a.get("why_it_matters")
+            or a.get("why")
+            or a.get("summary")
+        )
+        why = str(why).strip() if why else None
+
+        out.append(
+            WeeklyItem(
+                date=date_str,
+                title=title,
+                url=url,
+                source=source,
+                topic=topic,
+                why=why,
+            )
+        )
+
+    print(f"[WEEKLY] Parsed {len(out)} items from {path.name}")
+    return out
 
 
-def _ensure_summary_for_candidate(c: Dict) -> Dict:
-    """
-    Garantisce che il candidato abbia tutti i campi:
-      what_it_is, who, what_it_does, why_it_matters, strategic_view
+def _load_last_7_days_deep_dives() -> List[WeeklyItem]:
+    """Carica i deep-dives degli ultimi 7 giorni (se presenti)."""
+    if not JSON_DIR.exists():
+        print(f"[WEEKLY] JSON directory not found: {JSON_DIR}")
+        return []
 
-    Se mancano o sono troppo corti → chiama il summarizer (Gemini + fallback).
-    """
-    needed_keys = [
-        "what_it_is",
-        "who",
-        "what_it_does",
-        "why_it_matters",
-        "strategic_view",
-    ]
+    pattern = re.compile(r"deep_dives_(\d{4}-\d{2}-\d{2})\.json$")
+    files: List[tuple[str, Path]] = []
 
-    already_ok = True
-    for k in needed_keys:
-        v = c.get(k, "") or ""
-        if len(v.strip()) < 20:   # se corto/vuoto → da arricchire
-            already_ok = False
-            break
+    for f in JSON_DIR.glob("deep_dives_*.json"):
+        m = pattern.match(f.name)
+        if not m:
+            continue
+        date_str = m.group(1)
+        files.append((date_str, f))
 
-    if already_ok:
-        return c
+    if not files:
+        print("[WEEKLY] No deep_dives_*.json files found.")
+        return []
 
-    print(f"[WEEKLY] Enriching article via LLM: {c.get('title','')}")
-    ra = _raw_article_from_candidate(c)
+    # ordino per data discendente
+    files.sort(key=lambda x: x[0], reverse=True)
 
-    summary = summarize_article(
-        ra,
-        model="",          # usa default del summarizer (GEMINI_MODEL)
-        temperature=0.3,
-        max_tokens=900,
-        language="en",
-    )
+    today = datetime.utcnow().date()
+    cutoff = today - timedelta(days=7)
 
-    for k in needed_keys:
-        if summary.get(k):
-            c[k] = summary[k]
+    all_items: List[WeeklyItem] = []
+    for date_str, path in files:
+        try:
+            d = datetime.strptime(date_str, "%Y-%m-%d").date()
+        except Exception:
+            continue
 
-    return c
+        if d < cutoff:
+            # fermiamoci quando usciamo dalla finestra 7 giorni
+            continue
+
+        items = _parse_deep_dives_json(path, date_str)
+        all_items.extend(items)
+
+    if not all_items:
+        print("[WEEKLY] No deep-dive items collected.")
+        return []
+
+    # dedup per URL (mantieni il più recente)
+    dedup: Dict[str, WeeklyItem] = {}
+    for item in sorted(all_items, key=lambda i: i.date, reverse=True):
+        if item.url not in dedup:
+            dedup[item.url] = item
+
+    final_list = list(dedup.values())
+    print(f"[WEEKLY] Total unique items for weekly: {len(final_list)}")
+    return final_list
 
 
-def build_weekly_report():
-    """
-    Pipeline weekly:
-      - legge i voti da data/weekly_votes.json
-      - seleziona le top 15 per numero di voti
-      - arricchisce ogni articolo con i 5 campi (se mancano)
-      - genera HTML + PDF in reports/weekly/html|pdf
-    """
-    votes_dict = _load_weekly_votes()
-    if not votes_dict:
-        print("[WEEKLY] No votes found – skipping weekly generation.")
-        return
+def _group_by_topic(items: List[WeeklyItem]) -> Dict[str, List[WeeklyItem]]:
+    groups: Dict[str, List[WeeklyItem]] = {}
+    for it in items:
+        topic = it.topic or "General"
+        groups.setdefault(topic, []).append(it)
 
-    top_articles = _select_top15(votes_dict)
+    # ordino gli articoli per data decrescente dentro ogni topic
+    for topic in groups:
+        groups[topic].sort(key=lambda i: i.date, reverse=True)
 
-    enriched: List[Dict] = []
-    for c in top_articles:
-        enriched.append(_ensure_summary_for_candidate(c))
+    return dict(sorted(groups.items(), key=lambda kv: kv[0].lower()))
 
-    today = datetime.now()
-    date_str = today.strftime("%Y-%m-%d")
-    week_label = f"Week of {date_str}"
 
-    html = build_weekly_html_report(
-        articles=enriched,
-        week_label=week_label,
-    )
+def _build_html(items: List[WeeklyItem]) -> str:
+    today = datetime.utcnow().date().isoformat()
 
-    weekly_html_dir = BASE_DIR / "reports" / "weekly" / "html"
-    weekly_pdf_dir = BASE_DIR / "reports" / "weekly" / "pdf"
-    weekly_html_dir.mkdir(parents=True, exist_ok=True)
-    weekly_pdf_dir.mkdir(parents=True, exist_ok=True)
+    if not items:
+        body_html = """
+        <p style="font-size:14px; color:#6b7280;">
+          No deep-dive articles collected in the last 7 days.
+        </p>
+        """
+    else:
+        groups = _group_by_topic(items)
+        blocks: List[str] = []
+        for topic, group_items in groups.items():
+            rows: List[str] = []
+            for it in group_items:
+                badge = (
+                    f'<span class="tag">{it.source}</span>'
+                    if it.source
+                    else ""
+                )
+                why_html = (
+                    f'<p class="why">{it.why}</p>'
+                    if it.why
+                    else ""
+                )
+                rows.append(
+                    f"""
+            <article class="item">
+              <h3>
+                <a href="{it.url}" target="_blank" rel="noopener">
+                  {it.title}
+                </a>
+              </h3>
+              <div class="meta">
+                <span class="date">{it.date}</span>
+                {badge}
+              </div>
+              {why_html}
+            </article>
+            """
+                )
 
-    html_path = weekly_html_dir / f"weekly_{date_str}.html"
-    pdf_path = weekly_pdf_dir / f"weekly_{date_str}.pdf"
+            blocks.append(
+                f"""
+        <section class="topic">
+          <h2>{topic}</h2>
+          {''.join(rows)}
+        </section>
+        """
+            )
 
-    with open(html_path, "w", encoding="utf-8") as f:
-        f.write(html)
-    html_to_pdf(html, str(pdf_path))
+        body_html = "\n".join(blocks)
 
-    print(f"[WEEKLY] Weekly HTML: {html_path}")
-    print(f"[WEEKLY] Weekly PDF: {pdf_path}")
+    template = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>MaxBits · Weekly Selection</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    :root {{
+      --bg: #020617;
+      --card-bg: #020617;
+      --accent: #25A7FF;
+      --accent-soft: rgba(37,167,255,0.12);
+      --text-main: #f9fafb;
+      --text-muted: #9ca3af;
+      --border: #1f2937;
+    }}
+    * {{ box-sizing: border-box; }}
+    body {{
+      margin: 0;
+      padding: 24px 16px 40px;
+      background: radial-gradient(circle at top left, #020617, #020617);
+      font-family: -apple-system, BlinkMacSystemFont, system-ui, "Segoe UI", sans-serif;
+      color: var(--text-main);
+    }}
+    .page {{
+      max-width: 900px;
+      margin: 0 auto;
+    }}
+    header {{
+      display:flex;
+      justify-content: space-between;
+      align-items: center;
+      gap:16px;
+      margin-bottom: 18px;
+    }}
+    .title-block h1 {{
+      margin: 0;
+      font-size: 22px;
+      letter-spacing: 0.02em;
+    }}
+    .subtitle {{
+      margin: 3px 0 0;
+      font-size: 13px;
+      color: var(--text-muted);
+    }}
+    .badge-date {{
+      font-size: 11px;
+      padding: 4px 9px;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+    }}
+    .back-btn {{
+      border-radius: 999px;
+      padding: 6px 14px;
+      border: 1px solid var(--border);
+      background: var(--accent-soft);
+      color: #e5f2ff;
+      font-size: 12px;
+      cursor: pointer;
+    }}
+    .back-btn:hover {{
+      background: rgba(37,167,255,0.25);
+    }}
+    main {{
+      background: radial-gradient(circle at top left, rgba(37,167,255,0.12), #020617);
+      border-radius: 18px;
+      padding: 20px 18px 24px;
+      border: 1px solid var(--border);
+      box-shadow: 0 20px 40px rgba(0,0,0,0.8);
+    }}
+    .topic {{
+      margin-bottom: 20px;
+    }}
+    .topic h2 {{
+      margin: 0 0 8px;
+      font-size: 15px;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      color: var(--text-muted);
+    }}
+    .item {{
+      padding: 10px 0;
+      border-top: 1px solid rgba(148,163,184,0.35);
+    }}
+    .item:first-of-type {{
+      border-top: none;
+    }}
+    .item h3 {{
+      margin: 0 0 4px;
+      font-size: 15px;
+    }}
+    .item a {{
+      color: #bfdbfe;
+      text-decoration: none;
+    }}
+    .item a:hover {{
+      text-decoration: underline;
+    }}
+    .meta {{
+      font-size: 11px;
+      color: var(--text-muted);
+      display:flex;
+      align-items:center;
+      gap:8px;
+      margin-bottom: 4px;
+    }}
+    .tag {{
+      padding: 1px 7px;
+      border-radius: 999px;
+      border: 1px solid rgba(148,163,184,0.7);
+      font-size: 10px;
+    }}
+    .why {{
+      margin: 0;
+      font-size: 13px;
+      color: #e5e7eb;
+    }}
+    footer {{
+      margin-top: 18px;
+      font-size: 11px;
+      color: var(--text-muted);
+    }}
+  </style>
+</head>
+<body>
+  <div class="page">
+    <header>
+      <div class="title-block">
+        <h1>MaxBits · Weekly Selection</h1>
+        <p class="subtitle">
+          A curated view of the key deep-dives from the last 7 days. Updated weekly.
+        </p>
+      </div>
+      <div style="display:flex; flex-direction:column; align-items:flex-end; gap:6px;">
+        <span class="badge-date">Week ending {today}</span>
+        <button class="back-btn" type="button" onclick="window.location.href='../index.html'">
+          ⬅ Back to today’s report
+        </button>
+      </div>
+    </header>
+
+    <main>
+      {body_html}
+    </main>
+
+    <footer>
+      Weekly report is generated automatically from the same curated sources used
+      for the daily MaxBits report.
+    </footer>
+  </div>
+</body>
+</html>
+"""
+    return template
+
+
+def build_weekly() -> None:
+    print("[WEEKLY] Building weekly report...")
+    WEEKLY_DIR.mkdir(parents=True, exist_ok=True)
+
+    items = _load_last_7_days_deep_dives()
+    html = _build_html(items)
+
+    out_path = WEEKLY_DIR / "index.html"
+    out_path.write_text(html, encoding="utf-8")
+    print(f"[WEEKLY] Weekly HTML written to: {out_path}")
 
 
 if __name__ == "__main__":
-    build_weekly_report()
+    build_weekly()
