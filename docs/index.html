@@ -108,6 +108,25 @@
       background: #facc15;
     }
 
+    /* >>> EXIT BUTTON (added) <<< */
+    .exit-btn {
+      margin-top: 6px;
+      width: 100%;
+      font-size: 11px;
+      padding: 6px 10px;
+      border-radius: 999px;
+      border: 1px solid rgba(239, 68, 68, 0.35);
+      background: rgba(239, 68, 68, 0.10);
+      color: #b91c1c;
+      cursor: pointer;
+      font-weight: 600;
+    }
+    body[data-theme="dark"] .exit-btn {
+      background: rgba(239, 68, 68, 0.18);
+      border-color: rgba(248, 113, 113, 0.55);
+      color: #fecaca;
+    }
+
     .layout {
       display: grid;
       grid-template-columns: minmax(0, 2.7fr) minmax(270px, 1fr);
@@ -482,11 +501,16 @@
           <img src="assets/maxbits-logo.svg" alt="MaxBits">
         </div>
 
-        <div style="display:flex; align-items:center; gap:10px;">
-          <div class="tagline">View Mode</div>
-          <div class="theme-toggle" id="theme-toggle">
-            <div class="theme-thumb"></div>
+        <div style="display:flex; flex-direction:column; align-items:flex-end; gap:6px; min-width:150px;">
+          <div style="display:flex; align-items:center; gap:10px;">
+            <div class="tagline">View Mode</div>
+            <div class="theme-toggle" id="theme-toggle">
+              <div class="theme-thumb"></div>
+            </div>
           </div>
+
+          <!-- >>> EXIT BUTTON (added) <<< -->
+          <button class="exit-btn" id="exit-btn" type="button">Exit</button>
         </div>
       </header>
 
@@ -522,129 +546,107 @@
           <section class="side-card">
             <h2 class="side-title">Previous 6 reports</h2>
             <ul class="side-report-list">
-
-        <li class="side-report-item">
-          <div class="side-report-main">
-            <span class="side-report-date">2025-12-11</span>
-            <span class="side-report-links"><a href="reports/html/report_2025-12-11.html" target="_blank">HTML</a><span class="dot"> · </span><a href="reports/pdf/report_2025-12-11.pdf" target="_blank">PDF</a></span>
-          </div>
-        </li>
-        
-
-        <li class="side-report-item">
-          <div class="side-report-main">
-            <span class="side-report-date">2025-12-10</span>
-            <span class="side-report-links"><a href="reports/html/report_2025-12-10.html" target="_blank">HTML</a><span class="dot"> · </span><a href="reports/pdf/report_2025-12-10.pdf" target="_blank">PDF</a></span>
-          </div>
-        </li>
-        
-
-        <li class="side-report-item">
-          <div class="side-report-main">
-            <span class="side-report-date">2025-12-09</span>
-            <span class="side-report-links"><a href="reports/html/report_2025-12-09.html" target="_blank">HTML</a><span class="dot"> · </span><a href="reports/pdf/report_2025-12-09.pdf" target="_blank">PDF</a></span>
-          </div>
-        </li>
-        
-
-        <li class="side-report-item">
-          <div class="side-report-main">
-            <span class="side-report-date">2025-12-08</span>
-            <span class="side-report-links"><a href="reports/html/report_2025-12-08.html" target="_blank">HTML</a><span class="dot"> · </span><a href="reports/pdf/report_2025-12-08.pdf" target="_blank">PDF</a></span>
-          </div>
-        </li>
-        
-
-        <li class="side-report-item">
-          <div class="side-report-main">
-            <span class="side-report-date">2025-12-07</span>
-            <span class="side-report-links"><a href="reports/html/report_2025-12-07.html" target="_blank">HTML</a><span class="dot"> · </span><a href="reports/pdf/report_2025-12-07.pdf" target="_blank">PDF</a></span>
-          </div>
-        </li>
-        
-
-        <li class="side-report-item">
-          <div class="side-report-main">
-            <span class="side-report-date">2025-12-06</span>
-            <span class="side-report-links"><a href="reports/html/report_2025-12-06.html" target="_blank">HTML</a><span class="dot"> · </span><a href="reports/pdf/report_2025-12-06.pdf" target="_blank">PDF</a></span>
-          </div>
-        </li>
-        
+              <!-- your existing items -->
+              <li class="side-report-item">
+                <div class="side-report-main">
+                  <span class="side-report-date">2025-12-11</span>
+                  <span class="side-report-links"><a href="reports/html/report_2025-12-11.html" target="_blank">HTML</a><span class="dot"> · </span><a href="reports/pdf/report_2025-12-11.pdf" target="_blank">PDF</a></span>
+                </div>
+              </li>
+              <li class="side-report-item">
+                <div class="side-report-main">
+                  <span class="side-report-date">2025-12-10</span>
+                  <span class="side-report-links"><a href="reports/html/report_2025-12-10.html" target="_blank">HTML</a><span class="dot"> · </span><a href="reports/pdf/report_2025-12-10.pdf" target="_blank">PDF</a></span>
+                </div>
+              </li>
+              <li class="side-report-item">
+                <div class="side-report-main">
+                  <span class="side-report-date">2025-12-09</span>
+                  <span class="side-report-links"><a href="reports/html/report_2025-12-09.html" target="_blank">HTML</a><span class="dot"> · </span><a href="reports/pdf/report_2025-12-09.pdf" target="_blank">PDF</a></span>
+                </div>
+              </li>
+              <li class="side-report-item">
+                <div class="side-report-main">
+                  <span class="side-report-date">2025-12-08</span>
+                  <span class="side-report-links"><a href="reports/html/report_2025-12-08.html" target="_blank">HTML</a><span class="dot"> · </span><a href="reports/pdf/report_2025-12-08.pdf" target="_blank">PDF</a></span>
+                </div>
+              </li>
+              <li class="side-report-item">
+                <div class="side-report-main">
+                  <span class="side-report-date">2025-12-07</span>
+                  <span class="side-report-links"><a href="reports/html/report_2025-12-07.html" target="_blank">HTML</a><span class="dot"> · </span><a href="reports/pdf/report_2025-12-07.pdf" target="_blank">PDF</a></span>
+                </div>
+              </li>
+              <li class="side-report-item">
+                <div class="side-report-main">
+                  <span class="side-report-date">2025-12-06</span>
+                  <span class="side-report-links"><a href="reports/html/report_2025-12-06.html" target="_blank">HTML</a><span class="dot"> · </span><a href="reports/pdf/report_2025-12-06.pdf" target="_blank">PDF</a></span>
+                </div>
+              </li>
             </ul>
           </section>
 
           <section class="side-card">
             <h2 class="side-title">Extra reports (30 days)</h2>
             <ul class="extra-report-list">
-
-        <li class="extra-report-item">
-          <a href="https://openknowledge.worldbank.org/server/api/core/bitstreams/dccd113e-3ce6-4442-ac35-bc4a5a205ee2/content" target="_blank" rel="noopener" class="extra-report-link">Digital Progress and Inclusive Growth – World Bank 2025</a>
-          <div class="extra-report-meta">
-            <span class="extra-report-date">2025-12-10</span>
-            <span class="extra-report-pill extra-report-pill-ok">28 days left</span>
-          </div>
-        </li>
-        
-
-        <li class="extra-report-item">
-          <a href="https://ai.stanford.edu/wp-content/uploads/2025/01/stanford_ai_horizon_2025.pdf" target="_blank" rel="noopener" class="extra-report-link">2025 AI Horizon Report – Stanford</a>
-          <div class="extra-report-meta">
-            <span class="extra-report-date">2025-12-08</span>
-            <span class="extra-report-pill extra-report-pill-ok">26 days left</span>
-          </div>
-        </li>
-        
-
-        <li class="extra-report-item">
-          <a href="https://www.accenture.com/content/dam/accenture/future_cloud_trends_2025.pdf" target="_blank" rel="noopener" class="extra-report-link">Global Cloud Trends 2025 – Accenture</a>
-          <div class="extra-report-meta">
-            <span class="extra-report-date">2025-12-05</span>
-            <span class="extra-report-pill extra-report-pill-ok">23 days left</span>
-          </div>
-        </li>
-        
-
-        <li class="extra-report-item">
-          <a href="https://www.nasa.gov/wp-content/uploads/2025/01/mit_space_systems_2025.pdf" target="_blank" rel="noopener" class="extra-report-link">2025 Space Systems Outlook – MIT</a>
-          <div class="extra-report-meta">
-            <span class="extra-report-date">2025-12-03</span>
-            <span class="extra-report-pill extra-report-pill-ok">21 days left</span>
-          </div>
-        </li>
-        
-
-        <li class="extra-report-item">
-          <a href="https://research.ibm.com/publications/2025_quantum_outlook.pdf" target="_blank" rel="noopener" class="extra-report-link">Quantum Computing Industry Outlook – IBM Research 2025</a>
-          <div class="extra-report-meta">
-            <span class="extra-report-date">2025-12-02</span>
-            <span class="extra-report-pill extra-report-pill-ok">20 days left</span>
-          </div>
-        </li>
-        
-
-        <li class="extra-report-item">
-          <a href="https://www.oecd.org/ai/policy/oecd_ai_safety_governance_2025.pdf" target="_blank" rel="noopener" class="extra-report-link">AI Safety & Governance – OECD Brief 2025</a>
-          <div class="extra-report-meta">
-            <span class="extra-report-date">2025-12-01</span>
-            <span class="extra-report-pill extra-report-pill-ok">19 days left</span>
-          </div>
-        </li>
-        
+              <!-- your existing items -->
+              <li class="extra-report-item">
+                <a href="https://openknowledge.worldbank.org/server/api/core/bitstreams/dccd113e-3ce6-4442-ac35-bc4a5a205ee2/content" target="_blank" rel="noopener" class="extra-report-link">Digital Progress and Inclusive Growth – World Bank 2025</a>
+                <div class="extra-report-meta">
+                  <span class="extra-report-date">2025-12-10</span>
+                  <span class="extra-report-pill extra-report-pill-ok">28 days left</span>
+                </div>
+              </li>
+              <li class="extra-report-item">
+                <a href="https://ai.stanford.edu/wp-content/uploads/2025/01/stanford_ai_horizon_2025.pdf" target="_blank" rel="noopener" class="extra-report-link">2025 AI Horizon Report – Stanford</a>
+                <div class="extra-report-meta">
+                  <span class="extra-report-date">2025-12-08</span>
+                  <span class="extra-report-pill extra-report-pill-ok">26 days left</span>
+                </div>
+              </li>
+              <li class="extra-report-item">
+                <a href="https://www.accenture.com/content/dam/accenture/future_cloud_trends_2025.pdf" target="_blank" rel="noopener" class="extra-report-link">Global Cloud Trends 2025 – Accenture</a>
+                <div class="extra-report-meta">
+                  <span class="extra-report-date">2025-12-05</span>
+                  <span class="extra-report-pill extra-report-pill-ok">23 days left</span>
+                </div>
+              </li>
+              <li class="extra-report-item">
+                <a href="https://www.nasa.gov/wp-content/uploads/2025/01/mit_space_systems_2025.pdf" target="_blank" rel="noopener" class="extra-report-link">2025 Space Systems Outlook – MIT</a>
+                <div class="extra-report-meta">
+                  <span class="extra-report-date">2025-12-03</span>
+                  <span class="extra-report-pill extra-report-pill-ok">21 days left</span>
+                </div>
+              </li>
+              <li class="extra-report-item">
+                <a href="https://research.ibm.com/publications/2025_quantum_outlook.pdf" target="_blank" rel="noopener" class="extra-report-link">Quantum Computing Industry Outlook – IBM Research 2025</a>
+                <div class="extra-report-meta">
+                  <span class="extra-report-date">2025-12-02</span>
+                  <span class="extra-report-pill extra-report-pill-ok">20 days left</span>
+                </div>
+              </li>
+              <li class="extra-report-item">
+                <a href="https://www.oecd.org/ai/policy/oecd_ai_safety_governance_2025.pdf" target="_blank" rel="noopener" class="extra-report-link">AI Safety & Governance – OECD Brief 2025</a>
+                <div class="extra-report-meta">
+                  <span class="extra-report-date">2025-12-01</span>
+                  <span class="extra-report-pill extra-report-pill-ok">19 days left</span>
+                </div>
+              </li>
             </ul>
           </section>
 
           <section class="side-card">
             <h2 class="side-title">Market snapshot*</h2>
 
-<ul class="market-list">
-  <li class="market-item">
-    <div class="market-left">No data</div>
-    <div><span class="market-price">n/a</span></div>
-  </li>
-</ul>
-<p style="margin:6px 0 0; font-size:10px; color:#9ca3af;">
-  *No market snapshot available.
-</p>
+            <ul class="market-list">
+              <li class="market-item">
+                <div class="market-left">No data</div>
+                <div><span class="market-price">n/a</span></div>
+              </li>
+            </ul>
+            <p style="margin:6px 0 0; font-size:10px; color:#9ca3af;">
+              *No market snapshot available.
+            </p>
 
           </section>
 
@@ -660,20 +662,34 @@
   </div>
 
   <script>
-    // LOGIN (password lato client)
+    // LOGIN (client-side password) + remember once per session
     (function() {
-      const PASSWORD = "mix";   // <--- PUOI CAMBIARLA QUI
+      const PASSWORD = "mix"; // <--- puoi cambiarla qui
+      const AUTH_KEY = "maxbits-auth";
       const loginScreen = document.getElementById("login-screen");
       const root = document.getElementById("protected-root");
       const input = document.getElementById("login-password");
       const btn = document.getElementById("login-btn");
       const errorBox = document.getElementById("login-error");
 
+      function showProtected() {
+        loginScreen.style.display = "none";
+        root.style.display = "block";
+      }
+
+      // already authenticated in this session
+      try {
+        if (sessionStorage.getItem(AUTH_KEY) === "1") {
+          showProtected();
+          return;
+        }
+      } catch(e) {}
+
       function unlock() {
         const val = (input.value || "").trim();
         if (val === PASSWORD) {
-          loginScreen.style.display = "none";
-          root.style.display = "block";
+          try { sessionStorage.setItem(AUTH_KEY, "1"); } catch(e) {}
+          showProtected();
         } else {
           errorBox.textContent = "Wrong password. Please try again.";
         }
@@ -693,19 +709,11 @@
       const root = document.body;
 
       function applyTheme(t) {
-        if (t === "dark") {
-          root.setAttribute("data-theme", "dark");
-        } else {
-          root.setAttribute("data-theme", "light");
-        }
+        root.setAttribute("data-theme", (t === "dark") ? "dark" : "light");
       }
 
       const stored = localStorage.getItem(key);
-      if (stored === "light" || stored === "dark") {
-        applyTheme(stored);
-      } else {
-        applyTheme("light");
-      }
+      applyTheme((stored === "dark" || stored === "light") ? stored : "light");
 
       const btn = document.getElementById("theme-toggle");
       if (btn) {
@@ -716,6 +724,20 @@
           try { localStorage.setItem(key, next); } catch(e) {}
         });
       }
+    })();
+
+    // EXIT -> clears session (auth + geo cache) and goes to bye.html
+    (function() {
+      const btn = document.getElementById("exit-btn");
+      if (!btn) return;
+
+      btn.addEventListener("click", function() {
+        try {
+          sessionStorage.removeItem("maxbits-auth");
+          sessionStorage.removeItem("maxbits-geo");
+        } catch(e) {}
+        window.location.href = "bye.html";
+      });
     })();
 
     // CLOCK DIGITALE
@@ -740,21 +762,55 @@
     setInterval(updateClock, 1000);
     updateClock();
 
-    // METEO (Open-Meteo)
+    // WEATHER (Open-Meteo) + cache geolocation in sessionStorage
     async function loadWeather() {
       const locEl = document.getElementById("weather-location");
       const tempEl = document.getElementById("weather-temp");
       if (!locEl || !tempEl) return;
 
-      if (!navigator.geolocation) {
-        locEl.textContent = "Location not available";
-        tempEl.textContent = "";
-        return;
-      }
+      const GEO_KEY = "maxbits-geo";
+      const GEO_TTL_MS = 6 * 60 * 60 * 1000; // 6 hours cache (session)
 
       function setError(msg) {
         locEl.textContent = msg;
         tempEl.textContent = "";
+      }
+
+      function renderTemp(t) {
+        locEl.textContent = "Your location";
+        tempEl.innerHTML = "<span class='weather-temp-strong'>" + t.toFixed(1) + "°C</span>";
+      }
+
+      async function fetchWeather(lat, lon) {
+        const url = "https://api.open-meteo.com/v1/forecast?latitude="
+          + encodeURIComponent(lat)
+          + "&longitude=" + encodeURIComponent(lon)
+          + "&current_weather=true";
+
+        const resp = await fetch(url);
+        if (!resp.ok) throw new Error("HTTP " + resp.status);
+        const data = await resp.json();
+        const cw = data.current_weather;
+        if (!cw || typeof cw.temperature !== "number") throw new Error("no current_weather");
+        renderTemp(cw.temperature);
+      }
+
+      // Try cached geo first
+      try {
+        const raw = sessionStorage.getItem(GEO_KEY);
+        if (raw) {
+          const cached = JSON.parse(raw);
+          const ok = cached && typeof cached.lat === "number" && typeof cached.lon === "number" && typeof cached.ts === "number";
+          if (ok && (Date.now() - cached.ts) < GEO_TTL_MS) {
+            await fetchWeather(cached.lat, cached.lon);
+            return;
+          }
+        }
+      } catch(e) {}
+
+      if (!navigator.geolocation) {
+        setError("Location not available");
+        return;
       }
 
       navigator.geolocation.getCurrentPosition(async (pos) => {
@@ -762,23 +818,11 @@
           const lat = pos.coords.latitude;
           const lon = pos.coords.longitude;
 
-          const url = "https://api.open-meteo.com/v1/forecast?latitude="
-                      + encodeURIComponent(lat)
-                      + "&longitude=" + encodeURIComponent(lon)
-                      + "&current_weather=true";
+          try {
+            sessionStorage.setItem(GEO_KEY, JSON.stringify({ lat, lon, ts: Date.now() }));
+          } catch(e) {}
 
-          const resp = await fetch(url);
-          if (!resp.ok) throw new Error("HTTP " + resp.status);
-          const data = await resp.json();
-          const cw = data.current_weather;
-          if (!cw) {
-            setError("Weather unavailable");
-            return;
-          }
-
-          const t = cw.temperature;
-          locEl.textContent = "Your location";
-          tempEl.innerHTML = "<span class='weather-temp-strong'>" + t.toFixed(1) + "°C</span>";
+          await fetchWeather(lat, lon);
         } catch (e) {
           console.warn("[Weather] failed:", e);
           setError("Weather unavailable");
