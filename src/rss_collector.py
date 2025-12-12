@@ -1,350 +1,280 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
-from typing import List, Dict, Any, Tuple
-import datetime as dt
-import math
-import textwrap
+from typing import Dict, List, Any, Optional
+import time
+import logging
 
 import yaml
 import feedparser
-import requests
 
 
 BASE_DIR = Path(__file__).resolve().parent.parent
-DEFAULT_CONFIG_PATH = BASE_DIR / "config" / "sources_rss.yaml"
+CONFIG_PATH = BASE_DIR / "config" / "sources_rss.yaml"
+
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+
 
 # -------------------------------------------------------------------
 #  DATA MODEL
 # -------------------------------------------------------------------
 
-
 @dataclass
 class Article:
+    id: str
     title: str
-    url: str
+    link: str
     source: str
     topic: str
-    published: dt.datetime | None
+    published: Optional[datetime]
     summary: str
-    score: float = 0.0
 
     def to_dict(self) -> Dict[str, Any]:
-        d = asdict(self)
-        if self.published is not None:
-            d["published"] = self.published.isoformat()
-        else:
-            d["published"] = None
-        return d
+        return {
+            "id": self.id,
+            "title": self.title,
+            "link": self.link,
+            "source": self.source,
+            "topic": self.topic,
+            "published": self.published.isoformat() if self.published else None,
+            "summary": self.summary,
+        }
 
 
 # -------------------------------------------------------------------
-#  CONFIG
+#  CONFIG LOADER
 # -------------------------------------------------------------------
 
-
-def _load_sources_config(path: Path = DEFAULT_CONFIG_PATH) -> List[Dict[str, Any]]:
+def _load_sources_config() -> List[Dict[str, str]]:
     """
-    Legge config/sources_rss.yaml.
+    Legge config/sources_rss.yaml e restituisce una lista di feed:
 
-    Formato atteso:
+      [
+        {"name": "...", "url": "...", "topic": "..."},
+        ...
+      ]
 
-      sources:
-        - name: "VentureBeat – AI"
-          url: "https://venturebeat.com/tag/ai/feed/"
-          topic: "AI/Cloud/Quantum"
-          weight: 1.2          # opzionale
-          enabled: true        # opzionale
+    Supporta due forme di YAML:
+
+    1)  feeds:
+          - name: "Wired – Business"
+            url: "https://..."
+            topic: "AI/Cloud/Quantum"
+
+    2)  topics:
+          - topic: "AI/Cloud/Quantum"
+            feeds:
+              - name: "Wired – Business"
+                url: "https://..."
     """
-    if not path.exists():
-        print(f"[RSS][WARN] Config file not found: {path}")
+    if not CONFIG_PATH.exists():
+        logger.warning("[RSS] sources_rss.yaml not found at %s", CONFIG_PATH)
         return []
 
     try:
-        data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+        raw = yaml.safe_load(CONFIG_PATH.read_text(encoding="utf-8")) or {}
     except Exception as e:
-        print(f"[RSS][ERR] Cannot parse {path}: {e!r}")
+        logger.error("[RSS] Cannot parse sources_rss.yaml: %r", e)
         return []
 
-    sources = data.get("sources") or []
-    if not isinstance(sources, list):
-        print(f"[RSS][ERR] 'sources' in {path} must be a list.")
-        return []
+    feeds: List[Dict[str, str]] = []
 
-    enabled_sources: List[Dict[str, Any]] = []
-    for raw in sources:
-        if not isinstance(raw, dict):
+    # Case 1: flat "feeds"
+    for item in raw.get("feeds", []) or []:
+        if not isinstance(item, dict):
             continue
-        if raw.get("enabled") is False:
-            continue
-        name = str(raw.get("name") or "").strip()
-        url = str(raw.get("url") or "").strip()
-        topic = str(raw.get("topic") or "").strip() or "General"
-        weight = float(raw.get("weight") or 1.0)
+        name = str(item.get("name") or "").strip()
+        url = str(item.get("url") or "").strip()
+        topic = str(item.get("topic") or item.get("category") or "Misc").strip()
         if not (name and url):
             continue
-        enabled_sources.append(
-            {
-                "name": name,
-                "url": url,
-                "topic": topic,
-                "weight": weight,
-            }
-        )
+        feeds.append({"name": name, "url": url, "topic": topic})
 
-    print(f"[RSS] Loaded {len(enabled_sources)} sources from {path}")
-    return enabled_sources
+    # Case 2: grouped by "topics"
+    for topic_group in raw.get("topics", []) or []:
+        if not isinstance(topic_group, dict):
+            continue
+        topic_name = str(
+            topic_group.get("topic")
+            or topic_group.get("name")
+            or "Misc"
+        ).strip()
+        for item in topic_group.get("feeds", []) or []:
+            if not isinstance(item, dict):
+                continue
+            name = str(item.get("name") or "").strip()
+            url = str(item.get("url") or "").strip()
+            if not (name and url):
+                continue
+            feeds.append({"name": name, "url": url, "topic": topic_name})
+
+    logger.info("[RSS] Loaded %d RSS feeds from config", len(feeds))
+    return feeds
 
 
 # -------------------------------------------------------------------
-#  FETCHING & PARSING (ROBUSTO)
+#  FEED FETCHING
 # -------------------------------------------------------------------
 
-
-def _safe_request(url: str, timeout: int = 20) -> bytes | None:
+def _parse_datetime(entry: Any) -> Optional[datetime]:
     """
-    HTTP GET robusto: se il sito è giù o dà errore,
-    ritorna None senza alzare eccezioni.
+    Converte published_parsed / updated_parsed in datetime.
+    Se non disponibile, ritorna None.
     """
-    try:
-        resp = requests.get(
-            url,
-            timeout=timeout,
-            headers={
-                "User-Agent": "MaxBitsBot/1.0 (+https://github.com/MaxBertolo/MaxBits)"
-            },
-        )
-        resp.raise_for_status()
-        return resp.content
-    except Exception as e:
-        print(f"[RSS][ERR] HTTP error for {url}: {e!r}")
-        return None
-
-
-def _parse_date(entry: Any) -> dt.datetime | None:
-    """
-    Prova a estrarre una data dall'entry RSS.
-    In caso di problemi, ritorna None.
-    """
-    for attr in ("published_parsed", "updated_parsed"):
-        t = getattr(entry, attr, None)
-        if t:
+    for key in ("published_parsed", "updated_parsed"):
+        value = getattr(entry, key, None) or entry.get(key) if isinstance(entry, dict) else None
+        if value:
             try:
-                return dt.datetime(*t[:6], tzinfo=dt.timezone.utc)
+                # feedparser dà time.struct_time
+                return datetime.fromtimestamp(time.mktime(value))
             except Exception:
-                pass
+                continue
     return None
 
 
-def _fetch_feed_for_source(source_cfg: Dict[str, Any]) -> List[Article]:
+def _fetch_feed(feed_cfg: Dict[str, str]) -> List[Article]:
     """
-    Scarica e parse-a un singolo feed.
-    Qualsiasi errore di rete o parsing NON fa crashare il processo:
-    ritorna semplicemente una lista vuota.
+    Scarica un singolo feed RSS. In caso di errore logga e ritorna [].
     """
-    name = source_cfg["name"]
-    url = source_cfg["url"]
-    topic = source_cfg["topic"]
-    weight = float(source_cfg.get("weight") or 1.0)
+    name = feed_cfg["name"]
+    url = feed_cfg["url"]
+    topic = feed_cfg["topic"]
 
-    print(f"[RSS] Fetching feed: {name} – {url}")
-
-    content = _safe_request(url)
-    if content is None:
-        print(f"[RSS][WARN] {name}: no content received. Skipping this feed.")
-        return []
+    logger.info("[RSS] Fetching feed: %s — %s", name, url)
 
     try:
-        parsed = feedparser.parse(content)
+        parsed = feedparser.parse(url)
     except Exception as e:
-        print(f"[RSS][ERR] {name}: failed to parse feed: {e!r}. Skipping this feed.")
+        logger.error(
+            "[RSS] ERROR %s: failed to fetch/parse feed (%r). Skipping this feed.",
+            name,
+            e,
+        )
         return []
 
-    if parsed.bozo and getattr(parsed, "bozo_exception", None):
-        # Feed malformato: logghiamo ma NON interrompiamo il job
-        print(
-            f"[RSS][WARN] {name}: bozo feed "
-            f"({parsed.bozo_exception!r}). Continuing with available entries."
+    if parsed.bozo:
+        # bozo_exception può essere innocua: logghiamo e continuiamo.
+        logger.warning(
+            "[RSS][WARN] %s: bozo feed (%r). Continuing with available entries.",
+            name,
+            parsed.bozo_exception,
         )
 
     articles: List[Article] = []
-    now = dt.datetime.now(dt.timezone.utc)
-
-    for entry in parsed.entries[:50]:
-        title = (getattr(entry, "title", "") or "").strip()
-        link = (getattr(entry, "link", "") or "").strip()
+    for entry in parsed.entries:
+        link = getattr(entry, "link", None) or ""
+        title = getattr(entry, "title", None) or ""
         if not (title and link):
             continue
 
-        summary_raw = (
-            getattr(entry, "summary", "")
-            or getattr(entry, "description", "")
+        art_id = getattr(entry, "id", None) or link
+
+        published_dt = _parse_datetime(entry)
+
+        summary = (
+            getattr(entry, "summary", None)
+            or getattr(entry, "description", None)
             or ""
         )
-        summary = " ".join(summary_raw.split())
-        if len(summary) > 800:
-            summary = summary[:800] + "…"
-
-        published = _parse_date(entry)
-        if published is None:
-            # articoli senza data li teniamo, ma penalizzati nel ranking
-            age_days = 30.0
-        else:
-            age = now - published
-            age_days = max(age.total_seconds() / 86400.0, 0.0)
-
-        # Score di base (più recente + più pesato)
-        recency_factor = max(0.0, 30.0 - age_days) / 30.0  # 0..1
-        base_score = weight * (0.5 + 0.5 * recency_factor)
+        summary = str(summary).strip()
 
         articles.append(
             Article(
-                title=title,
-                url=link,
+                id=str(art_id),
+                title=str(title).strip(),
+                link=str(link).strip(),
                 source=name,
                 topic=topic,
-                published=published,
+                published=published_dt,
                 summary=summary,
-                score=base_score,
             )
         )
 
-    print(f"[RSS] {name}: collected {len(articles)} entries.")
+    logger.info(
+        "[RSS] Collected %d entries from %s",
+        len(articles),
+        name,
+    )
     return articles
 
 
 # -------------------------------------------------------------------
-#  CLEAN & RANK
+#  PUBLIC API (compatibile con main.py)
 # -------------------------------------------------------------------
 
+def collect_from_rss() -> List[Dict[str, Any]]:
+    """
+    Funzione compatibile con la vecchia main.py.
 
-def _deduplicate(articles: List[Article]) -> List[Article]:
+    - Carica la config;
+    - Scarica tutti i feed;
+    - Skippa quelli che falliscono SENZA far fallire il job;
+    - Ritorna una lista di dict (uno per articolo).
     """
-    Rimuove duplicati per URL (tiene quello con score più alto).
-    """
-    best_by_url: Dict[str, Article] = {}
-    for art in articles:
-        existing = best_by_url.get(art.url)
-        if not existing or art.score > existing.score:
-            best_by_url[art.url] = art
-    return list(best_by_url.values())
-
-
-def rank_articles(articles: List[Article], max_articles: int = 15) -> List[Article]:
-    """
-    Calcola uno score finale e ritorna i top N.
-    Lo score può essere raffinato, per ora usiamo:
-      - base_score (da fonte + recency)
-      - boost se titolo contiene parole chiave interessanti
-    """
-    if not articles:
-        print("[RANK] No articles to rank.")
+    feeds_cfg = _load_sources_config()
+    if not feeds_cfg:
+        logger.warning("[RSS] No feeds configured. Returning empty list.")
         return []
 
-    KEYWORDS_BOOST = [
-        "ai",
-        "artificial intelligence",
-        "machine learning",
-        "cloud",
-        "quantum",
-        "satellite",
-        "space",
-        "5g",
-        "telco",
-        "streaming",
-    ]
+    all_articles: List[Article] = []
+    for feed_cfg in feeds_cfg:
+        try:
+            arts = _fetch_feed(feed_cfg)
+            all_articles.extend(arts)
+        except Exception as e:
+            # robustezza massima: nessun feed deve far crashare tutto
+            logger.error(
+                "[RSS] Unexpected error while fetching %s (%s): %r",
+                feed_cfg.get("name"),
+                feed_cfg.get("url"),
+                e,
+            )
 
-    for art in articles:
-        title_lower = art.title.lower()
-        bonus = 0.0
-        for kw in KEYWORDS_BOOST:
-            if kw in title_lower:
-                bonus += 0.15
-        art.score += bonus
+    logger.info("[RSS] Total raw articles collected: %d", len(all_articles))
 
-    articles_sorted = sorted(articles, key=lambda a: a.score, reverse=True)
-    selected = articles_sorted[:max_articles]
+    # Convertiamo in dict per compatibilità con il resto del codice
+    return [a.to_dict() for a in all_articles]
 
-    print(
-        f"[RANK] Selected top {len(selected)} articles out of {len(articles_sorted)}"
+
+def rank_articles(
+    articles: List[Dict[str, Any]],
+    max_articles: int = 50,
+) -> List[Dict[str, Any]]:
+    """
+    Funzione compatibile con la vecchia main.py.
+
+    - Prende una lista di dict (ritornata da collect_from_rss());
+    - Ordina per data di pubblicazione (più recenti prima);
+    - Ritorna al massimo max_articles articoli.
+
+    Se un articolo non ha "published", viene messo in fondo,
+    ma NON fa mai crashare il processo.
+    """
+    def _parse_iso(dt_str: Optional[str]) -> float:
+        if not dt_str:
+            return 0.0
+        try:
+            return datetime.fromisoformat(dt_str).timestamp()
+        except Exception:
+            return 0.0
+
+    if not articles:
+        logger.warning("[RANK] Empty article list, nothing to rank.")
+        return []
+
+    sorted_articles = sorted(
+        articles,
+        key=lambda a: _parse_iso(a.get("published")),
+        reverse=True,
+    )
+
+    selected = sorted_articles[:max_articles]
+    logger.info(
+        "[RANK] Selected top %d articles out of %d",
+        len(selected),
+        len(articles),
     )
     return selected
-
-
-# -------------------------------------------------------------------
-#  HIGH-LEVEL API USATA DA main.py
-# -------------------------------------------------------------------
-
-
-def collect_rss_articles(
-    config_path: Path = DEFAULT_CONFIG_PATH,
-    max_articles: int = 15,
-) -> List[Dict[str, Any]]:
-    """
-    API principale: usata da main.py
-
-    - Carica la config
-    - Fetch di tutti i feed, in modo robusto (errori di rete non fanno crashare)
-    - Deduplica
-    - Ranking
-    - Ritorna una lista di dict pronti da serializzare in JSON
-    """
-    sources = _load_sources_config(config_path)
-    if not sources:
-        print("[RSS][WARN] No RSS sources configured. Returning empty list.")
-        return []
-
-    raw_articles: List[Article] = []
-
-    for src in sources:
-        try:
-            arts = _fetch_feed_for_source(src)
-            raw_articles.extend(arts)
-        except Exception as e:
-            # protezione extra: qualsiasi eccezione qui NON deve far fallire il job
-            print(
-                f"[RSS][ERR] Unexpected error while fetching '{src['name']}': {e!r}. "
-                f"Skipping this source."
-            )
-
-    print(f"[RSS] Total raw articles collected: {len(raw_articles)}")
-
-    cleaned = _deduplicate(raw_articles)
-    print(f"[RSS] After cleaning: {len(cleaned)} articles")
-
-    ranked = rank_articles(cleaned, max_articles=max_articles)
-    return [art.to_dict() for art in ranked]
-
-
-def collect_and_rank_articles(
-    config_path: Path = DEFAULT_CONFIG_PATH,
-    max_articles: int = 15,
-) -> List[Dict[str, Any]]:
-    """
-    Alias compatibile, nel caso main.py usi questo nome.
-    """
-    return collect_rss_articles(config_path=config_path, max_articles=max_articles)
-
-
-def main() -> None:
-    """
-    Permette di lanciare:
-      python -m src.rss_collector
-    solo per debug/manual run.
-    """
-    articles = collect_rss_articles()
-    print("")
-    print("-------------------------------------------------")
-    print(f"Collected & ranked {len(articles)} articles:")
-    for i, a in enumerate(articles, start=1):
-        print(
-            textwrap.shorten(
-                f"{i:02d}. [{a['topic']}] {a['source']} – {a['title']}",
-                width=120,
-            )
-        )
-
-
-if __name__ == "__main__":
-    main()
