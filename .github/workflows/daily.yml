@@ -1,46 +1,97 @@
-name: Daily Report
+name: MaxBits Daily Tech Report
 
 on:
-  # schedulato (esempio: 05:00 UTC tutti i giorni feriali)
+  # Lancio automatico (cron in UTC) – lun–ven alle 06:00 italiane circa (05:00 UTC)
   schedule:
-    - cron: '0 5 * * 1-5'
-  # lancio manuale da Actions → "Run workflow"
-  workflow_dispatch: {}
+    - cron: "0 5 * * *"
+  # Lancio manuale da GitHub UI
+  workflow_dispatch:
+
+permissions:
+  contents: write   # necessario per fare commit/push su main
 
 jobs:
-  build:
+  run-report:
     runs-on: ubuntu-latest
-
-    permissions:
-      contents: read
-      pages: write       # necessario per GitHub Pages
-      id-token: write
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # serve la history completa per git push
+
+      - name: Install system dependencies (wkhtmltopdf)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y wkhtmltopdf
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.12'
+          python-version: "3.11"
 
-      - name: Install dependencies
+      - name: Install Python dependencies
         run: |
           python -m pip install --upgrade pip
-          if [ -f requirements.txt ]; then
-            pip install -r requirements.txt
-          fi
+          pip install -r requirements.txt
 
       - name: Run MaxBits daily report script
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+
+          SMTP_HOST: ${{ secrets.SMTP_HOST }}
+          SMTP_PORT: ${{ secrets.SMTP_PORT }}
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
+          FROM_EMAIL: ${{ secrets.FROM_EMAIL }}
+          TO_EMAIL: ${{ secrets.TO_EMAIL }}
+
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: |
-          echo "[DAILY] Running src.main..."
           python -m src.main
-          echo "[DAILY] Building magazine index..."
+
+      - name: Upload HTML reports as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: maxbits-report-html
+          path: reports/html/
+
+      - name: Upload PDF reports as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: maxbits-report-pdf
+          path: reports/pdf/
+
+      # -----------------------------------
+      # Build mini-app / GitHub Pages docs
+      # -----------------------------------
+      - name: Build MaxBits Magazine archive (GitHub Pages)
+        run: |
+          # Script che genera/aggiorna la mini-app in /docs
           python -m src.magazine_builder
 
-      # 👉 QUI la parte che prima era v2 e ti faceva fallire il job
-      - name: Upload GitHub Pages artifact
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: ./docs
+      # -----------------------------------
+      # Commit & push docs/ -> main
+      # -----------------------------------
+      - name: Commit docs for GitHub Pages
+        if: github.ref == 'refs/heads/main'
+        run: |
+          git config --global user.name  "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
+          echo "[DOCS] Current branch: $(git rev-parse --abbrev-ref HEAD)"
+
+          git fetch origin main
+          git checkout main
+          git pull --ff-only origin main || echo "[DOCS] git pull --ff-only failed, uso il main locale."
+
+          git add docs/ || echo "[DOCS] Nessun file in docs/ da aggiungere."
+
+          if git diff --cached --quiet; then
+            echo "[DOCS] Nessuna modifica in docs/, salto il commit."
+          else
+            git commit -m "Update MaxBits Magazine archive"
+          fi
+
+          git push origin main || echo "[DOCS] git push fallito (probabile nuovo commit su main). Salto il push."
