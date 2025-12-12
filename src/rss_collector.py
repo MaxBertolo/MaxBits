@@ -2,61 +2,85 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Iterable, List, Optional
 
 import feedparser
 
 
+# -----------------------------------------------------------------------------
+# Data models
+# -----------------------------------------------------------------------------
+
 @dataclass
-class RssSource:
+class RssFeedConfig:
     name: str
     url: str
-    topic: Optional[str] = None
+    topic: str = "General"
     weight: float = 1.0
     enabled: bool = True
 
 
-# -------------------------------------------------------------------
+# -----------------------------------------------------------------------------
 # Helpers
-# -------------------------------------------------------------------
+# -----------------------------------------------------------------------------
 
-def _normalize_sources(feeds_cfg: List[Dict[str, Any]]) -> List[RssSource]:
+def _safe_parse_datetime(entry: Dict[str, Any]) -> Optional[datetime]:
     """
-    Converte la lista di dict letta da sources_rss.yaml in RssSource,
-    e filtra i feed disabilitati o senza URL.
+    Try to extract a datetime from a feedparser entry.
+    Always return either a timezone-aware UTC datetime or None.
+    Never raises.
     """
-    sources: List[RssSource] = []
+    try_keys = ["published_parsed", "updated_parsed", "created_parsed"]
 
-    if not isinstance(feeds_cfg, list):
-        print("[RSS] feeds_cfg is not a list, nothing to do.")
-        return sources
+    for key in try_keys:
+        st = entry.get(key)
+        if st is None:
+            continue
 
-    for idx, raw in enumerate(feeds_cfg, start=1):
+        try:
+            # st is a time.struct_time
+            dt = datetime(
+                year=st.tm_year,
+                month=st.tm_mon,
+                day=st.tm_mday,
+                hour=st.tm_hour,
+                minute=st.tm_min,
+                second=st.tm_sec,
+                tzinfo=timezone.utc,
+            )
+            return dt
+        except Exception:
+            continue
+
+    return None
+
+
+def _normalise_feeds(feeds_cfg: Iterable[Dict[str, Any]]) -> List[RssFeedConfig]:
+    """Convert raw YAML dicts into RssFeedConfig objects. Completely defensive."""
+    out: List[RssFeedConfig] = []
+
+    for raw in feeds_cfg or []:
         if not isinstance(raw, dict):
             continue
 
-        url = str(raw.get("url") or "").strip()
-        if not url:
-            continue
-
         enabled = raw.get("enabled", True)
-        if isinstance(enabled, str):
-            enabled = enabled.lower() not in {"false", "0", "no"}
-
-        if not enabled:
+        if enabled is False:
             continue
 
-        name = str(raw.get("name") or f"Feed {idx}").strip()
-        topic = str(raw.get("topic") or "").strip() or None
-        weight = raw.get("weight", 1.0)
+        url = str(raw.get("url") or "").strip()
+        name = str(raw.get("name") or "").strip() or url or "Unknown feed"
+        if not url:
+            print(f"[RSS][WARN] Feed '{name}' has empty URL – skipped.")
+            continue
 
+        topic = str(raw.get("topic") or "General").strip()
         try:
-            weight = float(weight)
+            weight = float(raw.get("weight", 1.0))
         except Exception:
             weight = 1.0
 
-        sources.append(
-            RssSource(
+        out.append(
+            RssFeedConfig(
                 name=name,
                 url=url,
                 topic=topic,
@@ -65,178 +89,172 @@ def _normalize_sources(feeds_cfg: List[Dict[str, Any]]) -> List[RssSource]:
             )
         )
 
-    print(f"[RSS] Normalized {len(sources)} enabled feeds.")
-    return sources
+    print(f"[RSS] Normalised {len(out)} feeds from config.")
+    return out
 
 
-def _entry_datetime(entry: Any) -> Optional[datetime]:
+# -----------------------------------------------------------------------------
+# Public API
+# -----------------------------------------------------------------------------
+
+def collect_from_rss(
+    feeds_cfg: Iterable[Dict[str, Any]],
+    max_per_feed: int = 30,
+    max_total: int = 200,
+) -> List[Dict[str, Any]]:
     """
-    Prova a estrarre una datetime UTC da un entry (published/updated).
-    Ritorna None se non disponibile.
+    Fetch and parse articles from a list of RSS feeds.
+
+    * Never raises because of network / parsing problems.
+    * If a feed is broken, it logs a warning and continues with the next one.
+    * Returns a flat list of article dicts.
+
+    Each article dict has at least:
+      - title
+      - link
+      - summary
+      - source
+      - topic
+      - weight
+      - published  (ISO string or None)
     """
-    tm = getattr(entry, "published_parsed", None) or getattr(
-        entry, "updated_parsed", None
-    )
-    if not tm:
-        return None
-    try:
-        return datetime(
-            tm.tm_year,
-            tm.tm_mon,
-            tm.tm_mday,
-            tm.tm_hour,
-            tm.tm_min,
-            tm.tm_sec,
-            tzinfo=timezone.utc,
-        )
-    except Exception:
-        return None
+    feeds = _normalise_feeds(feeds_cfg)
+    articles: List[Dict[str, Any]] = []
 
+    if not feeds:
+        print("[RSS][WARN] No enabled feeds in config. Returning empty list.")
+        return articles
 
-# -------------------------------------------------------------------
-# API principale
-# -------------------------------------------------------------------
+    for feed in feeds:
+        if len(articles) >= max_total:
+            break
 
-def collect_from_rss(feeds_cfg: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    """
-    Legge i feed RSS definiti in feeds_cfg (già caricati da sources_rss.yaml)
-    e restituisce una lista di articoli "raw":
+        print(f"[RSS] Fetching feed: {feed.name} — {feed.url}")
 
-      {
-        "title": ...,
-        "url": ...,
-        "summary": ...,
-        "source": ...,
-        "topic": ...,
-        "published": "ISO-8601",
-        "source_weight": float,
-      }
-
-    La funzione è ROBUSTA:
-    - se un feed non risponde / dà errore XML → logga e continua
-    - se il feed è vuoto → semplicemente salta
-    """
-    sources = _normalize_sources(feeds_cfg)
-    all_articles: List[Dict[str, Any]] = []
-
-    print("Collecting RSS...")
-
-    for src in sources:
+        # Network / parse errors are fully swallowed here
         try:
-            parsed = feedparser.parse(src.url)
+            parsed = feedparser.parse(feed.url)
         except Exception as e:
             print(
-                f"[RSS][ERROR] {src.name}: failed to fetch/parsing feed "
+                f"[RSS][WARN] {feed.name}: failed to fetch/parse feed "
                 f"({e!r}). Skipping this feed."
             )
             continue
 
+        # "bozo" feeds: something went wrong while parsing.
+        # We *log* the problem but still *try* to use entries, because
+        # often the content is still partially usable.
         if getattr(parsed, "bozo", False):
-            # feedparser non lancia eccezione, ma segnala bozo = True
-            exc = getattr(parsed, "bozo_exception", None)
+            err = getattr(parsed, "bozo_exception", None)
             print(
-                f"[RSS][WARN] {src.name}: bozo feed (parse error: {exc!r}). "
-                f"Skipping entries from this feed."
+                f"[RSS][WARN] {feed.name}: bozo feed "
+                f"(parse error: {err!r}). Trying to use entries anyway."
             )
-            continue
 
         entries = getattr(parsed, "entries", []) or []
         if not entries:
-            print(f"[RSS][WARN] {src.name}: no entries found.")
+            print(f"[RSS][WARN] {feed.name}: no entries found.")
             continue
 
+        count_for_feed = 0
+
         for entry in entries:
-            title = (getattr(entry, "title", "") or "").strip()
-            link = (
-                getattr(entry, "link", "")
-                or getattr(entry, "id", "")
-                or ""
-            ).strip()
+            if count_for_feed >= max_per_feed or len(articles) >= max_total:
+                break
+
+            try:
+                title = (entry.get("title") or "").strip()
+                link = (entry.get("link") or "").strip()
+            except Exception:
+                # completely broken entry – skip
+                continue
 
             if not title or not link:
                 continue
 
             summary = (
-                getattr(entry, "summary", "")
-                or getattr(entry, "description", "")
-                or ""
+                (entry.get("summary") or entry.get("description") or "").strip()
             )
 
-            dt = _entry_datetime(entry)
-            published_iso = dt.isoformat() if dt is not None else ""
+            published_dt = _safe_parse_datetime(entry)
+            published_iso = (
+                published_dt.isoformat() if published_dt is not None else None
+            )
 
             art: Dict[str, Any] = {
                 "title": title,
-                "url": link,
-                "link": link,  # alias
+                "link": link,
                 "summary": summary,
-                "source": src.name,
-                "topic": src.topic,
+                "source": feed.name,
+                "topic": feed.topic,
+                "weight": feed.weight,
                 "published": published_iso,
-                "source_weight": src.weight,
             }
-            all_articles.append(art)
+            articles.append(art)
+            count_for_feed += 1
 
         print(
-            f"[RSS] {src.name}: collected {len(entries)} entries "
-            f"(running total: {len(all_articles)})"
+            f"[RSS] {feed.name}: collected {count_for_feed} entries "
+            f"(running total: {len(articles)})"
         )
 
-    print(f"[RSS] Total raw articles collected: {len(all_articles)}")
-    return all_articles
+    print(f"[RSS] Total raw articles collected: {len(articles)}")
+    return articles
 
 
 def rank_articles(
     articles: List[Dict[str, Any]],
-    ceo_names: Optional[List[str]] = None,
-    max_articles: Optional[int] = None,
+    max_articles: int = 15,
 ) -> List[Dict[str, Any]]:
     """
-    Ranking semplice ma robusto:
-    - base score da "source_weight"
-    - bonus per recency (fino a ~7 giorni)
-    - micro-boost se nel titolo compare un CEO (case-insensitive)
+    Rank articles using a simple scoring function:
 
-    Ritorna la lista ordinata desc per 'score'.
+      score = weight * recency_factor
+
+    where recency_factor favours more recent content (last ~3 days).
+    If anything goes wrong with a single article, that article is skipped,
+    but the function never raises.
     """
-    now = datetime.now(timezone.utc)
-    ceo_names = [c.lower() for c in (ceo_names or [])]
+    if not articles:
+        print("[RANK] No articles to rank; returning empty list.")
+        return []
 
+    now = datetime.now(timezone.utc)
     ranked: List[Dict[str, Any]] = []
 
     for art in articles:
-        score = float(art.get("source_weight", 1.0))
+        try:
+            weight = float(art.get("weight") or 1.0)
+        except Exception:
+            weight = 1.0
 
-        # recency: se published entro 7 giorni
-        published_str = str(art.get("published") or "")
-        if published_str:
+        published_iso = art.get("published")
+        published_dt: Optional[datetime] = None
+
+        if isinstance(published_iso, str) and published_iso:
             try:
-                dt = datetime.fromisoformat(published_str)
-                if dt.tzinfo is None:
-                    dt = dt.replace(tzinfo=timezone.utc)
-                age_days = (now - dt).total_seconds() / 86400.0
-                if age_days <= 7:
-                    # più recente → più score, ma senza esagerare
-                    score += max(0.0, 2.0 - age_days * 0.2)
+                published_dt = datetime.fromisoformat(published_iso)
+                if published_dt.tzinfo is None:
+                    published_dt = published_dt.replace(tzinfo=timezone.utc)
             except Exception:
-                pass
+                published_dt = None
 
-        # micro-boost se contiene un CEO nel titolo
-        title_l = str(art.get("title") or "").lower()
-        if ceo_names:
-            for name in ceo_names:
-                if name and name in title_l:
-                    score += 0.5
-                    break
+        if published_dt:
+            age_hours = max(
+                1.0, (now - published_dt).total_seconds() / 3600.0
+            )
+            # ~72 ore molto premiate, poi decresce
+            recency_factor = max(0.1, 72.0 / age_hours)
+        else:
+            recency_factor = 0.5  # unknown date → mid-level relevance
 
-        art = dict(art)  # copia
-        art["score"] = score
-        ranked.append(art)
+        score = weight * recency_factor
+
+        clone = dict(art)
+        clone["score"] = score
+        ranked.append(clone)
 
     ranked.sort(key=lambda a: a.get("score", 0.0), reverse=True)
-
-    if isinstance(max_articles, int) and max_articles > 0:
-        ranked = ranked[:max_articles]
-
-    print(f"[RANK] Ranked {len(ranked)} articles.")
-    return ranked
+    top = ranked[:max_articles]
+    print(f"[RANK] Selected top {len(top)} articles out of {len(articles)}")
+    return top
