@@ -1,280 +1,242 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime
-from pathlib import Path
-from typing import Dict, List, Any, Optional
-import time
-import logging
+from datetime import datetime, timezone
+from typing import Any, Dict, List, Optional
 
-import yaml
 import feedparser
 
 
-BASE_DIR = Path(__file__).resolve().parent.parent
-CONFIG_PATH = BASE_DIR / "config" / "sources_rss.yaml"
-
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
-
-
-# -------------------------------------------------------------------
-#  DATA MODEL
-# -------------------------------------------------------------------
-
 @dataclass
-class Article:
-    id: str
-    title: str
-    link: str
-    source: str
-    topic: str
-    published: Optional[datetime]
-    summary: str
-
-    def to_dict(self) -> Dict[str, Any]:
-        return {
-            "id": self.id,
-            "title": self.title,
-            "link": self.link,
-            "source": self.source,
-            "topic": self.topic,
-            "published": self.published.isoformat() if self.published else None,
-            "summary": self.summary,
-        }
+class RssSource:
+    name: str
+    url: str
+    topic: Optional[str] = None
+    weight: float = 1.0
+    enabled: bool = True
 
 
 # -------------------------------------------------------------------
-#  CONFIG LOADER
+# Helpers
 # -------------------------------------------------------------------
 
-def _load_sources_config() -> List[Dict[str, str]]:
+def _normalize_sources(feeds_cfg: List[Dict[str, Any]]) -> List[RssSource]:
     """
-    Legge config/sources_rss.yaml e restituisce una lista di feed:
-
-      [
-        {"name": "...", "url": "...", "topic": "..."},
-        ...
-      ]
-
-    Supporta due forme di YAML:
-
-    1)  feeds:
-          - name: "Wired – Business"
-            url: "https://..."
-            topic: "AI/Cloud/Quantum"
-
-    2)  topics:
-          - topic: "AI/Cloud/Quantum"
-            feeds:
-              - name: "Wired – Business"
-                url: "https://..."
+    Converte la lista di dict letta da sources_rss.yaml in RssSource,
+    e filtra i feed disabilitati o senza URL.
     """
-    if not CONFIG_PATH.exists():
-        logger.warning("[RSS] sources_rss.yaml not found at %s", CONFIG_PATH)
-        return []
+    sources: List[RssSource] = []
 
-    try:
-        raw = yaml.safe_load(CONFIG_PATH.read_text(encoding="utf-8")) or {}
-    except Exception as e:
-        logger.error("[RSS] Cannot parse sources_rss.yaml: %r", e)
-        return []
+    if not isinstance(feeds_cfg, list):
+        print("[RSS] feeds_cfg is not a list, nothing to do.")
+        return sources
 
-    feeds: List[Dict[str, str]] = []
-
-    # Case 1: flat "feeds"
-    for item in raw.get("feeds", []) or []:
-        if not isinstance(item, dict):
-            continue
-        name = str(item.get("name") or "").strip()
-        url = str(item.get("url") or "").strip()
-        topic = str(item.get("topic") or item.get("category") or "Misc").strip()
-        if not (name and url):
-            continue
-        feeds.append({"name": name, "url": url, "topic": topic})
-
-    # Case 2: grouped by "topics"
-    for topic_group in raw.get("topics", []) or []:
-        if not isinstance(topic_group, dict):
-            continue
-        topic_name = str(
-            topic_group.get("topic")
-            or topic_group.get("name")
-            or "Misc"
-        ).strip()
-        for item in topic_group.get("feeds", []) or []:
-            if not isinstance(item, dict):
-                continue
-            name = str(item.get("name") or "").strip()
-            url = str(item.get("url") or "").strip()
-            if not (name and url):
-                continue
-            feeds.append({"name": name, "url": url, "topic": topic_name})
-
-    logger.info("[RSS] Loaded %d RSS feeds from config", len(feeds))
-    return feeds
-
-
-# -------------------------------------------------------------------
-#  FEED FETCHING
-# -------------------------------------------------------------------
-
-def _parse_datetime(entry: Any) -> Optional[datetime]:
-    """
-    Converte published_parsed / updated_parsed in datetime.
-    Se non disponibile, ritorna None.
-    """
-    for key in ("published_parsed", "updated_parsed"):
-        value = getattr(entry, key, None) or entry.get(key) if isinstance(entry, dict) else None
-        if value:
-            try:
-                # feedparser dà time.struct_time
-                return datetime.fromtimestamp(time.mktime(value))
-            except Exception:
-                continue
-    return None
-
-
-def _fetch_feed(feed_cfg: Dict[str, str]) -> List[Article]:
-    """
-    Scarica un singolo feed RSS. In caso di errore logga e ritorna [].
-    """
-    name = feed_cfg["name"]
-    url = feed_cfg["url"]
-    topic = feed_cfg["topic"]
-
-    logger.info("[RSS] Fetching feed: %s — %s", name, url)
-
-    try:
-        parsed = feedparser.parse(url)
-    except Exception as e:
-        logger.error(
-            "[RSS] ERROR %s: failed to fetch/parse feed (%r). Skipping this feed.",
-            name,
-            e,
-        )
-        return []
-
-    if parsed.bozo:
-        # bozo_exception può essere innocua: logghiamo e continuiamo.
-        logger.warning(
-            "[RSS][WARN] %s: bozo feed (%r). Continuing with available entries.",
-            name,
-            parsed.bozo_exception,
-        )
-
-    articles: List[Article] = []
-    for entry in parsed.entries:
-        link = getattr(entry, "link", None) or ""
-        title = getattr(entry, "title", None) or ""
-        if not (title and link):
+    for idx, raw in enumerate(feeds_cfg, start=1):
+        if not isinstance(raw, dict):
             continue
 
-        art_id = getattr(entry, "id", None) or link
+        url = str(raw.get("url") or "").strip()
+        if not url:
+            continue
 
-        published_dt = _parse_datetime(entry)
+        enabled = raw.get("enabled", True)
+        if isinstance(enabled, str):
+            enabled = enabled.lower() not in {"false", "0", "no"}
 
-        summary = (
-            getattr(entry, "summary", None)
-            or getattr(entry, "description", None)
-            or ""
-        )
-        summary = str(summary).strip()
+        if not enabled:
+            continue
 
-        articles.append(
-            Article(
-                id=str(art_id),
-                title=str(title).strip(),
-                link=str(link).strip(),
-                source=name,
-                topic=topic,
-                published=published_dt,
-                summary=summary,
-            )
-        )
+        name = str(raw.get("name") or f"Feed {idx}").strip()
+        topic = str(raw.get("topic") or "").strip() or None
+        weight = raw.get("weight", 1.0)
 
-    logger.info(
-        "[RSS] Collected %d entries from %s",
-        len(articles),
-        name,
-    )
-    return articles
-
-
-# -------------------------------------------------------------------
-#  PUBLIC API (compatibile con main.py)
-# -------------------------------------------------------------------
-
-def collect_from_rss() -> List[Dict[str, Any]]:
-    """
-    Funzione compatibile con la vecchia main.py.
-
-    - Carica la config;
-    - Scarica tutti i feed;
-    - Skippa quelli che falliscono SENZA far fallire il job;
-    - Ritorna una lista di dict (uno per articolo).
-    """
-    feeds_cfg = _load_sources_config()
-    if not feeds_cfg:
-        logger.warning("[RSS] No feeds configured. Returning empty list.")
-        return []
-
-    all_articles: List[Article] = []
-    for feed_cfg in feeds_cfg:
         try:
-            arts = _fetch_feed(feed_cfg)
-            all_articles.extend(arts)
+            weight = float(weight)
+        except Exception:
+            weight = 1.0
+
+        sources.append(
+            RssSource(
+                name=name,
+                url=url,
+                topic=topic,
+                weight=weight,
+                enabled=True,
+            )
+        )
+
+    print(f"[RSS] Normalized {len(sources)} enabled feeds.")
+    return sources
+
+
+def _entry_datetime(entry: Any) -> Optional[datetime]:
+    """
+    Prova a estrarre una datetime UTC da un entry (published/updated).
+    Ritorna None se non disponibile.
+    """
+    tm = getattr(entry, "published_parsed", None) or getattr(
+        entry, "updated_parsed", None
+    )
+    if not tm:
+        return None
+    try:
+        return datetime(
+            tm.tm_year,
+            tm.tm_mon,
+            tm.tm_mday,
+            tm.tm_hour,
+            tm.tm_min,
+            tm.tm_sec,
+            tzinfo=timezone.utc,
+        )
+    except Exception:
+        return None
+
+
+# -------------------------------------------------------------------
+# API principale
+# -------------------------------------------------------------------
+
+def collect_from_rss(feeds_cfg: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """
+    Legge i feed RSS definiti in feeds_cfg (già caricati da sources_rss.yaml)
+    e restituisce una lista di articoli "raw":
+
+      {
+        "title": ...,
+        "url": ...,
+        "summary": ...,
+        "source": ...,
+        "topic": ...,
+        "published": "ISO-8601",
+        "source_weight": float,
+      }
+
+    La funzione è ROBUSTA:
+    - se un feed non risponde / dà errore XML → logga e continua
+    - se il feed è vuoto → semplicemente salta
+    """
+    sources = _normalize_sources(feeds_cfg)
+    all_articles: List[Dict[str, Any]] = []
+
+    print("Collecting RSS...")
+
+    for src in sources:
+        try:
+            parsed = feedparser.parse(src.url)
         except Exception as e:
-            # robustezza massima: nessun feed deve far crashare tutto
-            logger.error(
-                "[RSS] Unexpected error while fetching %s (%s): %r",
-                feed_cfg.get("name"),
-                feed_cfg.get("url"),
-                e,
+            print(
+                f"[RSS][ERROR] {src.name}: failed to fetch/parsing feed "
+                f"({e!r}). Skipping this feed."
+            )
+            continue
+
+        if getattr(parsed, "bozo", False):
+            # feedparser non lancia eccezione, ma segnala bozo = True
+            exc = getattr(parsed, "bozo_exception", None)
+            print(
+                f"[RSS][WARN] {src.name}: bozo feed (parse error: {exc!r}). "
+                f"Skipping entries from this feed."
+            )
+            continue
+
+        entries = getattr(parsed, "entries", []) or []
+        if not entries:
+            print(f"[RSS][WARN] {src.name}: no entries found.")
+            continue
+
+        for entry in entries:
+            title = (getattr(entry, "title", "") or "").strip()
+            link = (
+                getattr(entry, "link", "")
+                or getattr(entry, "id", "")
+                or ""
+            ).strip()
+
+            if not title or not link:
+                continue
+
+            summary = (
+                getattr(entry, "summary", "")
+                or getattr(entry, "description", "")
+                or ""
             )
 
-    logger.info("[RSS] Total raw articles collected: %d", len(all_articles))
+            dt = _entry_datetime(entry)
+            published_iso = dt.isoformat() if dt is not None else ""
 
-    # Convertiamo in dict per compatibilità con il resto del codice
-    return [a.to_dict() for a in all_articles]
+            art: Dict[str, Any] = {
+                "title": title,
+                "url": link,
+                "link": link,  # alias
+                "summary": summary,
+                "source": src.name,
+                "topic": src.topic,
+                "published": published_iso,
+                "source_weight": src.weight,
+            }
+            all_articles.append(art)
+
+        print(
+            f"[RSS] {src.name}: collected {len(entries)} entries "
+            f"(running total: {len(all_articles)})"
+        )
+
+    print(f"[RSS] Total raw articles collected: {len(all_articles)}")
+    return all_articles
 
 
 def rank_articles(
     articles: List[Dict[str, Any]],
-    max_articles: int = 50,
+    ceo_names: Optional[List[str]] = None,
+    max_articles: Optional[int] = None,
 ) -> List[Dict[str, Any]]:
     """
-    Funzione compatibile con la vecchia main.py.
+    Ranking semplice ma robusto:
+    - base score da "source_weight"
+    - bonus per recency (fino a ~7 giorni)
+    - micro-boost se nel titolo compare un CEO (case-insensitive)
 
-    - Prende una lista di dict (ritornata da collect_from_rss());
-    - Ordina per data di pubblicazione (più recenti prima);
-    - Ritorna al massimo max_articles articoli.
-
-    Se un articolo non ha "published", viene messo in fondo,
-    ma NON fa mai crashare il processo.
+    Ritorna la lista ordinata desc per 'score'.
     """
-    def _parse_iso(dt_str: Optional[str]) -> float:
-        if not dt_str:
-            return 0.0
-        try:
-            return datetime.fromisoformat(dt_str).timestamp()
-        except Exception:
-            return 0.0
+    now = datetime.now(timezone.utc)
+    ceo_names = [c.lower() for c in (ceo_names or [])]
 
-    if not articles:
-        logger.warning("[RANK] Empty article list, nothing to rank.")
-        return []
+    ranked: List[Dict[str, Any]] = []
 
-    sorted_articles = sorted(
-        articles,
-        key=lambda a: _parse_iso(a.get("published")),
-        reverse=True,
-    )
+    for art in articles:
+        score = float(art.get("source_weight", 1.0))
 
-    selected = sorted_articles[:max_articles]
-    logger.info(
-        "[RANK] Selected top %d articles out of %d",
-        len(selected),
-        len(articles),
-    )
-    return selected
+        # recency: se published entro 7 giorni
+        published_str = str(art.get("published") or "")
+        if published_str:
+            try:
+                dt = datetime.fromisoformat(published_str)
+                if dt.tzinfo is None:
+                    dt = dt.replace(tzinfo=timezone.utc)
+                age_days = (now - dt).total_seconds() / 86400.0
+                if age_days <= 7:
+                    # più recente → più score, ma senza esagerare
+                    score += max(0.0, 2.0 - age_days * 0.2)
+            except Exception:
+                pass
+
+        # micro-boost se contiene un CEO nel titolo
+        title_l = str(art.get("title") or "").lower()
+        if ceo_names:
+            for name in ceo_names:
+                if name and name in title_l:
+                    score += 0.5
+                    break
+
+        art = dict(art)  # copia
+        art["score"] = score
+        ranked.append(art)
+
+    ranked.sort(key=lambda a: a.get("score", 0.0), reverse=True)
+
+    if isinstance(max_articles, int) and max_articles > 0:
+        ranked = ranked[:max_articles]
+
+    print(f"[RANK] Ranked {len(ranked)} articles.")
+    return ranked
