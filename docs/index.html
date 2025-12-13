@@ -4,6 +4,7 @@
   <meta charset="utf-8">
   <title>MaxBits · Daily Tech Intelligence</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
+
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -20,6 +21,7 @@
       --radius-lg: 16px;
       --shadow-soft: 0 18px 40px rgba(15, 23, 42, 0.18);
     }
+
     body[data-theme="dark"] {
       --bg: #020617;
       --card-bg: #020617;
@@ -28,7 +30,9 @@
       --border: #1f2937;
       --shadow-soft: 0 18px 40px rgba(0, 0, 0, 0.8);
     }
+
     * { box-sizing: border-box; }
+
     body {
       margin: 0;
       padding: 0;
@@ -37,14 +41,17 @@
       font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
       transition: background 0.35s ease, color 0.25s ease;
     }
+
     body[data-theme="dark"] {
       background: radial-gradient(circle at top left, #020617, #020617);
     }
+
     .page {
       max-width: 1120px;
       margin: 0 auto;
       padding: 24px 16px 40px;
     }
+
     header {
       display: flex;
       align-items: center;
@@ -52,11 +59,13 @@
       gap: 16px;
       padding: 8px 4px 22px;
     }
+
     .brand-left {
       display: flex;
       flex-direction: column;
       gap: 4px;
     }
+
     .brand-pill {
       display:inline-flex;
       align-items:center;
@@ -64,35 +73,47 @@
       border-radius:999px;
       background:#ffffff;
       box-shadow:0 6px 14px rgba(15,23,42,0.10);
-      width: fit-content;
     }
+
     body[data-theme="dark"] .brand-pill {
       background:#020617;
       box-shadow:0 10px 24px rgba(0,0,0,0.85);
     }
-    .brand-pill span:first-child { font-weight:600; padding-right:4px; }
-    .brand-pill span:last-child { font-weight:600; color:var(--accent-dark); }
+
+    .brand-pill span:first-child {
+      font-weight:600;
+      padding-right:4px;
+    }
+    .brand-pill span:last-child {
+      font-weight:600;
+      color:var(--accent-dark);
+    }
+
     .brand-tagline {
       font-size:11px;
       color:var(--text-muted);
     }
+
     .header-right {
       display:flex;
       flex-direction:column;
       align-items:flex-end;
-      gap:6px;
+      gap:4px;
     }
+
+    .view-mode-row {
+      display:flex;
+      align-items:center;
+      gap:8px;
+    }
+
     .view-mode-label {
       font-size:10px;
       letter-spacing:0.16em;
       text-transform:uppercase;
       color:var(--text-muted);
     }
-    .view-mode-row {
-      display:flex;
-      align-items:center;
-      gap:8px;
-    }
+
     .theme-toggle {
       border-radius: 999px;
       width: 40px;
@@ -105,7 +126,11 @@
       cursor: pointer;
       position: relative;
     }
-    body[data-theme="dark"] .theme-toggle { background: #020617; }
+
+    body[data-theme="dark"] .theme-toggle {
+      background: #020617;
+    }
+
     .theme-thumb {
       width: 16px;
       height: 16px;
@@ -114,11 +139,14 @@
       transform: translateX(0);
       transition: transform 0.22s ease, background 0.22s ease;
     }
+
     body[data-theme="dark"] .theme-thumb {
       transform: translateX(16px);
       background: #facc15;
     }
+
     .exit-btn {
+      margin-top:2px;
       font-size:11px;
       padding:3px 10px;
       border-radius:999px;
@@ -127,6 +155,7 @@
       color:#b91c1c;
       cursor:pointer;
     }
+
     body[data-theme="dark"] .exit-btn {
       background:#7f1d1d;
       border-color:#fecaca;
@@ -138,6 +167,7 @@
       grid-template-columns: minmax(0, 2.7fr) minmax(270px, 1fr);
       gap: 20px;
     }
+
     .main-card {
       background: radial-gradient(circle at top left, rgba(37,167,255,0.12), rgba(255,255,255,0.96));
       padding: 20px 20px 18px;
@@ -146,10 +176,12 @@
       border: 1px solid rgba(255,255,255,0.4);
       backdrop-filter: blur(10px);
     }
+
     body[data-theme="dark"] .main-card {
       background: radial-gradient(circle at top left, rgba(15,118,255,0.35), #020617);
       border-color: #1f2937;
     }
+
     .main-header {
       display: flex;
       justify-content: space-between;
@@ -157,16 +189,20 @@
       gap: 12px;
       margin-bottom: 12px;
     }
+
     .main-title {
       margin: 0;
       font-size: 20px;
       letter-spacing: 0.02em;
     }
+
     .main-meta {
       margin: 3px 0 0;
       font-size: 12px;
       color: var(--text-muted);
     }
+
+    /* "Today’s edition" also acts as Back/Home */
     .badge-today {
       font-size: 11px;
       padding: 4px 10px;
@@ -176,12 +212,15 @@
       border: 1px solid rgba(37,167,255,0.4);
       white-space: nowrap;
       cursor:pointer;
+      user-select:none;
     }
+
     body[data-theme="dark"] .badge-today {
       background: rgba(37,167,255,0.15);
       color: #e0f2fe;
       border-color: rgba(59,130,246,0.6);
     }
+
     .iframe-wrapper {
       margin-top: 10px;
       border-radius: 14px;
@@ -189,21 +228,25 @@
       border: 1px solid rgba(148,163,184,0.5);
       background: #ffffff;
     }
+
     body[data-theme="dark"] .iframe-wrapper {
       background: #020617;
       border-color: #1f2937;
     }
+
     .iframe-wrapper iframe {
       width: 100%;
       height: 78vh;
       border: none;
     }
 
+    /* Sidebar */
     .sidebar {
       display: flex;
       flex-direction: column;
       gap: 14px;
     }
+
     .side-card {
       background: var(--card-bg);
       border-radius: 14px;
@@ -211,9 +254,11 @@
       border: 1px solid var(--border);
       box-shadow: 0 10px 26px rgba(15,23,42,0.08);
     }
+
     body[data-theme="dark"] .side-card {
       box-shadow: 0 16px 40px rgba(0,0,0,0.85);
     }
+
     .side-title {
       margin: 0 0 6px 0;
       font-size: 12px;
@@ -221,47 +266,86 @@
       letter-spacing: 0.14em;
       color: var(--text-muted);
     }
+
     .clock-digital {
       font-size: 20px;
       font-weight: 600;
     }
+
     .clock-sub {
       margin:2px 0 0;
       font-size:11px;
       color:var(--text-muted);
     }
+
     .weather-temp {
       margin-top:8px;
       font-size:12px;
       color:var(--text-muted);
     }
 
+    /* Previous reports */
     .side-report-list {
       list-style: none;
       padding-left: 0;
       margin: 6px 0 0 0;
     }
-    .side-report-item + .side-report-item { margin-top: 4px; }
-    .side-report-date { font-size: 12px; font-weight: 500; }
-    .side-report-links { font-size: 11px; color: var(--text-muted); }
+
+    .side-report-item + .side-report-item {
+      margin-top: 4px;
+    }
+
+    .side-report-date {
+      font-size: 12px;
+      font-weight: 500;
+    }
+
+    .side-report-links {
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+
     .side-report-links a {
       color: var(--accent-dark);
       text-decoration: none;
       font-weight: 500;
     }
-    body[data-theme="dark"] .side-report-links a { color: #60a5fa; }
-    .side-report-links .dot { color: #d1d5db; margin: 0 4px; }
 
-    .extra-report-list { list-style: none; padding-left: 0; margin: 8px 0 0 0; }
-    .extra-report-item { margin-bottom: 8px; }
+    body[data-theme="dark"] .side-report-links a {
+      color: #60a5fa;
+    }
+
+    .side-report-links .dot {
+      color: #d1d5db;
+      margin: 0 4px;
+    }
+
+    /* Extra reports */
+    .extra-report-list {
+      list-style: none;
+      padding-left: 0;
+      margin: 8px 0 0 0;
+    }
+
+    .extra-report-item {
+      margin-bottom: 8px;
+    }
+
     .extra-report-link {
       font-size: 12px;
       font-weight: 500;
       color: var(--accent-dark);
       text-decoration: none;
     }
-    .extra-report-link:hover { text-decoration: underline; }
-    body[data-theme="dark"] .extra-report-link { color: #60a5fa; }
+
+    .extra-report-link:hover {
+      text-decoration: underline;
+    }
+
+    body[data-theme="dark"] .extra-report-link {
+      color: #60a5fa;
+    }
+
     .extra-report-meta {
       display: flex;
       justify-content: space-between;
@@ -271,6 +355,7 @@
       font-size: 10px;
       color: var(--text-muted);
     }
+
     .extra-report-pill {
       padding: 1px 6px;
       border-radius: 999px;
@@ -278,21 +363,25 @@
       font-size: 10px;
       white-space: nowrap;
     }
+
     .extra-report-pill-ok {
       background: rgba(22, 163, 74, 0.08);
       border-color: rgba(22, 163, 74, 0.35);
       color: #166534;
     }
+
     .extra-report-pill-expiring {
       background: rgba(234, 179, 8, 0.1);
       border-color: rgba(234, 179, 8, 0.45);
       color: #92400e;
     }
+
     body[data-theme="dark"] .extra-report-pill-ok {
       background: rgba(34,197,94,0.15);
       border-color: rgba(34,197,94,0.6);
       color: #bbf7d0;
     }
+
     body[data-theme="dark"] .extra-report-pill-expiring {
       background: rgba(250,204,21,0.1);
       border-color: rgba(250,204,21,0.6);
@@ -305,6 +394,7 @@
       color: var(--text-muted);
       text-align: left;
     }
+
     @media (max-width: 900px) {
       .layout { grid-template-columns: minmax(0, 1fr); }
     }
@@ -313,7 +403,6 @@
 
 <body>
   <div class="page">
-
     <header>
       <div class="brand-left">
         <div class="brand-pill">
@@ -336,7 +425,7 @@
     </header>
 
     <div class="layout">
-      <!-- MAIN COLUMN -->
+      <!-- MAIN -->
       <main class="main-card">
         <div class="main-header">
           <div>
@@ -355,6 +444,7 @@
 
       <!-- SIDEBAR -->
       <aside class="sidebar">
+
         <section class="side-card">
           <h2 class="side-title">Local time &amp; weather</h2>
           <div>
@@ -367,110 +457,93 @@
         <section class="side-card">
           <h2 class="side-title">Previous 6 reports</h2>
           <ul class="side-report-list">
-
-        <li class="side-report-item">
-          <div class="side-report-main">
-            <span class="side-report-date">2025-12-12</span>
-            <span class="side-report-links"><a href="reports/html/report_2025-12-12.html" target="_blank" rel="noopener">HTML</a><span class="dot">·</span><a href="reports/pdf/report_2025-12-12.pdf" target="_blank" rel="noopener">PDF</a></span>
-          </div>
-        </li>
-
-        <li class="side-report-item">
-          <div class="side-report-main">
-            <span class="side-report-date">2025-12-11</span>
-            <span class="side-report-links"><a href="reports/html/report_2025-12-11.html" target="_blank" rel="noopener">HTML</a><span class="dot">·</span><a href="reports/pdf/report_2025-12-11.pdf" target="_blank" rel="noopener">PDF</a></span>
-          </div>
-        </li>
-
-        <li class="side-report-item">
-          <div class="side-report-main">
-            <span class="side-report-date">2025-12-10</span>
-            <span class="side-report-links"><a href="reports/html/report_2025-12-10.html" target="_blank" rel="noopener">HTML</a><span class="dot">·</span><a href="reports/pdf/report_2025-12-10.pdf" target="_blank" rel="noopener">PDF</a></span>
-          </div>
-        </li>
-
-        <li class="side-report-item">
-          <div class="side-report-main">
-            <span class="side-report-date">2025-12-09</span>
-            <span class="side-report-links"><a href="reports/html/report_2025-12-09.html" target="_blank" rel="noopener">HTML</a><span class="dot">·</span><a href="reports/pdf/report_2025-12-09.pdf" target="_blank" rel="noopener">PDF</a></span>
-          </div>
-        </li>
-
-        <li class="side-report-item">
-          <div class="side-report-main">
-            <span class="side-report-date">2025-12-08</span>
-            <span class="side-report-links"><a href="reports/html/report_2025-12-08.html" target="_blank" rel="noopener">HTML</a><span class="dot">·</span><a href="reports/pdf/report_2025-12-08.pdf" target="_blank" rel="noopener">PDF</a></span>
-          </div>
-        </li>
-
-        <li class="side-report-item">
-          <div class="side-report-main">
-            <span class="side-report-date">2025-12-07</span>
-            <span class="side-report-links"><a href="reports/html/report_2025-12-07.html" target="_blank" rel="noopener">HTML</a><span class="dot">·</span><a href="reports/pdf/report_2025-12-07.pdf" target="_blank" rel="noopener">PDF</a></span>
-          </div>
-        </li>
+<li class="side-report-item">
+  <div class="side-report-main">
+    <span class="side-report-date">2025-12-12</span>
+    <span class="side-report-links"><a href="reports/pdf/report_2025-12-12.pdf" target="_blank" rel="noopener">PDF</a><span class="dot">·</span><a href="reports/html/report_2025-12-12.html" target="_blank" rel="noopener">HTML</a></span>
+  </div>
+</li>
+<li class="side-report-item">
+  <div class="side-report-main">
+    <span class="side-report-date">2025-12-11</span>
+    <span class="side-report-links"><a href="reports/pdf/report_2025-12-11.pdf" target="_blank" rel="noopener">PDF</a><span class="dot">·</span><a href="reports/html/report_2025-12-11.html" target="_blank" rel="noopener">HTML</a></span>
+  </div>
+</li>
+<li class="side-report-item">
+  <div class="side-report-main">
+    <span class="side-report-date">2025-12-10</span>
+    <span class="side-report-links"><a href="reports/pdf/report_2025-12-10.pdf" target="_blank" rel="noopener">PDF</a><span class="dot">·</span><a href="reports/html/report_2025-12-10.html" target="_blank" rel="noopener">HTML</a></span>
+  </div>
+</li>
+<li class="side-report-item">
+  <div class="side-report-main">
+    <span class="side-report-date">2025-12-09</span>
+    <span class="side-report-links"><a href="reports/pdf/report_2025-12-09.pdf" target="_blank" rel="noopener">PDF</a><span class="dot">·</span><a href="reports/html/report_2025-12-09.html" target="_blank" rel="noopener">HTML</a></span>
+  </div>
+</li>
+<li class="side-report-item">
+  <div class="side-report-main">
+    <span class="side-report-date">2025-12-08</span>
+    <span class="side-report-links"><a href="reports/pdf/report_2025-12-08.pdf" target="_blank" rel="noopener">PDF</a><span class="dot">·</span><a href="reports/html/report_2025-12-08.html" target="_blank" rel="noopener">HTML</a></span>
+  </div>
+</li>
+<li class="side-report-item">
+  <div class="side-report-main">
+    <span class="side-report-date">2025-12-07</span>
+    <span class="side-report-links"><a href="reports/pdf/report_2025-12-07.pdf" target="_blank" rel="noopener">PDF</a><span class="dot">·</span><a href="reports/html/report_2025-12-07.html" target="_blank" rel="noopener">HTML</a></span>
+  </div>
+</li>
           </ul>
         </section>
 
         <section class="side-card">
           <h2 class="side-title">Extra reports (30 days)</h2>
           <ul class="extra-report-list">
-
-        <li class="extra-report-item">
-          <a href="https://openknowledge.worldbank.org/server/api/core/bitstreams/dccd113e-3ce6-4442-ac35-bc4a5a205ee2/content" target="_blank" rel="noopener" class="extra-report-link">Digital Progress and Inclusive Growth – World Bank 2025</a>
-          <div class="extra-report-meta">
-            <span class="extra-report-date">2025-12-10</span>
-            <span class="extra-report-pill extra-report-pill-ok">27 days left</span>
-          </div>
-        </li>
-        
-
-        <li class="extra-report-item">
-          <a href="https://ai.stanford.edu/wp-content/uploads/2025/01/stanford_ai_horizon_2025.pdf" target="_blank" rel="noopener" class="extra-report-link">2025 AI Horizon Report – Stanford</a>
-          <div class="extra-report-meta">
-            <span class="extra-report-date">2025-12-08</span>
-            <span class="extra-report-pill extra-report-pill-ok">25 days left</span>
-          </div>
-        </li>
-        
-
-        <li class="extra-report-item">
-          <a href="https://www.accenture.com/content/dam/accenture/future_cloud_trends_2025.pdf" target="_blank" rel="noopener" class="extra-report-link">Global Cloud Trends 2025 – Accenture</a>
-          <div class="extra-report-meta">
-            <span class="extra-report-date">2025-12-05</span>
-            <span class="extra-report-pill extra-report-pill-ok">22 days left</span>
-          </div>
-        </li>
-        
-
-        <li class="extra-report-item">
-          <a href="https://www.nasa.gov/wp-content/uploads/2025/01/mit_space_systems_2025.pdf" target="_blank" rel="noopener" class="extra-report-link">2025 Space Systems Outlook – MIT</a>
-          <div class="extra-report-meta">
-            <span class="extra-report-date">2025-12-03</span>
-            <span class="extra-report-pill extra-report-pill-ok">20 days left</span>
-          </div>
-        </li>
-        
-
-        <li class="extra-report-item">
-          <a href="https://research.ibm.com/publications/2025_quantum_outlook.pdf" target="_blank" rel="noopener" class="extra-report-link">Quantum Computing Industry Outlook – IBM Research 2025</a>
-          <div class="extra-report-meta">
-            <span class="extra-report-date">2025-12-02</span>
-            <span class="extra-report-pill extra-report-pill-ok">19 days left</span>
-          </div>
-        </li>
-        
-
-        <li class="extra-report-item">
-          <a href="https://www.oecd.org/ai/policy/oecd_ai_safety_governance_2025.pdf" target="_blank" rel="noopener" class="extra-report-link">AI Safety & Governance – OECD Brief 2025</a>
-          <div class="extra-report-meta">
-            <span class="extra-report-date">2025-12-01</span>
-            <span class="extra-report-pill extra-report-pill-ok">18 days left</span>
-          </div>
-        </li>
-        
+<li class="extra-report-item">
+  <a href="https://openknowledge.worldbank.org/server/api/core/bitstreams/dccd113e-3ce6-4442-ac35-bc4a5a205ee2/content" target="_blank" rel="noopener" class="extra-report-link">Digital Progress and Inclusive Growth – World Bank 2025</a>
+  <div class="extra-report-meta">
+    <span class="extra-report-date">2025-12-10</span>
+    <span class="extra-report-pill extra-report-pill-ok">27 days left</span>
+  </div>
+</li>
+<li class="extra-report-item">
+  <a href="https://ai.stanford.edu/wp-content/uploads/2025/01/stanford_ai_horizon_2025.pdf" target="_blank" rel="noopener" class="extra-report-link">2025 AI Horizon Report – Stanford</a>
+  <div class="extra-report-meta">
+    <span class="extra-report-date">2025-12-08</span>
+    <span class="extra-report-pill extra-report-pill-ok">25 days left</span>
+  </div>
+</li>
+<li class="extra-report-item">
+  <a href="https://www.accenture.com/content/dam/accenture/future_cloud_trends_2025.pdf" target="_blank" rel="noopener" class="extra-report-link">Global Cloud Trends 2025 – Accenture</a>
+  <div class="extra-report-meta">
+    <span class="extra-report-date">2025-12-05</span>
+    <span class="extra-report-pill extra-report-pill-ok">22 days left</span>
+  </div>
+</li>
+<li class="extra-report-item">
+  <a href="https://www.nasa.gov/wp-content/uploads/2025/01/mit_space_systems_2025.pdf" target="_blank" rel="noopener" class="extra-report-link">2025 Space Systems Outlook – MIT</a>
+  <div class="extra-report-meta">
+    <span class="extra-report-date">2025-12-03</span>
+    <span class="extra-report-pill extra-report-pill-ok">20 days left</span>
+  </div>
+</li>
+<li class="extra-report-item">
+  <a href="https://research.ibm.com/publications/2025_quantum_outlook.pdf" target="_blank" rel="noopener" class="extra-report-link">Quantum Computing Industry Outlook – IBM Research 2025</a>
+  <div class="extra-report-meta">
+    <span class="extra-report-date">2025-12-02</span>
+    <span class="extra-report-pill extra-report-pill-ok">19 days left</span>
+  </div>
+</li>
+<li class="extra-report-item">
+  <a href="https://www.oecd.org/ai/policy/oecd_ai_safety_governance_2025.pdf" target="_blank" rel="noopener" class="extra-report-link">AI Safety & Governance – OECD Brief 2025</a>
+  <div class="extra-report-meta">
+    <span class="extra-report-date">2025-12-01</span>
+    <span class="extra-report-pill extra-report-pill-ok">18 days left</span>
+  </div>
+</li>
           </ul>
         </section>
+
       </aside>
     </div>
 
@@ -485,6 +558,7 @@
     (function() {
       const PASSWORD = "mix";
       const KEY = "maxbits-auth";
+
       if (!sessionStorage.getItem(KEY)) {
         const userInput = prompt("Enter password to access MaxBits:");
         if (userInput !== PASSWORD) {
@@ -502,11 +576,13 @@
       const root = document.body;
 
       function applyTheme(t) {
-        root.setAttribute("data-theme", t === "dark" ? "dark" : "light");
+        if (t === "dark") root.setAttribute("data-theme", "dark");
+        else root.setAttribute("data-theme", "light");
       }
 
       const stored = localStorage.getItem(key);
-      applyTheme(stored === "dark" ? "dark" : "light");
+      if (stored === "light" || stored === "dark") applyTheme(stored);
+      else applyTheme("light");
 
       const btn = document.getElementById("theme-toggle");
       if (btn) {
@@ -519,7 +595,7 @@
       }
     })();
 
-    // ---- Today’s edition = back to home ----
+    // ---- Today’s edition: always back to home ----
     (function() {
       const btn = document.getElementById("today-badge");
       if (!btn) return;
@@ -543,17 +619,22 @@
       const now = new Date();
       const timeEl = document.getElementById("clock-digital");
       const dateEl = document.getElementById("clock-date");
+
       if (timeEl) {
-        timeEl.textContent = now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+        timeEl.textContent = now.toLocaleTimeString([], {
+          hour: "2-digit", minute: "2-digit", second: "2-digit"
+        });
       }
       if (dateEl) {
-        dateEl.textContent = now.toLocaleDateString([], { weekday: "short", day: "2-digit", month: "short", year: "numeric" });
+        dateEl.textContent = now.toLocaleDateString([], {
+          weekday: "short", day: "2-digit", month: "short", year: "numeric"
+        });
       }
     }
     setInterval(updateClock, 1000);
     updateClock();
 
-    // ---- Weather via browser geolocation + Open-Meteo ----
+    // ---- Weather via geolocation + Open-Meteo (best effort) ----
     (function() {
       const el = document.getElementById("weather-text");
       if (!el) return;
@@ -577,8 +658,8 @@
             .then(data => {
               try {
                 const t = data.current.temperature_2m;
-                if (typeof t === "number") show("Your location  ·  " + t.toFixed(1) + "°C");
-                else show("Your location  ·  temperature unavailable");
+                if (typeof t === "number") show("Your location · " + t.toFixed(1) + "°C");
+                else show("Your location · temperature unavailable");
               } catch (e) {
                 show("Weather unavailable.");
               }
