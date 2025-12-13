@@ -2,23 +2,41 @@ extra_reports:
   - title: "2025 AI Horizon Report – Stanford"
     url: "https://ai.stanford.edu/wp-content/uploads/2025/01/stanford_ai_horizon_2025.pdf"
     date: "2025-12-08"
+    description: >
+      Overview of key AI trends for 2025, including foundation models,
+      regulation, compute concentration and societal impact.
 
   - title: "2025 Space Systems Outlook – MIT"
     url: "https://www.nasa.gov/wp-content/uploads/2025/01/mit_space_systems_2025.pdf"
     date: "2025-12-03"
+    description: >
+      Analysis of future space architectures, satellite constellations
+      and public–private collaboration in space systems.
 
   - title: "AI Safety & Governance – OECD Brief 2025"
     url: "https://www.oecd.org/ai/policy/oecd_ai_safety_governance_2025.pdf"
     date: "2025-12-01"
+    description: >
+      Policy-oriented report on AI safety, governance frameworks
+      and international regulatory alignment.
 
   - title: "Global Cloud Trends 2025 – Accenture"
     url: "https://www.accenture.com/content/dam/accenture/future_cloud_trends_2025.pdf"
     date: "2025-12-05"
+    description: >
+      Enterprise cloud evolution, hybrid strategies and AI-driven
+      infrastructure transformation.
 
   - title: "Quantum Computing Industry Outlook – IBM Research 2025"
     url: "https://research.ibm.com/publications/2025_quantum_outlook.pdf"
     date: "2025-12-02"
+    description: >
+      State of quantum computing research, hardware progress
+      and expected industrial applications.
 
   - title: "Digital Progress and Inclusive Growth – World Bank 2025"
     url: "https://openknowledge.worldbank.org/server/api/core/bitstreams/dccd113e-3ce6-4442-ac35-bc4a5a205ee2/content"
     date: "2025-12-10"
+    description: >
+      How digital technologies support inclusive economic growth
+      and reduce global inequality.
