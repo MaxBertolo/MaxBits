@@ -183,7 +183,7 @@ def _build_previous_reports_list(reports_for_docs: List[Dict]) -> str:
 
 
 # -------------------------------------------------------------------
-#  EXTRA REPORTS (YAML + 30 DAYS WINDOW)
+#  EXTRA REPORTS (YAML + 100 DAYS WINDOW)
 # -------------------------------------------------------------------
 
 def _load_extra_reports() -> List[Dict]:
@@ -193,7 +193,7 @@ def _load_extra_reports() -> List[Dict]:
         - title: ...
           url: ...
           date: "YYYY-MM-DD"
-    Returns only last 30 days entries (UTC date comparison).
+    Returns only last 100 days entries (UTC date comparison).
     """
     if not EXTRA_REPORTS_CFG.exists():
         print(f"[MAG] No extra_reports.yaml at {EXTRA_REPORTS_CFG}")
@@ -211,7 +211,7 @@ def _load_extra_reports() -> List[Dict]:
         return []
 
     today = datetime.utcnow().date()
-    cutoff = today - timedelta(days=30)
+    cutoff = today - timedelta(days=100)
 
     out: List[Dict] = []
     for item in raw_list:
@@ -233,18 +233,18 @@ def _load_extra_reports() -> List[Dict]:
             continue
 
         age_days = (today - d).days
-        days_left = max(0, 30 - age_days)
+        days_left = max(0, 100 - age_days)
 
         out.append({"title": title, "url": url, "date": date_str, "days_left": days_left})
 
     out.sort(key=lambda x: x["date"], reverse=True)
-    print(f"[MAG] Loaded {len(out)} extra reports (<= 30 days)")
+    print(f"[MAG] Loaded {len(out)} extra reports (<= 100 days)")
     return out
 
 
 def _build_extra_reports_sidebar_html(extra_reports: List[Dict]) -> str:
     if not extra_reports:
-        return '<p style="font-size:12px; color:#6b7280;">No extra reports (last 30 days).</p>'
+        return '<p style="font-size:12px; color:#6b7280;">No extra reports (last 100 days).</p>'
 
     items: List[str] = []
     for rep in extra_reports:
