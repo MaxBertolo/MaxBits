@@ -716,13 +716,36 @@ def _build_index_content(reports_for_docs: List[Dict]) -> str:
   <div class="page">
     <header>
       <div class="brand-left">
-        <div class="brand-pill">
-          <span>Max</span><span>Bits</span>
-        </div>
-        <div class="brand-tagline">
-          Daily Tech Intelligence · Telco · Media · AI · Cloud · Space · Patents
-        </div>
-      </div>
+  <div style="display:flex; align-items:center; gap:10px;">
+    <div class="brand-pill">
+      <span>Max</span><span>Bits</span>
+    </div>
+
+    <!-- Top 10 Hot Topics 2026 -->
+    <a
+      href="reports/pdf/Top_10_Hot_Topics_2026_MaxBits_Technology_Outlook.pdf"
+      target="_blank"
+      rel="noopener"
+      style="
+        font-size:11px;
+        padding:4px 10px;
+        border-radius:999px;
+        border:1px solid #93c5fd;
+        background:#e0f2fe;
+        color:#1e3a8a;
+        text-decoration:none;
+        font-weight:500;
+      "
+    >
+      Top 10 Hot Topics for 2026
+    </a>
+  </div>
+
+  <div class="brand-tagline">
+    Daily Tech Intelligence · Telco · Media · AI · Cloud · Space · Patents
+  </div>
+</div>
+
 
       <div class="header-right">
         <div class="view-mode-row">
