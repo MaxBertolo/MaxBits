@@ -29,14 +29,6 @@ def _render_header(date_str: str) -> str:
       Weekly = articoli selezionati con “Add to Weekly”, salvati solo nel tuo browser.
     </span>
   </div>
-
-  # <section id="history-box"
-   #        style="margin-top:14px; padding:10px 12px; border-radius:6px; background:#f5f5f5;">
-    #<strong style="font-size:13px;">Last 7 daily reports</strong>
-    #<ul id="history-list"
-     #   style="margin:6px 0 0 16px; padding:0; font-size:12px; color:#333;">
-    #</ul>
-  #</section>
 </header>
 """
 
