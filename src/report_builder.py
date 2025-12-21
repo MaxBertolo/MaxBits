@@ -628,7 +628,7 @@ def build_html_report(
     const ul = document.getElementById("history-list");
     if (!ul) return;
     if (!hist.length) {{
-      ul.innerHTML = "<li>No reports available yet.</li>";
+      ul.innerHTML = "<li>reports available on the left column.</li>";
       return;
     }}
 
